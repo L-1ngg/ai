@@ -1,9 +1,9 @@
 /**
  * Conservative `supports` blocks for newly synced native-provider models.
  *
- * The generator only writes facts it can see: input modalities from
- * the modelschemas catalog (OpenRouter enrich when the native row is
- * empty), plus features inferred from `supported_parameters`.
+ * The generator only writes facts it can see: input modalities and
+ * `supported_parameters` from the native modelschemas catalog
+ * (OpenRouter fills a field only when the native row is empty).
  * It does not copy a reference model's tool list (computer_use, x_search,
  * google_search, …) onto every new id.
  */
