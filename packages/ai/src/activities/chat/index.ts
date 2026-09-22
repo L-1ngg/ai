@@ -38,6 +38,7 @@ import {
   tanstackMetadata,
   withTanstackMetadata,
 } from '../../utilities/merge-metadata'
+import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
@@ -102,6 +103,7 @@ import type {
   ChatStream,
   ConstrainedModelMessage,
   CustomEvent,
+  EmitCustomEventOptions,
   InferSchemaType,
   Interrupt,
   JSONSchema,
@@ -1001,9 +1003,9 @@ class TextEngine<
         this.abortReason = reason
         this.middlewareAbortController?.abort(reason)
       },
-      emitCustomEvent: (name, value) => {
+      emitCustomEvent: (name, value, options) => {
         this.middlewareCustomQueue.push(
-          this.createCustomEventChunk(name, value),
+          this.createCustomEventChunk(name, value, options),
         )
         const waiters = this.middlewareCustomWaiters
         this.middlewareCustomWaiters = []
@@ -2020,7 +2022,8 @@ class TextEngine<
       this.resolveExecutableTools(executablePendingCalls),
       approvals,
       clientToolResults,
-      (eventName, data) => this.createCustomEventChunk(eventName, data),
+      (eventName, data, options) =>
+        this.createCustomEventChunk(eventName, data, options),
       {
         onBeforeToolCall: async (toolCall, tool, args) => {
           this.logger.tools(`phase=before name=${toolCall.function.name}`, {
@@ -2203,7 +2206,8 @@ class TextEngine<
       this.resolveExecutableTools(executableToolCalls),
       approvals,
       clientToolResults,
-      (eventName, data) => this.createCustomEventChunk(eventName, data),
+      (eventName, data, options) =>
+        this.createCustomEventChunk(eventName, data, options),
       {
         onBeforeToolCall: async (toolCall, tool, args) => {
           this.logger.tools(`phase=before name=${toolCall.function.name}`, {
@@ -4616,13 +4620,15 @@ class TextEngine<
   private createCustomEventChunk(
     eventName: string,
     value: Record<string, unknown>,
+    options?: EmitCustomEventOptions,
   ): CustomEvent {
-    return {
+    const chunk: CustomEvent = {
       type: EventType.CUSTOM,
       timestamp: Date.now(),
       name: eventName,
       value,
     }
+    return options?.batch ? withDurabilityBatchHint(chunk) : chunk
   }
 
   private createId(prefix: string): string {
