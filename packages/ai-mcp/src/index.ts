@@ -9,7 +9,7 @@ export type {
   ServerDescriptor,
   ToolsOptions,
 } from './types'
-export type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
+export type { ToolAnnotations } from '@modelcontextprotocol/client'
 export type {
   TransportConfig,
   TransportInput,
@@ -17,8 +17,8 @@ export type {
   SseTransportConfig,
   StdioTransportConfig,
 } from './transport'
-export type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-export { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+export type { Transport } from '@modelcontextprotocol/client'
+export { InMemoryTransport } from '@modelcontextprotocol/client'
 export {
   MCPConnectionError,
   DuplicateToolNameError,

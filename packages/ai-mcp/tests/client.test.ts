@@ -1,5 +1,10 @@
 // packages/ai-mcp/tests/client.test.ts
 import { describe, expect, it, vi } from 'vitest'
+import {
+  InMemoryTransport,
+  SUPPORTED_PROTOCOL_VERSIONS,
+} from '@modelcontextprotocol/client'
+import { Server } from '@modelcontextprotocol/server'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { createMCPClient, createMCPClientFromTransport } from '../src/client'
@@ -22,11 +27,11 @@ import {
   makeServerWithUnsupportedTaskTool,
   makeServerWithWeatherTool,
 } from './helpers/in-memory-server'
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type {
-  JsonSchemaValidatorResult,
+  JSONRPCMessage,
+  Transport,
   jsonSchemaValidator,
-} from '@modelcontextprotocol/sdk/validation'
+} from '@modelcontextprotocol/client'
 
 describe('createMCPClient', () => {
   it('connects and returns discovered tools', async () => {
@@ -196,7 +201,10 @@ describe('createMCPClient', () => {
       (e: unknown) => e,
     )
     expect(err).toBeInstanceOf(MCPConnectionError)
-    expect((err as MCPConnectionError).cause).toBeInstanceOf(Error)
+    if (!(err instanceof MCPConnectionError)) {
+      throw new Error('expected MCPConnectionError')
+    }
+    expect(err.cause).toBeInstanceOf(Error)
   })
 
   it('callTool proxies directly to the server and returns CallToolResult', async () => {
@@ -234,19 +242,32 @@ describe('createMCPClient', () => {
     ])
   })
 
-  it('keeps output-schema validation for tools listed on an earlier page', async () => {
+  it('does not enforce output schemas for tools found through a paginated list', async () => {
     const { clientTransport } = await makeServerWithPaginatedLaxSchemaTool()
     await using client = await createMCPClientFromTransport(clientTransport)
     await client.tools()
-    // Page 1 declared an outputSchema; a later page must not wipe that
-    // SDK cache. Text-only content then fails structured-content validation.
-    await expect(client.callTool('first_page_tool')).rejects.toThrow()
+    // Listing reads each page with a raw request. That must not turn a later
+    // call into strict structured-content validation.
+    const result = await client.callTool('first_page_tool')
+    expect(result.content).toEqual([
+      { type: 'text', text: 'called first_page_tool' },
+    ])
   })
 
   it('fails tools() when tools/list repeats a pagination cursor', async () => {
     const { clientTransport } = await makeServerWithLoopingCursor()
     await using client = await createMCPClientFromTransport(clientTransport)
-    await expect(client.tools()).rejects.toThrow(/repeated a cursor/)
+    await expect(client.tools()).rejects.toThrow(
+      'MCP list pagination repeated a cursor',
+    )
+  })
+
+  it('fails tools() when tools/list passes the page cap', async () => {
+    const { clientTransport } = await makeServerWithUnendingToolList()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    await expect(client.tools()).rejects.toThrow(
+      'MCP list pagination exceeded 100 pages',
+    )
   })
 
   it('callTool does not re-list for a name absent from the cached list', async () => {
@@ -370,6 +391,30 @@ describe('createMCPClient', () => {
     })
   })
 
+  it('opens subscriptions/listen on a spec 2026 server that reports tool list changes', async () => {
+    const { clientTransport, sawListen } = await makeModernChangingServer()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    expect(client.capabilities).toMatchObject({
+      tools: { listChanged: true },
+    })
+    expect(sawListen()).toBe(true)
+  })
+
+  it('lists tools again after a spec 2026 tool list change', async () => {
+    const { clientTransport, notifyToolListChanged, getListRequests } =
+      await makeModernChangingServer()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    await client.callTool('tool_a')
+    const listed = getListRequests()
+    await client.callTool('tool_a')
+    expect(getListRequests()).toBe(listed)
+    await notifyToolListChanged()
+    await vi.waitFor(async () => {
+      await client.callTool('tool_a')
+      expect(getListRequests()).toBeGreaterThan(listed)
+    })
+  })
+
   it('callTool throws MCPConnectionError when client is closed', async () => {
     const { clientTransport } = await makeServerWithWeatherTool()
     const client = await createMCPClientFromTransport(clientTransport)
@@ -420,65 +465,45 @@ describe('createMCPClient', () => {
 })
 
 describe('clientOptions', () => {
-  /**
-   * Records every schema it is asked about, and accepts everything.
-   *
-   * Standing in for `CfWorkerJsonSchemaValidator`, which exists precisely
-   * because the SDK's default validator compiles schemas with `new Function` —
-   * forbidden on Cloudflare Workers, where it fails every call to a tool that
-   * declares an `outputSchema`.
-   */
-  function recordingValidator(): {
-    schemas: Array<unknown>
-    provider: jsonSchemaValidator
-  } {
-    const schemas: Array<unknown> = []
+  // A validator that would reject every schema. Listing and calling must not
+  // use it: discovery reads tools/list directly and does not arm SDK validation.
+  function rejectingValidator(): jsonSchemaValidator {
     return {
-      schemas,
-      provider: {
-        getValidator<T>(schema: unknown) {
-          schemas.push(schema)
-          // Annotated rather than inferred: the result type is a union, and
-          // without it TS widens `data` to `T | undefined` and neither branch
-          // matches.
-          return (input: unknown): JsonSchemaValidatorResult<T> => ({
-            valid: true,
-            data: input as T,
-            errorMessage: undefined,
-          })
-        },
+      getValidator() {
+        return () => ({
+          valid: false,
+          data: undefined,
+          errorMessage: 'rejected',
+        })
       },
     }
   }
 
-  it('forwards a custom jsonSchemaValidator to the SDK client', async () => {
+  it('calls a tool that declares an output schema without the custom validator', async () => {
     const { clientTransport } = await makeServerWithStructuredTool()
-    const { schemas, provider } = recordingValidator()
     await using client = await createMCPClientFromTransport(
       clientTransport,
       undefined,
-      { jsonSchemaValidator: provider },
+      { jsonSchemaValidator: rejectingValidator() },
     )
 
-    // The SDK builds every output validator during `tools/list`, not on call —
-    // see `cacheToolMetadata`. This is also why the default AJV provider fails
-    // an entire discovery on an edge runtime rather than a single tool call.
     await client.tools()
+    const result = await client.callTool('lookup_user', { id: 'u-1' })
 
-    expect(schemas).toEqual([expect.objectContaining({ type: 'object' })])
+    expect(result.structuredContent).toEqual({ id: 'u-1', name: 'Ada' })
   })
 
   it('accepts clientOptions through createMCPClient', async () => {
     const { clientTransport } = await makeServerWithStructuredTool()
-    const { schemas, provider } = recordingValidator()
     await using client = await createMCPClient({
       transport: clientTransport,
-      clientOptions: { jsonSchemaValidator: provider },
+      clientOptions: { jsonSchemaValidator: rejectingValidator() },
     })
 
     await client.tools()
+    const result = await client.callTool('lookup_user', { id: 'u-1' })
 
-    expect(schemas).toHaveLength(1)
+    expect(result.structuredContent).toEqual({ id: 'u-1', name: 'Ada' })
   })
 
   it('falls back to the SDK default when no clientOptions are given', async () => {
@@ -497,7 +522,7 @@ describe('clientOptions', () => {
     // back to the SDK's AJV default — the exact failure this option exists to
     // avoid, reintroduced for every MCP Apps widget call.
     const { clientTransport } = await makeServerWithStructuredTool()
-    const { provider } = recordingValidator()
+    const provider = rejectingValidator()
     await using client = await createMCPClient({
       transport: clientTransport,
       prefix: 'weather',
@@ -521,3 +546,102 @@ describe('clientOptions', () => {
     })
   })
 })
+
+// tools/list always returns a new cursor, so pagination never reaches the last page.
+async function makeServerWithUnendingToolList() {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const server = new Server(
+    { name: 'unending-list', version: '1.0.0' },
+    { capabilities: { tools: {} } },
+  )
+  server.setRequestHandler('tools/list', (request) => {
+    const cursor = request.params?.cursor
+    const index = cursor === undefined ? 0 : Number(cursor)
+    return {
+      tools: [
+        {
+          name: `tool_${index}`,
+          inputSchema: { type: 'object' },
+        },
+      ],
+      nextCursor: String(index + 1),
+    }
+  })
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
+// Spec 2026 server. Tool-list changes are sent only after subscriptions/listen.
+// The server has no public setter for the negotiated era, so the test sets it.
+async function makeModernChangingServer() {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const server = new Server(
+    { name: 'modern-changing', version: '1.0.0' },
+    {
+      capabilities: { tools: { listChanged: true } },
+      supportedProtocolVersions: [
+        ...SUPPORTED_PROTOCOL_VERSIONS,
+        '2026-07-28',
+      ],
+    },
+  )
+  Object.assign(server, { _negotiatedProtocolVersion: '2026-07-28' })
+  let listRequests = 0
+  let listening = false
+  server.setRequestHandler('tools/list', () => {
+    listRequests += 1
+    return {
+      tools: [
+        {
+          name: 'tool_a',
+          description: 'A',
+          inputSchema: { type: 'object' },
+        },
+      ],
+    }
+  })
+  server.setRequestHandler('tools/call', (request) => ({
+    content: [{ type: 'text' as const, text: `called ${request.params.name}` }],
+  }))
+  await server.connect(serverTransport)
+  const previous = serverTransport.onmessage
+  serverTransport.onmessage = (message, extra) => {
+    if (!isSubscriptionsListen(message)) {
+      previous?.(message, extra)
+      return
+    }
+    listening = true
+    void server.notification({
+      method: 'notifications/subscriptions/acknowledged',
+      params: {
+        _meta: {
+          'io.modelcontextprotocol/subscriptionId': message.id,
+        },
+        notifications: { toolsListChanged: true },
+      },
+    })
+  }
+  return {
+    server,
+    clientTransport,
+    getListRequests: () => listRequests,
+    sawListen: () => listening,
+    notifyToolListChanged: async () => {
+      if (!listening) return
+      await server.sendToolListChanged()
+    },
+  }
+}
+
+function isSubscriptionsListen(
+  message: JSONRPCMessage,
+): message is JSONRPCMessage & {
+  method: 'subscriptions/listen'
+  id: string | number
+} {
+  if (!('method' in message) || !('id' in message)) return false
+  return (
+    message.method === 'subscriptions/listen' &&
+    (typeof message.id === 'string' || typeof message.id === 'number')
+  )
+}

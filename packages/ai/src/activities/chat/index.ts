@@ -87,6 +87,7 @@ import type {
 import type {
   ApprovalRequest,
   ClientToolRequest,
+  McpInputRequest,
   ToolResult,
 } from './tools/tool-calls'
 import type { ApprovalSchemaConfig } from './tools/tool-definition'
@@ -2078,10 +2079,11 @@ class TextEngine<
       }),
     )
 
-    if (
+    const pauseForDecision =
       executionResult.needsApproval.length > 0 ||
-      executionResult.needsClientExecution.length > 0
-    ) {
+      executionResult.needsClientExecution.length > 0 ||
+      executionResult.inputRequired.length > 0
+    if (pauseForDecision) {
       this.discardDeferredToolCallRunFinishedChunks()
 
       if (allResults.length > 0) {
@@ -2097,6 +2099,8 @@ class TextEngine<
         finishEvent,
         executionResult.needsApproval,
         executionResult.needsClientExecution,
+        [],
+        executionResult.inputRequired,
       )
       this.setToolPhase(emitted ? 'wait' : 'stop')
       return emitted ? 'wait' : 'stop'
@@ -2281,15 +2285,17 @@ class TextEngine<
         finishEvent,
         toolCalls,
         afterToolRequests,
+        executionResult.inputRequired,
       )
       this.setToolPhase('wait')
       return
     }
 
-    if (
+    const pauseForDecision =
       executionResult.needsApproval.length > 0 ||
-      executionResult.needsClientExecution.length > 0
-    ) {
+      executionResult.needsClientExecution.length > 0 ||
+      executionResult.inputRequired.length > 0
+    if (pauseForDecision) {
       if (allResults.length > 0) {
         for (const chunk of afterToolBoundaryChunks) {
           yield* this.pipeThroughMiddleware(chunk)
@@ -2300,6 +2306,8 @@ class TextEngine<
         finishEvent,
         executionResult.needsApproval,
         executionResult.needsClientExecution,
+        [],
+        executionResult.inputRequired,
       )
       this.setToolPhase(emitted ? 'wait' : 'stop')
       return
@@ -2618,6 +2626,7 @@ class TextEngine<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     > = [],
     genericInterruptIds: ReadonlyArray<string> = [],
+    inputRequired: ReadonlyArray<McpInputRequest> = [],
   ): Array<Interrupt> {
     const interrupts: Array<Interrupt> = []
 
@@ -2735,6 +2744,22 @@ class TextEngine<
       })
     }
 
+    for (const pendingInput of inputRequired) {
+      interrupts.push({
+        id: `mcp_input_${pendingInput.toolCallId}`,
+        reason: 'mcp_input',
+        message: `Input required to run ${pendingInput.toolName}`,
+        toolCallId: pendingInput.toolCallId,
+        metadata: {
+          toolName: pendingInput.toolName,
+          [INTERRUPT_PAYLOAD_METADATA_KEY]: {
+            kind: pendingInput.kind,
+            request: pendingInput.request,
+          },
+        },
+      })
+    }
+
     const ids = new Set<string>()
     for (const interrupt of interrupts) {
       if (ids.has(interrupt.id)) {
@@ -2756,6 +2781,7 @@ class TextEngine<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     > = [],
     genericInterruptIds?: ReadonlyArray<string>,
+    inputRequired: ReadonlyArray<McpInputRequest> = [],
   ): StreamChunk {
     return {
       ...finishEvent,
@@ -2767,6 +2793,7 @@ class TextEngine<
           clientRequests,
           genericRequests,
           genericInterruptIds,
+          inputRequired,
         ),
       },
     }
@@ -2916,6 +2943,7 @@ class TextEngine<
     genericRequests: ReadonlyArray<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     > = [],
+    inputRequired: ReadonlyArray<McpInputRequest> = [],
   ): AsyncGenerator<StreamChunk, boolean, void> {
     yield* this.emitSyntheticRunStarted(finishEvent)
     const genericInterruptIds = genericRequests.map(() =>
@@ -2928,6 +2956,7 @@ class TextEngine<
         clientRequests,
         genericRequests,
         genericInterruptIds,
+        inputRequired,
       ),
     )
     let terminalOutputs: Array<StreamChunk>
@@ -2963,6 +2992,7 @@ class TextEngine<
     requests?: ReadonlyArray<
       GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
     >,
+    inputRequired: ReadonlyArray<McpInputRequest> = [],
   ): AsyncGenerator<StreamChunk, boolean, void> {
     this.middlewareCtx.phase = phase
     const boundaryRequests =
@@ -2998,6 +3028,7 @@ class TextEngine<
       actionable.approvals,
       actionable.clientRequests,
       boundaryRequests,
+      inputRequired,
     )
     return true
   }
@@ -4559,6 +4590,7 @@ class TextEngine<
         results: Array<ToolResult>
         needsApproval: Array<ApprovalRequest>
         needsClientExecution: Array<ClientToolRequest>
+        inputRequired: Array<McpInputRequest>
       },
       void
     >,
@@ -4568,6 +4600,7 @@ class TextEngine<
       results: Array<ToolResult>
       needsApproval: Array<ApprovalRequest>
       needsClientExecution: Array<ClientToolRequest>
+      inputRequired: Array<McpInputRequest>
     },
     void
   > {

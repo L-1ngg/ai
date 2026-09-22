@@ -1,9 +1,10 @@
 ---
 name: ai-mcp
 description: >
-  Host-side Model Context Protocol (MCP) client for TanStack AI: connect to
-  external MCP servers, discover and run their tools inside any adapter's
-  chat() loop, read resources and prompts, generate TypeScript types (typed tool names/pool keys)
+  Host-side Model Context Protocol (MCP) for TanStack AI: connect to
+  external MCP servers, host your own tools with createMCPServer,
+  discover and run tools inside any adapter's chat() loop, read resources
+  and prompts, generate TypeScript types (typed tool names/pool keys)
   with the bundled CLI, and manage lifecycle with close()/await using.
 type: sub-skill
 library: tanstack-ai
@@ -14,12 +15,15 @@ sources:
   - 'TanStack/ai:packages/ai-mcp/src/pool.ts'
   - 'TanStack/ai:packages/ai-mcp/src/resources.ts'
   - 'TanStack/ai:packages/ai-mcp/src/transport.ts'
+  - 'TanStack/ai:packages/ai-mcp/src/server/create-server.ts'
+  - 'TanStack/ai:packages/ai-mcp/src/server/stdio.ts'
 ---
 
 # `@tanstack/ai-mcp`
 
 This skill covers the `@tanstack/ai-mcp` package. Read `ai-core/tool-calling/SKILL.md`
 first — MCP tools flow into `chat()` the same way hand-written tools do.
+If you host the tools yourself, use `createMCPServer`.
 
 ## When to use this package
 
@@ -32,6 +36,7 @@ Use `@tanstack/ai-mcp` when:
   signatures (via the bundled `generate` CLI).
 - You are running tool execution on the server side and want to connect to MCP
   servers with HTTP (Streamable HTTP or SSE) or stdio transports.
+- You want to expose your own tools as an MCP server over HTTP or stdio.
 
 Do NOT use this package for browser/client-side code — MCP connections are
 server-side only.
@@ -42,11 +47,121 @@ server-side only.
 pnpm add @tanstack/ai-mcp
 ```
 
-The package has two subpath exports:
+The package has these subpaths:
 
-- `.` — main client API (`createMCPClient`, `createMCPClients`, converters, types)
-- `./stdio` — Node-only stdio transport factory (`stdioTransport`); import it
-  separately so edge bundles stay clean
+- `.` exports `createMCPClient`, `createMCPClients`, converters, and types.
+- `./stdio` exports the Node-only client transport `stdioTransport`.
+- `./server` exports `createMCPServer`.
+- `./server/stdio` exports `serveMCPStdio`.
+- `./apps` exports `createMcpAppCallHandler`.
+
+Import `./stdio` and `./server/stdio` only from Node code.
+Those entries use Node I/O.
+
+## Host an MCP server
+
+Import `createMCPServer` from `@tanstack/ai-mcp/server`.
+Pass tools from `toolDefinition().server()`.
+Call `server.fetch(request)` in your HTTP route.
+
+```typescript
+import { toolDefinition } from '@tanstack/ai'
+import { createMCPServer } from '@tanstack/ai-mcp/server'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'get_weather',
+  description: 'Current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => {
+  return { city, temperature: 18, conditions: 'clear' }
+})
+
+const server = createMCPServer({
+  name: 'weather',
+  version: '1.0.0',
+  tools: [getWeather],
+})
+
+export function POST(request: Request) {
+  return server.fetch(request)
+}
+```
+
+`createMCPServer` speaks spec `2026-07-28`.
+`createMCPServer` also speaks spec 2025 sessions.
+
+`stdioTransport` from `@tanstack/ai-mcp/stdio` connects your client to a command.
+`serveMCPStdio` from `@tanstack/ai-mcp/server/stdio` serves your server on stdin and stdout.
+Write logs with `console.error`.
+stdout carries only protocol messages.
+
+```typescript
+import { toolDefinition } from '@tanstack/ai'
+import { createMCPServer } from '@tanstack/ai-mcp/server'
+import { serveMCPStdio } from '@tanstack/ai-mcp/server/stdio'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'get_weather',
+  description: 'Current weather for a city',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => {
+  return { city, temperature: 18, conditions: 'clear' }
+})
+
+const server = createMCPServer({
+  name: 'weather',
+  version: '1.0.0',
+  tools: [getWeather],
+})
+
+serveMCPStdio(server)
+```
+
+You can also pass `resources` and `prompts`.
+Build them with `resourceDefinition` and `promptDefinition` from `@tanstack/ai-mcp/server`.
+
+On spec 2026, `ctx.requestInput` stops the tool until the client sends the answer.
+The tool context type does not list `requestInput`.
+Narrow the context.
+Then call `requestInput`.
+
+```typescript
+import { toolDefinition } from '@tanstack/ai'
+import { createMCPServer } from '@tanstack/ai-mcp/server'
+import { z } from 'zod'
+
+const askCity = toolDefinition({
+  name: 'ask_city',
+  description: 'Ask which city to use',
+  inputSchema: z.object({}),
+}).server(async (_args, ctx) => {
+  if (ctx === undefined || !('requestInput' in ctx)) {
+    throw new Error('This tool runs only on the MCP server.')
+  }
+  const requestInput = ctx.requestInput
+  if (typeof requestInput !== 'function') {
+    throw new Error('This tool runs only on the MCP server.')
+  }
+  const city = await requestInput({ message: 'Which city?' })
+  return { city }
+})
+
+const server = createMCPServer({
+  name: 'weather',
+  version: '1.0.0',
+  tools: [askCity],
+})
+
+export function POST(request: Request) {
+  return server.fetch(request)
+}
+```
+
+If a tool calls `ctx.sample` on spec 2026, pass `sample` to `createMCPServer`.
+On spec 2026, `ctx.sample` calls the `sample` function.
+On spec 2025, `ctx.sample` asks the MCP client.
 
 ## `createMCPClient` — single server
 
@@ -60,8 +175,11 @@ const client = await createMCPClient({
 })
 ```
 
-`createMCPClient` connects immediately and returns an `MCPClient`. Throws
-`MCPConnectionError` if the connection fails.
+`createMCPClient` connects immediately and returns an `MCPClient`.
+If the connection fails, `createMCPClient` throws `MCPConnectionError`.
+`createMCPClient` tries spec `2026-07-28` first.
+If the server does not support that spec, the client uses the 2025 initialize handshake.
+The client keeps negotiation mode `auto`.
 
 ### Transports
 
@@ -110,11 +228,11 @@ const client = await createMCPClient({
 
 #### Custom transport (escape hatch)
 
-Pass any SDK `Transport` instance directly:
+Pass any `Transport` from `@modelcontextprotocol/client`:
 
 ```typescript
-// InMemoryTransport (from @modelcontextprotocol/sdk) is re-exported for
-// in-process testing; any SDK Transport instance works the same way.
+// InMemoryTransport comes from @modelcontextprotocol/client.
+// @tanstack/ai-mcp re-exports it. Any Transport from that package works here.
 import { createMCPClient, InMemoryTransport } from '@tanstack/ai-mcp'
 
 const [clientTransport] = InMemoryTransport.createLinkedPair()
@@ -127,15 +245,15 @@ Two levels:
 
 - **Static tokens** — pass `headers` on the `http`/`sse` config (sent with
   every request): `headers: { Authorization: 'Bearer ...' }`.
-- **OAuth 2.1 (MCP authorization spec)** — pass `authProvider` on the
-  `http`/`sse` config. It accepts any `OAuthClientProvider` from
-  `@modelcontextprotocol/sdk/client/auth.js`; the SDK transport attaches
-  tokens, refreshes them, and retries on 401.
+- **OAuth 2.1 (MCP authorization spec).** Pass `authProvider` on the
+  `http` or `sse` config. The value is an `OAuthClientProvider` from
+  `@modelcontextprotocol/client`. The transport attaches tokens, refreshes
+  them, and retries on 401.
 
 ```typescript
 import { createMCPClient } from '@tanstack/ai-mcp'
-// An OAuthClientProvider (from @modelcontextprotocol/sdk/client/auth.js)
-// backed by tokens you persist server-side.
+// An OAuthClientProvider from @modelcontextprotocol/client.
+// You persist the tokens on the server.
 import { myOAuthProvider } from './oauth-provider'
 
 const client = await createMCPClient({
@@ -154,6 +272,7 @@ flows, construct the `StreamableHTTPClientTransport` yourself with the
 callback route, then pass the transport via the escape hatch above. For
 server-side providers backed by pre-provisioned/refreshable tokens, the
 config form is sufficient.
+Import `StreamableHTTPClientTransport` from `@modelcontextprotocol/client`.
 
 ## Three type-safety modes
 
@@ -397,6 +516,49 @@ export async function POST(request: Request) {
   })
 
   return toServerSentEventsResponse(stream)
+}
+```
+
+## MCP input request
+
+When `chat()` receives an MCP input request, the run outcome is an interrupt.
+The stream ends with `RUN_FINISHED`.
+The outcome type is `interrupt`.
+The stream does not emit `RUN_ERROR` for this pause.
+
+Read each interrupt whose `reason` is `mcp_input`.
+The payload key is `tanstack:interruptPayload`.
+`form` means the server asks the user for input.
+`sampling` means the server asks for a model result.
+The interrupt id is `mcp_input_` plus the tool call id.
+
+```typescript
+import { chat, INTERRUPT_PAYLOAD_METADATA_KEY } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const client = await createMCPClient({
+  transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-5.5'),
+  messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
+  tools: await client.tools(),
+})
+
+for await (const chunk of stream) {
+  if (chunk.type !== 'RUN_FINISHED') continue
+  if (chunk.outcome?.type !== 'interrupt') continue
+
+  for (const item of chunk.outcome.interrupts) {
+    if (item.reason !== 'mcp_input') continue
+    const payload = item.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
+    if (typeof payload !== 'object' || payload === null) continue
+    if (!('kind' in payload)) continue
+    // payload.kind is 'form' or 'sampling'
+    // payload.request is the MCP input body
+  }
 }
 ```
 
@@ -937,6 +1099,24 @@ Two different errors can arise depending on where the collision is detected:
 
 In both cases, the fix is the same: use `createMCPClients` (which auto-prefixes
 by config key) or set an explicit `prefix` on each `createMCPClient` call.
+
+### e. HIGH: importing `@modelcontextprotocol/sdk`
+
+Use `@modelcontextprotocol/client` for client transports.
+Use `@modelcontextprotocol/server` for server helpers.
+`@tanstack/ai-mcp` re-exports `InMemoryTransport` from the client package.
+
+Wrong:
+
+```typescript ignore
+import { InMemoryTransport } from '@modelcontextprotocol/sdk'
+```
+
+Correct:
+
+```typescript
+import { InMemoryTransport } from '@modelcontextprotocol/client'
+```
 
 ## Cross-References
 

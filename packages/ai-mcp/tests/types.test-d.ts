@@ -10,7 +10,7 @@ import type {
   ServerDescriptor,
 } from '../src/types'
 import type { ServerTool } from '@tanstack/ai'
-import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
+import type { ToolAnnotations } from '@modelcontextprotocol/client'
 
 interface WeatherServer extends ServerDescriptor {
   tools: { get_weather: { input: { city: string }; output: string } }

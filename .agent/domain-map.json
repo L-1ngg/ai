@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "domains": [
+    {
+      "id": "core",
+      "owns": ["packages/ai"],
+      "talksTo": []
+    },
+    {
+      "id": "client",
+      "owns": ["packages/ai-client"],
+      "talksTo": ["core"]
+    },
+    {
+      "id": "frameworks",
+      "owns": [
+        "packages/ai-react",
+        "packages/ai-preact",
+        "packages/ai-solid",
+        "packages/ai-vue",
+        "packages/ai-svelte",
+        "packages/ai-angular",
+        "packages/ai-octane",
+        "packages/ai-remix"
+      ],
+      "talksTo": ["client", "core"]
+    },
+    {
+      "id": "testing",
+      "owns": ["testing/e2e"],
+      "talksTo": ["frameworks", "client", "core"]
+    },
+    {
+      "id": "docs",
+      "owns": ["docs"],
+      "talksTo": ["frameworks", "client", "core"]
+    },
+    {
+      "id": "mcp",
+      "owns": ["packages/ai-mcp"],
+      "talksTo": ["core"]
+    }
+  ]
+}

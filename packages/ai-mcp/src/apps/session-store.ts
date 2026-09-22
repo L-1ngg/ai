@@ -1,4 +1,4 @@
-import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
+import type { ClientOptions } from '@modelcontextprotocol/client'
 import type { TransportConfig } from '../transport'
 
 export interface McpServerDescriptor {

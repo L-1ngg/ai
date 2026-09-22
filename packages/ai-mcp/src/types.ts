@@ -1,6 +1,8 @@
 import type { ServerTool, ToolDefinition } from '@tanstack/ai'
-import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
-import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
+import type {
+  ClientOptions,
+  ToolAnnotations,
+} from '@modelcontextprotocol/client'
 import type { TransportInput } from './transport'
 
 /** A bare tool definition (from `toolDefinition({...})`, no `.server()`/`.client()` called). */
@@ -103,7 +105,7 @@ export interface MCPClientOptions {
    * `ClientOptions`, which this package did not expose.
    *
    * ```ts
-   * import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker'
+   * import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/client/validators/cf-worker'
    *
    * const mcp = await createMCPClient({
    *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },

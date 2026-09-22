@@ -387,6 +387,10 @@ export class ToolCallManager<
           toolOutput = result
           toolResultContent = normalizeToolResult(result)
         } catch (error: unknown) {
+          // Do not store this shape as a tool error.
+          if (isMcpInputRequired(error)) {
+            throw error
+          }
           // If tool execution fails, add error message
           const message =
             error instanceof Error ? error.message : 'Unknown error'
@@ -467,6 +471,32 @@ export interface ClientToolRequest {
   input: any
 }
 
+/** Form or sampling input that paused a server tool. */
+export interface McpInputRequest {
+  toolCallId: string
+  toolName: string
+  kind: 'form' | 'sampling'
+  request: unknown
+}
+
+interface McpInputRequiredThrow {
+  name: 'MCPInputRequiredError'
+  kind: 'form' | 'sampling'
+  request: unknown
+}
+
+function isMcpInputRequired(value: unknown): value is McpInputRequiredThrow {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('name' in value) || value.name !== 'MCPInputRequiredError') {
+    return false
+  }
+  if (!('kind' in value)) return false
+  const kindIsFormOrSampling =
+    value.kind === 'form' || value.kind === 'sampling'
+  if (!kindIsFormOrSampling) return false
+  return 'request' in value
+}
+
 export interface ToolResumeExecutionState {
   deniedToolResults?: ReadonlyMap<string, unknown>
   cancelledToolCallIds?: ReadonlySet<string>
@@ -504,6 +534,8 @@ interface ExecuteToolCallsResult {
   needsApproval: Array<ApprovalRequest>
   /** Tools that need client-side execution */
   needsClientExecution: Array<ClientToolRequest>
+  /** Server tools that paused for MCP form or sampling input */
+  inputRequired: Array<McpInputRequest>
 }
 
 /**
@@ -614,6 +646,7 @@ export async function* executeServerTool<TContext = unknown>(
   pendingEvents: Array<CustomEvent>,
   results: Array<ToolResult>,
   middlewareHooks?: ToolExecutionMiddlewareHooks,
+  inputRequired?: Array<McpInputRequest>,
 ): AsyncGenerator<CustomEvent, void, void> {
   const startTime = Date.now()
   try {
@@ -677,6 +710,18 @@ export async function* executeServerTool<TContext = unknown>(
 
     if (error instanceof MiddlewareAbortError) {
       throw error
+    }
+
+    // Same shape as MCPInputRequiredError. Pause instead of a tool error.
+    if (isMcpInputRequired(error)) {
+      if (!inputRequired) throw error
+      inputRequired.push({
+        toolCallId: toolCall.id,
+        toolName,
+        kind: error.kind,
+        request: error.request,
+      })
+      return
     }
 
     const message = error instanceof Error ? error.message : 'Unknown error'
@@ -769,6 +814,7 @@ export async function* executeToolCalls<TContext = unknown>(
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
   const needsClientExecution: Array<ClientToolRequest> = []
+  const inputRequired: Array<McpInputRequest> = []
 
   // Create tool lookup map
   const toolMap = new Map<string, AnyTool>()
@@ -997,6 +1043,7 @@ export async function* executeToolCalls<TContext = unknown>(
             pendingEvents,
             results,
             middlewareHooks,
+            inputRequired,
           )
         } else {
           // User declined
@@ -1045,8 +1092,9 @@ export async function* executeToolCalls<TContext = unknown>(
       pendingEvents,
       results,
       middlewareHooks,
+      inputRequired,
     )
   }
 
-  return { results, needsApproval, needsClientExecution }
+  return { results, needsApproval, needsClientExecution, inputRequired }
 }
