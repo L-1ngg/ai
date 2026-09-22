@@ -14,7 +14,7 @@ keywords:
 
 Before your tool deletes a file, your tool must get a confirmation from the user. Call `requestInput` on `ctx` for that confirmation. `ctx` is the second argument of `.server()`.
 
-```ts
+```ts ignore
 import { toolDefinition } from '@tanstack/ai'
 import { createMCPServer } from '@tanstack/ai-mcp/server'
 import { z } from 'zod'

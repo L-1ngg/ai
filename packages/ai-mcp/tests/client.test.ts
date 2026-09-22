@@ -242,16 +242,13 @@ describe('createMCPClient', () => {
     ])
   })
 
-  it('does not enforce output schemas for tools found through a paginated list', async () => {
+  it('keeps output-schema validation for tools listed on an earlier page', async () => {
     const { clientTransport } = await makeServerWithPaginatedLaxSchemaTool()
     await using client = await createMCPClientFromTransport(clientTransport)
     await client.tools()
-    // Listing reads each page with a raw request. That must not turn a later
-    // call into strict structured-content validation.
-    const result = await client.callTool('first_page_tool')
-    expect(result.content).toEqual([
-      { type: 'text', text: 'called first_page_tool' },
-    ])
+    // Page 1 declared an outputSchema. The SDK cache must keep that schema.
+    // Text-only content then fails structured-content validation.
+    await expect(client.callTool('first_page_tool')).rejects.toThrow()
   })
 
   it('fails tools() when tools/list repeats a pagination cursor', async () => {
@@ -465,45 +462,54 @@ describe('createMCPClient', () => {
 })
 
 describe('clientOptions', () => {
-  // A validator that would reject every schema. Listing and calling must not
-  // use it: discovery reads tools/list directly and does not arm SDK validation.
-  function rejectingValidator(): jsonSchemaValidator {
+  function recordingValidator(): {
+    schemas: Array<unknown>
+    provider: jsonSchemaValidator
+  } {
+    const schemas: Array<unknown> = []
     return {
-      getValidator() {
-        return () => ({
-          valid: false,
-          data: undefined,
-          errorMessage: 'rejected',
-        })
+      schemas,
+      provider: {
+        getValidator(schema: unknown) {
+          schemas.push(schema)
+          return (input: unknown) => ({
+            valid: true,
+            data: input,
+            errorMessage: undefined,
+          })
+        },
       },
     }
   }
 
-  it('calls a tool that declares an output schema without the custom validator', async () => {
+  it('forwards a custom jsonSchemaValidator to the SDK client', async () => {
     const { clientTransport } = await makeServerWithStructuredTool()
+    const { schemas, provider } = recordingValidator()
     await using client = await createMCPClientFromTransport(
       clientTransport,
       undefined,
-      { jsonSchemaValidator: rejectingValidator() },
+      { jsonSchemaValidator: provider },
     )
 
+    // The SDK compiles each output validator from the tool list cache.
     await client.tools()
-    const result = await client.callTool('lookup_user', { id: 'u-1' })
+    await client.callTool('lookup_user', { id: 'u-1' })
 
-    expect(result.structuredContent).toEqual({ id: 'u-1', name: 'Ada' })
+    expect(schemas).toEqual([expect.objectContaining({ type: 'object' })])
   })
 
   it('accepts clientOptions through createMCPClient', async () => {
     const { clientTransport } = await makeServerWithStructuredTool()
+    const { schemas, provider } = recordingValidator()
     await using client = await createMCPClient({
       transport: clientTransport,
-      clientOptions: { jsonSchemaValidator: rejectingValidator() },
+      clientOptions: { jsonSchemaValidator: provider },
     })
 
     await client.tools()
-    const result = await client.callTool('lookup_user', { id: 'u-1' })
+    await client.callTool('lookup_user', { id: 'u-1' })
 
-    expect(result.structuredContent).toEqual({ id: 'u-1', name: 'Ada' })
+    expect(schemas).toHaveLength(1)
   })
 
   it('falls back to the SDK default when no clientOptions are given', async () => {
@@ -522,7 +528,7 @@ describe('clientOptions', () => {
     // back to the SDK's AJV default — the exact failure this option exists to
     // avoid, reintroduced for every MCP Apps widget call.
     const { clientTransport } = await makeServerWithStructuredTool()
-    const provider = rejectingValidator()
+    const { provider } = recordingValidator()
     await using client = await createMCPClient({
       transport: clientTransport,
       prefix: 'weather',

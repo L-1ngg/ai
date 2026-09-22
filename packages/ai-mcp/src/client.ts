@@ -201,9 +201,11 @@ class MCPClientImpl<
 
   // Read every tools/list page into the definition cache.
   // listPages throws when a cursor repeats or the page cap is passed.
-  // These are raw requests, so the SDK list cache stays empty and a direct
-  // callTool does not start strict output-schema validation.
-  async #listTools() {
+  // A raw list does not compile `jsonSchemaValidator`. `callTool` then
+  // skips output checks. `tools()` follows the raw walk with `listTools()`
+  // so the SDK cache is filled and the validator runs.
+  // `raw: true` is the lazy `callTool` path. It must stay free of that cache.
+  async #listTools(options?: { raw?: boolean }) {
     const client = this.#client
     const defs = await listPages(async (cursor) => {
       const page =
@@ -216,6 +218,9 @@ class MCPClientImpl<
       return { items: page.tools, nextCursor: page.nextCursor }
     })
     this.#toolDefinitions = new Map(defs.map((def) => [def.name, def]))
+    if (options?.raw !== true) {
+      await client.listTools()
+    }
     return defs
   }
 
@@ -342,7 +347,7 @@ class MCPClientImpl<
       // tool) still gets the plain tools/call it would have received before
       // task support existed. See #listTools.
       try {
-        await this.#listTools()
+        await this.#listTools({ raw: true })
       } catch {
         // fall through to a plain tools/call
       }
