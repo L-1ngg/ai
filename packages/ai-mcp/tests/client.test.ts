@@ -29,6 +29,8 @@ import {
 } from './helpers/in-memory-server'
 import type {
   JSONRPCMessage,
+  JsonSchemaType,
+  JsonSchemaValidator,
   Transport,
   jsonSchemaValidator,
 } from '@modelcontextprotocol/client'
@@ -470,13 +472,14 @@ describe('clientOptions', () => {
     return {
       schemas,
       provider: {
-        getValidator(schema: unknown) {
+        // The SDK type says accepted data is T. This recorder accepts every input.
+        getValidator<T>(schema: JsonSchemaType): JsonSchemaValidator<T> {
           schemas.push(schema)
-          return (input: unknown) => ({
-            valid: true,
-            data: input,
-            errorMessage: undefined,
-          })
+          const validate: JsonSchemaValidator<T> = (input) => {
+            const data = input as T
+            return { valid: true, data, errorMessage: undefined }
+          }
+          return validate
         },
       },
     }
