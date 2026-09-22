@@ -47,7 +47,6 @@ pnpm add @tanstack/ai-mcp @modelcontextprotocol/client
 
 `createMCPClient` tries protocol `2026-07-28` first. If the server does not support that protocol, the client uses the 2025 initialize handshake.
 
-
 ```ts
 import { createMCPClient } from '@tanstack/ai-mcp'
 import { chat } from '@tanstack/ai'

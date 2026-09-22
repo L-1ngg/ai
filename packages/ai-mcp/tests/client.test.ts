@@ -549,7 +549,8 @@ describe('clientOptions', () => {
 
 // tools/list always returns a new cursor, so pagination never reaches the last page.
 async function makeServerWithUnendingToolList() {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
   const server = new Server(
     { name: 'unending-list', version: '1.0.0' },
     { capabilities: { tools: {} } },
@@ -574,15 +575,13 @@ async function makeServerWithUnendingToolList() {
 // Spec 2026 server. Tool-list changes are sent only after subscriptions/listen.
 // The server has no public setter for the negotiated era, so the test sets it.
 async function makeModernChangingServer() {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
   const server = new Server(
     { name: 'modern-changing', version: '1.0.0' },
     {
       capabilities: { tools: { listChanged: true } },
-      supportedProtocolVersions: [
-        ...SUPPORTED_PROTOCOL_VERSIONS,
-        '2026-07-28',
-      ],
+      supportedProtocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS, '2026-07-28'],
     },
   )
   Object.assign(server, { _negotiatedProtocolVersion: '2026-07-28' })

@@ -12,9 +12,7 @@ function fetchPages(
     const page = pages[state.calls]
     state.calls += 1
     if (page === undefined) {
-      throw new Error(
-        `fetched past the fixture for cursor ${cursor ?? 'none'}`,
-      )
+      throw new Error(`fetched past the fixture for cursor ${cursor ?? 'none'}`)
     }
     return Promise.resolve(page)
   }

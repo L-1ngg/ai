@@ -96,10 +96,7 @@ async function drain(stream: AsyncIterable<unknown>): Promise<void> {
   }
 }
 
-async function runPoolChat(
-  transport: Transport,
-  connection?: 'keep-alive',
-) {
+async function runPoolChat(transport: Transport, connection?: 'keep-alive') {
   const pool = await createMCPClients({
     weather: { transport },
   })
@@ -150,15 +147,13 @@ describe('createMCPClients pool → chat({ mcp })', () => {
 
 // The server has no public setter for the negotiated era, so the test sets it.
 async function makeModernWeatherTransport() {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
   const server = new Server(
     { name: 'modern-weather', version: '1.0.0' },
     {
       capabilities: { tools: {} },
-      supportedProtocolVersions: [
-        ...SUPPORTED_PROTOCOL_VERSIONS,
-        '2026-07-28',
-      ],
+      supportedProtocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS, '2026-07-28'],
     },
   )
   Object.assign(server, { _negotiatedProtocolVersion: '2026-07-28' })

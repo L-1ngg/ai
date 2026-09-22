@@ -229,7 +229,10 @@ async function pollTask(
 ) {
   let current = task
   try {
-    while (current.status === 'working' || current.status === 'input_required') {
+    while (
+      current.status === 'working' ||
+      current.status === 'input_required'
+    ) {
       if (current.status === 'input_required' && hasInputRequests(current)) {
         throwInputRequired(current.inputRequests, current.inputRequests)
       }
@@ -455,9 +458,7 @@ function throwInputRequired(requests: unknown, fallback: unknown) {
   if (entry.method === 'elicitation/create') {
     throw new MCPInputRequiredError('form', body)
   }
-  throw new Error(
-    `The MCP server asked for unsupported input: ${entry.method}`,
-  )
+  throw new Error(`The MCP server asked for unsupported input: ${entry.method}`)
 }
 
 function firstInputRequest(requests: unknown) {
@@ -486,9 +487,7 @@ function readNestedTask(value: unknown) {
 function readFlatTask(value: unknown) {
   if (!isRecord(value)) return undefined
   const isSpec2026 =
-    value.resultType === 'task' ||
-    'ttlMs' in value ||
-    'pollIntervalMs' in value
+    value.resultType === 'task' || 'ttlMs' in value || 'pollIntervalMs' in value
   if (!isSpec2026) return undefined
   return readTaskState(value)
 }

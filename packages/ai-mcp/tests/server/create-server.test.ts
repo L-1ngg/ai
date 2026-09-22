@@ -1,11 +1,20 @@
-import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
+import {
+  Client,
+  StreamableHTTPClientTransport,
+} from '@modelcontextprotocol/client'
 import { toolDefinition } from '@tanstack/ai'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { promptDefinition, resourceDefinition } from '../../src/server/definitions'
+import {
+  promptDefinition,
+  resourceDefinition,
+} from '../../src/server/definitions'
 import { createMCPServer } from '../../src/server/create-server'
 import type { SampleRequest } from '../../src/server/context'
-import { inMemoryProtocolSessionStore, inMemoryTaskStore } from '../../src/server/stores'
+import {
+  inMemoryProtocolSessionStore,
+  inMemoryTaskStore,
+} from '../../src/server/stores'
 
 const serverUrl = new URL('https://mcp.example.com/mcp')
 const protectedResourceUrl =
@@ -39,7 +48,9 @@ function summarizePrompt() {
   }).render(async (args) => [{ role: 'user', content: args.topic }])
 }
 
-function surfaceServer(sessionStore?: ReturnType<typeof inMemoryProtocolSessionStore>) {
+function surfaceServer(
+  sessionStore?: ReturnType<typeof inMemoryProtocolSessionStore>,
+) {
   return createMCPServer({
     name: 'weather',
     version: '1.0.0',
@@ -108,7 +119,10 @@ async function withClient(
     onResponse?: (text: string) => void
     prepare?: (client: Client) => void
   },
-  run: (client: Client, transport: StreamableHTTPClientTransport) => Promise<void>,
+  run: (
+    client: Client,
+    transport: StreamableHTTPClientTransport,
+  ) => Promise<void>,
 ) {
   const versionNegotiation =
     hooks.era === '2026' ? { mode: { pin: '2026-07-28' } } : undefined
@@ -156,14 +170,18 @@ describe('createMCPServer', () => {
       expect(echoed.content).toEqual([{ type: 'text', text: 'hi' }])
 
       const resources = await client.listResources()
-      expect(resources.resources.map((resource) => resource.name)).toEqual(['readme'])
+      expect(resources.resources.map((resource) => resource.name)).toEqual([
+        'readme',
+      ])
       const readme = await client.readResource({ uri: 'file:///readme.md' })
       expect(readme.contents).toEqual([
         { uri: 'file:///readme.md', mimeType: 'text/markdown', text: 'hello' },
       ])
 
       const prompts = await client.listPrompts()
-      expect(prompts.prompts.map((prompt) => prompt.name)).toEqual(['summarize'])
+      expect(prompts.prompts.map((prompt) => prompt.name)).toEqual([
+        'summarize',
+      ])
       const summary = await client.getPrompt({
         name: 'summarize',
         arguments: { topic: 'weather' },
@@ -361,7 +379,9 @@ describe('createMCPServer', () => {
       },
       async (client) => {
         const drafted = await client.callTool({ name: 'draft', arguments: {} })
-        expect(drafted.content).toEqual([{ type: 'text', text: 'from-adapter' }])
+        expect(drafted.content).toEqual([
+          { type: 'text', text: 'from-adapter' },
+        ])
       },
     )
 

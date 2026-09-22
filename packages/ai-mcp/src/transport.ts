@@ -1,8 +1,10 @@
 import {
   SSEClientTransport,
   StreamableHTTPClientTransport,
-  type OAuthClientProvider,
-  type Transport,
+} from '@modelcontextprotocol/client'
+import type {
+  OAuthClientProvider,
+  Transport,
 } from '@modelcontextprotocol/client'
 
 export interface HttpTransportConfig {

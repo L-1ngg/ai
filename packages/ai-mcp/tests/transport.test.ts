@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { resolveTransport } from '../src/transport'
-import type { OAuthClientProvider, Transport } from '@modelcontextprotocol/client'
+import type {
+  OAuthClientProvider,
+  Transport,
+} from '@modelcontextprotocol/client'
 
 const fakeAuthProvider: OAuthClientProvider = {
   redirectUrl: 'https://app.example.com/oauth/callback',

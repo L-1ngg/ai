@@ -1,4 +1,5 @@
-import { Client, type Transport } from '@modelcontextprotocol/client'
+import { Client } from '@modelcontextprotocol/client'
+import type { Transport } from '@modelcontextprotocol/client'
 import { listPages } from '../list-pages'
 import { resolveTransport } from '../transport'
 import type { CodegenServerConfig } from './define-config'

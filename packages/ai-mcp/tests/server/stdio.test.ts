@@ -30,25 +30,17 @@ if (process.env[childEnv] === '1') {
   startChildServer()
 } else {
   describe('serveMCPStdio', () => {
-    it(
-      'lists and calls the tool for a spec 2025 stdio client',
-      async () => {
-        const result = await echoOverStdio('2025')
-        expect(result.names).toEqual(['echo'])
-        expect(result.content).toEqual([{ type: 'text', text: 'hi' }])
-      },
-      60000,
-    )
+    it('lists and calls the tool for a spec 2025 stdio client', async () => {
+      const result = await echoOverStdio('2025')
+      expect(result.names).toEqual(['echo'])
+      expect(result.content).toEqual([{ type: 'text', text: 'hi' }])
+    }, 60000)
 
-    it(
-      'lists and calls the tool for a spec 2026 stdio client',
-      async () => {
-        const result = await echoOverStdio('2026')
-        expect(result.names).toEqual(['echo'])
-        expect(result.content).toEqual([{ type: 'text', text: 'hi' }])
-      },
-      60000,
-    )
+    it('lists and calls the tool for a spec 2026 stdio client', async () => {
+      const result = await echoOverStdio('2026')
+      expect(result.names).toEqual(['echo'])
+      expect(result.content).toEqual([{ type: 'text', text: 'hi' }])
+    }, 60000)
   })
 }
 
@@ -92,7 +84,8 @@ async function echoOverStdio(era: '2025' | '2026') {
       content: echoed.content,
     }
   } catch (error) {
-    const detail = error instanceof Error ? error.message : 'The stdio client failed.'
+    const detail =
+      error instanceof Error ? error.message : 'The stdio client failed.'
     throw new Error(`${detail}\n${stderrChunks.join('')}`)
   } finally {
     try {

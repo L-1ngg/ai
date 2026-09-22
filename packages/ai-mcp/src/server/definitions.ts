@@ -4,7 +4,7 @@ type PromptMessage = {
 }
 
 type PromptArgsSchema<TArgs> = {
-  parse(input: unknown): TArgs
+  parse: (input: unknown) => TArgs
 }
 
 /**

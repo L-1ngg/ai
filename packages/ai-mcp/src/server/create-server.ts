@@ -16,18 +16,12 @@ import {
 import type { ServerContext } from '@modelcontextprotocol/server'
 import type { ResourceServerAuth } from './auth'
 import { requireBearerAuth } from './auth'
-import {
-  ToolInputRequiredError,
-  createServerToolContext,
-} from './context'
+import { ToolInputRequiredError, createServerToolContext } from './context'
 import type { SampleRequest, ToolInputRequest } from './context'
 import { protocolSessions } from './sessions'
 import { getTask, startTask } from './tasks'
-import {
-  inMemoryTaskStore,
-  type ProtocolSessionStore,
-  type TaskStore,
-} from './stores'
+import { inMemoryTaskStore } from './stores'
+import type { ProtocolSessionStore, TaskStore } from './stores'
 
 const spec2025 = '2025-11-25'
 const spec2026 = '2026-07-28'
@@ -55,16 +49,27 @@ type McpResource = {
   mimeType: string
   uri?: string
   uriTemplate?: string
-  read(): unknown
+  read: () => unknown
+}
+
+// A method type is bivariant. A function property is strict, so a prompt
+// with a specific input would not assign to `unknown`.
+type BivariantCallback<TInput, TOutput> = BivariantCallbackSignature<
+  TInput,
+  TOutput
+>['bivarianceHack']
+
+declare abstract class BivariantCallbackSignature<TInput, TOutput> {
+  abstract bivarianceHack(input: TInput): TOutput
 }
 
 type McpPrompt = {
   name: string
   description: string
   argsSchema: {
-    parse(input: unknown): unknown
+    parse: (input: unknown) => unknown
   }
-  render(input: unknown): unknown
+  render: BivariantCallback<unknown, unknown>
 }
 
 type MCPServerOptions = {
@@ -188,7 +193,8 @@ export function createMCPServer(options: MCPServerOptions) {
                   hasTaskTool,
                 }),
             }),
-          resume: (sessionId) => resumeLegacySession(request, sessionId, sessions, transports),
+          resume: (sessionId) =>
+            resumeLegacySession(request, sessionId, sessions, transports),
         })
       }
 
@@ -415,9 +421,13 @@ async function waitForInput(sdkCtx: ServerContext, request: ToolInputRequest) {
   return content
 }
 
-async function askClientToSample(sdkCtx: ServerContext, request: SampleRequest) {
+async function askClientToSample(
+  sdkCtx: ServerContext,
+  request: SampleRequest,
+) {
   const messages = request.messages.map((message) => ({
-    role: message.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+    role:
+      message.role === 'assistant' ? ('assistant' as const) : ('user' as const),
     content: { type: 'text' as const, text: message.content },
   }))
   const result = await sdkCtx.mcpReq.requestSampling({
@@ -440,7 +450,9 @@ function textFromContent(content: unknown) {
 }
 
 function isTextBlock(value: unknown): value is { type: 'text'; text: string } {
-  return isRecord(value) && value.type === 'text' && typeof value.text === 'string'
+  return (
+    isRecord(value) && value.type === 'text' && typeof value.text === 'string'
+  )
 }
 
 function registerServerResource(server: McpServer, resource: McpResource) {
@@ -452,7 +464,9 @@ function registerServerResource(server: McpServer, resource: McpResource) {
     return
   }
   if (resource.uriTemplate === undefined) return
-  const template = new ResourceTemplate(resource.uriTemplate, { list: undefined })
+  const template = new ResourceTemplate(resource.uriTemplate, {
+    list: undefined,
+  })
   server.registerResource(resource.name, template, metadata, read)
 }
 
@@ -523,7 +537,10 @@ function registerLegacyTaskMethods(server: McpServer, store: TaskStore) {
     async (params) => {
       const polled = await getTask(taskIdFrom(params), store)
       if (polled === null) {
-        throw new ProtocolError(ProtocolErrorCode.InvalidParams, 'Task not found')
+        throw new ProtocolError(
+          ProtocolErrorCode.InvalidParams,
+          'Task not found',
+        )
       }
       return polled.spec2025
     },
@@ -546,7 +563,10 @@ function registerLegacyTaskMethods(server: McpServer, store: TaskStore) {
 
 function taskIdFrom(params: unknown) {
   if (!isRecord(params) || typeof params.taskId !== 'string') {
-    throw new ProtocolError(ProtocolErrorCode.InvalidParams, 'taskId is required')
+    throw new ProtocolError(
+      ProtocolErrorCode.InvalidParams,
+      'taskId is required',
+    )
   }
   return params.taskId
 }
@@ -695,7 +715,11 @@ function jsonRpcResult(id: string | number | null, result: unknown) {
   )
 }
 
-function jsonRpcError(id: string | number | null, code: number, message: string) {
+function jsonRpcError(
+  id: string | number | null,
+  code: number,
+  message: string,
+) {
   return Response.json(
     { jsonrpc: '2.0', id, error: { code, message } },
     { status: 200, headers: { 'mcp-protocol-version': spec2026 } },

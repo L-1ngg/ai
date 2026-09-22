@@ -186,7 +186,8 @@ async function inputRequiredFrom(run: () => Promise<unknown>) {
 }
 
 async function connectModernClient(server: Server) {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
   await server.connect(serverTransport)
   const client = new Client(
     { name: 'test', version: '1.0.0' },
@@ -230,7 +231,12 @@ describe('callMcpTool', () => {
     let polls = 0
     const server = new Server(
       { name: 'job', version: '1.0.0' },
-      { capabilities: { tools: {}, tasks: { requests: { tools: { call: {} } } } } },
+      {
+        capabilities: {
+          tools: {},
+          tasks: { requests: { tools: { call: {} } } },
+        },
+      },
     )
     server.setRequestHandler('tools/call', () => ({
       content: [],
@@ -257,7 +263,8 @@ describe('callMcpTool', () => {
         }
       },
     )
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
     await server.connect(serverTransport)
     const client = await connectClient(clientTransport)
     try {
@@ -276,7 +283,12 @@ describe('callMcpTool', () => {
     const clock = taskClock()
     const server = new Server(
       { name: 'job', version: '1.0.0' },
-      { capabilities: { tools: {}, tasks: { requests: { tools: { call: {} } } } } },
+      {
+        capabilities: {
+          tools: {},
+          tasks: { requests: { tools: { call: {} } } },
+        },
+      },
     )
     server.setRequestHandler('tools/call', () => ({
       content: [{ type: 'text', text: 'nope' }],
@@ -289,7 +301,8 @@ describe('callMcpTool', () => {
         ...clock,
       },
     }))
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
     await server.connect(serverTransport)
     const client = await connectClient(clientTransport)
     try {

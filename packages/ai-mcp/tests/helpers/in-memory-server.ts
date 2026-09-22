@@ -34,10 +34,7 @@ function textResult(text: string): TextToolResult {
   }
 }
 
-function stringArg(
-  args: Record<string, unknown> | undefined,
-  key: string,
-) {
+function stringArg(args: Record<string, unknown> | undefined, key: string) {
   const value = args?.[key]
   return typeof value === 'string' ? value : ''
 }
@@ -115,8 +112,10 @@ function registerTaskMethods(
   server: Server,
   taskStore: ReturnType<typeof createTaskStore>,
 ) {
-  server.setRequestHandler('tasks/get', { params: taskIdParams }, async (params) =>
-    taskStore.getTask(params.taskId),
+  server.setRequestHandler(
+    'tasks/get',
+    { params: taskIdParams },
+    async (params) => taskStore.getTask(params.taskId),
   )
   server.setRequestHandler(
     'tasks/result',
@@ -141,7 +140,8 @@ const taskCapabilities = {
 }
 
 async function openInMemory(server: Server | McpServer) {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
   await server.connect(serverTransport)
   return clientTransport
 }
@@ -269,7 +269,11 @@ export async function makeServerWithTaskRequiredTool() {
     const created = await taskStore.createTask(
       requestedTaskTtl(request.params.task),
     )
-    await taskStore.storeTaskResult(created.taskId, 'completed', textResult(answer))
+    await taskStore.storeTaskResult(
+      created.taskId,
+      'completed',
+      textResult(answer),
+    )
     const task = await taskStore.getTask(created.taskId)
     return Object.assign(body, { task })
   })

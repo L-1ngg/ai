@@ -2,8 +2,8 @@ import {
   PROTOCOL_VERSION_META_KEY,
   isJSONRPCRequest,
   parseJSONRPCMessage,
-  type JSONRPCMessage,
 } from '@modelcontextprotocol/server'
+import type { JSONRPCMessage } from '@modelcontextprotocol/server'
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio'
 
 const mcpUrl = 'http://127.0.0.1/mcp'
@@ -36,7 +36,7 @@ const base64Suffix = '?='
  * ```
  */
 export function serveMCPStdio(server: {
-  fetch(request: Request): Promise<Response>
+  fetch: (request: Request) => Promise<Response>
 }) {
   const transport = new StdioServerTransport()
   const aborts = new Set<AbortController>()
@@ -68,7 +68,10 @@ export function serveMCPStdio(server: {
       legacyProtocol = nextLegacyProtocol(response, legacyProtocol)
       const text = await response.text()
       if (closed) return
-      const outbound = messagesFromBody(response.headers.get('content-type'), text)
+      const outbound = messagesFromBody(
+        response.headers.get('content-type'),
+        text,
+      )
       for (const outboundMessage of outbound) {
         await transport.send(outboundMessage)
       }
@@ -82,9 +85,11 @@ export function serveMCPStdio(server: {
   }
 
   transport.onmessage = (message) => {
-    tail = tail.then(() => forward(message)).catch((error) => {
-      console.error(errorText(error))
-    })
+    tail = tail
+      .then(() => forward(message))
+      .catch((error) => {
+        console.error(errorText(error))
+      })
   }
   transport.onerror = (error) => {
     console.error(error.message)
@@ -129,17 +134,26 @@ function applyProtocolHeaders(
   const version = envelopeVersion(message)
   const hasModernEnvelope = version !== undefined && isModernVersion(version)
   // Spec 2026 rejects a request when Mcp-Method is missing or does not match the body.
-  if (version !== undefined && isModernVersion(version) && isJSONRPCRequest(message)) {
+  if (
+    version !== undefined &&
+    isModernVersion(version) &&
+    isJSONRPCRequest(message)
+  ) {
     headers.set('mcp-protocol-version', version)
     headers.set('mcp-method', message.method)
     const name = mirroredName(message.method, message.params)
     if (name !== undefined) headers.set('mcp-name', encodeHeaderValue(name))
   }
   // A 2026 header on a claim-less body is rejected. Resend only a 2025 version.
-  if (!hasModernEnvelope && legacyProtocol !== undefined && !isModernVersion(legacyProtocol)) {
+  if (
+    !hasModernEnvelope &&
+    legacyProtocol !== undefined &&
+    !isModernVersion(legacyProtocol)
+  ) {
     headers.set('mcp-protocol-version', legacyProtocol)
   }
-  const isInitialize = isJSONRPCRequest(message) && message.method === 'initialize'
+  const isInitialize =
+    isJSONRPCRequest(message) && message.method === 'initialize'
   if (!isInitialize && sessionId !== undefined && sessionId.length > 0) {
     headers.set('mcp-session-id', sessionId)
   }
@@ -153,7 +167,8 @@ function nextSessionId(response: Response, current: string | undefined) {
 
 function nextLegacyProtocol(response: Response, current: string | undefined) {
   const headerProtocol = response.headers.get('mcp-protocol-version')
-  if (headerProtocol !== null && !isModernVersion(headerProtocol)) return headerProtocol
+  if (headerProtocol !== null && !isModernVersion(headerProtocol))
+    return headerProtocol
   return current
 }
 
@@ -256,7 +271,8 @@ function encodeHeaderValue(value: string) {
 
 function needsBase64(value: string) {
   if (value.length === 0) return true
-  const looksLikeSentinel = value.startsWith(base64Prefix) && value.endsWith(base64Suffix)
+  const looksLikeSentinel =
+    value.startsWith(base64Prefix) && value.endsWith(base64Suffix)
   if (looksLikeSentinel) return true
   if (value !== value.trim()) return true
   const chars = [...value]
@@ -281,7 +297,9 @@ function utf8ToBase64(value: string) {
 }
 
 function errorText(error: unknown) {
-  return error instanceof Error ? error.message : 'The stdio server failed to answer.'
+  return error instanceof Error
+    ? error.message
+    : 'The stdio server failed to answer.'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

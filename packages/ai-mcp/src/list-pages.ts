@@ -15,9 +15,7 @@ const DEFAULT_MAX_LIST_PAGES = 100
  * If the page count is more than the cap, this function throws an Error.
  */
 export async function listPages<TItem>(
-  fetchPage: (
-    cursor: string | undefined,
-  ) => Promise<{
+  fetchPage: (cursor: string | undefined) => Promise<{
     items: ReadonlyArray<TItem>
     nextCursor?: string
   }>,

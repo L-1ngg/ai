@@ -1,7 +1,5 @@
-import {
-  inMemoryProtocolSessionStore,
-  type ProtocolSessionStore,
-} from './stores'
+import { inMemoryProtocolSessionStore } from './stores'
+import type { ProtocolSessionStore } from './stores'
 
 /**
  * Saves, loads, and deletes one spec 2025 session record by session id.
