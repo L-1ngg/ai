@@ -13,11 +13,7 @@
     {
       "type": "STATE_SNAPSHOT",
       "snapshot": {
-        "items": [
-          "keep-a",
-          "drop-me",
-          "keep-b"
-        ]
+        "items": ["keep-a", "drop-me", "keep-b"]
       }
     },
     {
@@ -46,10 +42,7 @@
     ],
     "noWarnings": true,
     "state": {
-      "items": [
-        "keep-a",
-        "keep-b"
-      ]
+      "items": ["keep-a", "keep-b"]
     },
     "eventPaths": {
       "2.delta.0.value": "drop-me",

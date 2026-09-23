@@ -40,9 +40,7 @@
       "TEXT_MESSAGE_END",
       "RUN_FINISHED"
     ],
-    "warnings": [
-      "/futureProp"
-    ],
+    "warnings": ["/futureProp"],
     "messageCount": 1,
     "messages": [
       {
@@ -50,9 +48,7 @@
         "content": "content survives"
       }
     ],
-    "eventAbsentPaths": [
-      "2.futureProp"
-    ],
+    "eventAbsentPaths": ["2.futureProp"],
     "eventPaths": {
       "2.delta": "content survives"
     }
@@ -60,16 +56,10 @@
   "expectOverrides": {
     "dotnet": {
       "intentional": "the .NET client has no enforcement stage — SseEventStreamFormatter.ItemParser warns only about an unrecognised event TYPE, and an undescribed property is simply not mapped by System.Text.Json onto the typed event model — so the property is gone for the same reason but no warning names its path. The delivered payload IS observable here and the paths are restated rather than dropped: TEXT_MESSAGE_START and TEXT_MESSAGE_END only update EventStreamConverter's builder state and yield no ChatResponseUpdate, so the surviving TEXT_MESSAGE_CONTENT arrives at delivered index 1 rather than 2",
-      "eventTypes": [
-        "RUN_STARTED",
-        "TEXT_MESSAGE_CONTENT",
-        "RUN_FINISHED"
-      ],
+      "eventTypes": ["RUN_STARTED", "TEXT_MESSAGE_CONTENT", "RUN_FINISHED"],
       "warnings": [],
       "noWarnings": true,
-      "eventAbsentPaths": [
-        "1.futureProp"
-      ],
+      "eventAbsentPaths": ["1.futureProp"],
       "eventPaths": {
         "1.delta": "content survives"
       }

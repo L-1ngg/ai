@@ -52,9 +52,7 @@
   ],
   "expect": {
     "outcome": "completed",
-    "warnings": [
-      "THINKING_START"
-    ],
+    "warnings": ["THINKING_START"],
     "messages": [
       {
         "role": "reasoning",

@@ -158,7 +158,7 @@ export async function* translateSdkStream(
     runStarted = true
     yield {
       protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+      type: EventType.RUN_STARTED,
       runId,
       threadId,
       model,
@@ -424,7 +424,12 @@ type: EventType.RUN_STARTED,
         model,
         timestamp: now(),
         finishReason: 'stop',
-        ...(usage !== undefined && { ...toUsageEventFields(usage, { provider: 'claude-code', model: model }) }),
+        ...(usage !== undefined && {
+          ...toUsageEventFields(usage, {
+            provider: 'claude-code',
+            model: model,
+          }),
+        }),
       }
     } else if (message.subtype === 'error_max_turns') {
       yield {
@@ -434,7 +439,12 @@ type: EventType.RUN_STARTED,
         model,
         timestamp: now(),
         finishReason: 'length',
-        ...(usage !== undefined && { ...toUsageEventFields(usage, { provider: 'claude-code', model: model }) }),
+        ...(usage !== undefined && {
+          ...toUsageEventFields(usage, {
+            provider: 'claude-code',
+            model: model,
+          }),
+        }),
       }
     } else {
       const errorMessage =

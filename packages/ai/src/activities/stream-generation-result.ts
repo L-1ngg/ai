@@ -48,7 +48,7 @@ export async function* streamGenerationResult<TResult>(
 
   yield {
     protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+    type: EventType.RUN_STARTED,
     runId,
     threadId,
     timestamp: Date.now(),

@@ -1004,7 +1004,13 @@ export function aguiSnapshotMessageToUIMessage(
       return applySnapshotMetadata(message, {
         id,
         role: 'assistant',
-        parts: [{ type: 'activity', activityType: message.activityType, content: message.content }],
+        parts: [
+          {
+            type: 'activity',
+            activityType: message.activityType,
+            content: message.content,
+          },
+        ],
       })
   }
 }
@@ -1018,7 +1024,8 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
       ? source.name
       : undefined
   let next = name !== undefined ? { ...ui, name } : ui
-  if ('subagentRunId' in source && typeof source.subagentRunId === 'string') next = { ...next, subagentRunId: source.subagentRunId }
+  if ('subagentRunId' in source && typeof source.subagentRunId === 'string')
+    next = { ...next, subagentRunId: source.subagentRunId }
 
   let metadata: NonNullable<UIMessage['metadata']> | undefined
   if ('metadata' in source) {
@@ -1083,9 +1090,10 @@ export function aguiContentToContentParts(
       const { text, ...rest } = part
       parts.push({ ...rest, content: text })
     } else if (part.source.type === 'file') {
-      if (warnOnFile) console.warn(
-        'AG-UI file content was dropped: TanStack message converters do not support provider file handles.',
-      )
+      if (warnOnFile)
+        console.warn(
+          'AG-UI file content was dropped: TanStack message converters do not support provider file handles.',
+        )
     } else {
       parts.push({ ...part, source: part.source })
     }

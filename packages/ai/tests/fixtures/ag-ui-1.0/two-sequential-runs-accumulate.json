@@ -55,8 +55,16 @@
     "noWarnings": true,
     "messageCount": 2,
     "messages": [
-      { "id": "two-sequential-runs-m-a", "role": "assistant", "content": "first run" },
-      { "id": "two-sequential-runs-m-b", "role": "assistant", "content": "second run" }
+      {
+        "id": "two-sequential-runs-m-a",
+        "role": "assistant",
+        "content": "first run"
+      },
+      {
+        "id": "two-sequential-runs-m-b",
+        "role": "assistant",
+        "content": "second run"
+      }
     ]
   }
 }

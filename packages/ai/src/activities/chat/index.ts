@@ -2367,7 +2367,7 @@ class TextEngine<
     if (this.hasPublicRunStarted) return
     yield* this.pipeThroughMiddleware({
       protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+      type: EventType.RUN_STARTED,
       runId: finishEvent.runId,
       threadId: finishEvent.threadId,
       timestamp: Date.now(),
@@ -2767,7 +2767,12 @@ type: EventType.RUN_STARTED,
       return {
         ...finishEvent,
         timestamp: Date.now(),
-        outcome: { type: 'success', pendingToolCallIds: clientRequests.map((request) => request.toolCallId) },
+        outcome: {
+          type: 'success',
+          pendingToolCallIds: clientRequests.map(
+            (request) => request.toolCallId,
+          ),
+        },
       }
     }
     return {
@@ -5127,7 +5132,7 @@ async function* fallbackStructuredOutputStream(
 
   yield {
     protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+    type: EventType.RUN_STARTED,
     runId,
     threadId,
     model,
@@ -5195,7 +5200,14 @@ type: EventType.RUN_STARTED,
     // it on the fallback path, mirroring the native streaming path. The
     // conditional spread avoids emitting `usage: undefined` for adapters that
     // don't report it. See #758.
-    ...(result.usage ? { ...toUsageEventFields(result.usage, { provider: adapter.name, model }) } : {}),
+    ...(result.usage
+      ? {
+          ...toUsageEventFields(result.usage, {
+            provider: adapter.name,
+            model,
+          }),
+        }
+      : {}),
   }
 }
 

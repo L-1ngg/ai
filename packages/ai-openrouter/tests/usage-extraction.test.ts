@@ -267,10 +267,12 @@ describe('OpenRouter usage extraction', () => {
     expect(doneChunk).toBeDefined()
     // Prediction tokens are OpenRouter-specific, so they go in providerUsageDetails
     if (doneChunk?.type === 'RUN_FINISHED') {
-      expect(doneChunk.metadata?.tanstack?.usage?.providerUsageDetails).toEqual({
-        acceptedPredictionTokens: 20,
-        rejectedPredictionTokens: 5,
-      })
+      expect(doneChunk.metadata?.tanstack?.usage?.providerUsageDetails).toEqual(
+        {
+          acceptedPredictionTokens: 20,
+          rejectedPredictionTokens: 5,
+        },
+      )
     }
   })
 

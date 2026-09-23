@@ -43,8 +43,21 @@ describe('normalizeStreamChunk', () => {
       runId: 'r1',
       model: 'gpt-5.5',
       finishReason: 'stop',
-      usage: [{ model: 'gpt-5.5', inputTokens: 10, outputTokens: 5, totalTokens: 15, cachedInputTokens: 3, reasoningTokens: 2 }],
-      metadata: { tanstack: { usage: { cost: 0.02, promptTokensDetails: { audioTokens: 1 } } } },
+      usage: [
+        {
+          model: 'gpt-5.5',
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
+          cachedInputTokens: 3,
+          reasoningTokens: 2,
+        },
+      ],
+      metadata: {
+        tanstack: {
+          usage: { cost: 0.02, promptTokensDetails: { audioTokens: 1 } },
+        },
+      },
     } as AdapterYieldChunk
 
     const out = normalizeOne(chunk)

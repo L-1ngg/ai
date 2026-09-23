@@ -5,17 +5,36 @@
   "specPage": "/spec/1.0/basic/patterns/streaming",
   "kill": "make RAW close the open chunk lane, the way CUSTOM does",
   "stream": [
-    { "type": "RUN_STARTED", "threadId": "t-raw-aside", "runId": "raw-aside-r1", "protocolVersion": "1.0" },
-    { "type": "TEXT_MESSAGE_CHUNK", "messageId": "raw-aside-m1", "role": "assistant", "delta": "Half " },
-    { "type": "RAW", "event": { "provider": "raw-aside", "kind": "heartbeat" } },
+    {
+      "type": "RUN_STARTED",
+      "threadId": "t-raw-aside",
+      "runId": "raw-aside-r1",
+      "protocolVersion": "1.0"
+    },
+    {
+      "type": "TEXT_MESSAGE_CHUNK",
+      "messageId": "raw-aside-m1",
+      "role": "assistant",
+      "delta": "Half "
+    },
+    {
+      "type": "RAW",
+      "event": { "provider": "raw-aside", "kind": "heartbeat" }
+    },
     { "type": "TEXT_MESSAGE_CHUNK", "delta": "and half." },
-    { "type": "RUN_FINISHED", "threadId": "t-raw-aside", "runId": "raw-aside-r1" }
+    {
+      "type": "RUN_FINISHED",
+      "threadId": "t-raw-aside",
+      "runId": "raw-aside-r1"
+    }
   ],
   "expect": {
     "outcome": "completed",
     "noWarnings": true,
     "messageCount": 1,
-    "messages": [{ "id": "raw-aside-m1", "role": "assistant", "content": "Half and half." }]
+    "messages": [
+      { "id": "raw-aside-m1", "role": "assistant", "content": "Half and half." }
+    ]
   },
   "expectOverrides": {
     "dotnet": {

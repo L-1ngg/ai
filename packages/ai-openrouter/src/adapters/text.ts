@@ -190,7 +190,7 @@ export class OpenRouterTextAdapter<
         aguiState.hasEmittedRunStarted = true
         yield {
           protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+          type: EventType.RUN_STARTED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: options.model,
@@ -443,7 +443,7 @@ type: EventType.RUN_STARTED,
           aguiState.hasEmittedRunStarted = true
           yield {
             protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+            type: EventType.RUN_STARTED,
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunk.model || chatOptions.model,
@@ -590,7 +590,10 @@ type: EventType.RUN_STARTED,
         timestamp: Date.now(),
         finishReason: 'stop',
         ...(finalUsage && {
-          ...toUsageEventFields({ ...finalUsage, ...extractUsageCost(lastUsage) }, { provider: 'openrouter', model: lastModel || chatOptions.model }),
+          ...toUsageEventFields(
+            { ...finalUsage, ...extractUsageCost(lastUsage) },
+            { provider: 'openrouter', model: lastModel || chatOptions.model },
+          ),
         }),
       }
     } catch (error: unknown) {
@@ -598,7 +601,7 @@ type: EventType.RUN_STARTED,
         aguiState.hasEmittedRunStarted = true
         yield {
           protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+          type: EventType.RUN_STARTED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: chatOptions.model,
@@ -797,7 +800,7 @@ type: EventType.RUN_STARTED,
           aguiState.hasEmittedRunStarted = true
           yield {
             protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+            type: EventType.RUN_STARTED,
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunk.model || options.model,
@@ -1155,7 +1158,10 @@ type: EventType.RUN_STARTED,
           model: lastModel || options.model,
           timestamp: Date.now(),
           ...(finalUsage && {
-            ...toUsageEventFields({ ...finalUsage, ...extractUsageCost(lastUsage) }, { provider: 'openrouter', model: lastModel || options.model }),
+            ...toUsageEventFields(
+              { ...finalUsage, ...extractUsageCost(lastUsage) },
+              { provider: 'openrouter', model: lastModel || options.model },
+            ),
           }),
           finishReason,
         }

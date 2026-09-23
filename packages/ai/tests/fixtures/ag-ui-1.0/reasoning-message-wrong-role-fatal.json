@@ -21,7 +21,10 @@
       "messageId": "m-reasoning-wrong-role-1",
       "delta": "thinking"
     },
-    { "type": "REASONING_MESSAGE_END", "messageId": "m-reasoning-wrong-role-1" },
+    {
+      "type": "REASONING_MESSAGE_END",
+      "messageId": "m-reasoning-wrong-role-1"
+    },
     {
       "type": "RUN_FINISHED",
       "threadId": "t-reasoning-wrong-role",

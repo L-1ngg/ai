@@ -5,16 +5,36 @@
   "specPage": "/spec/1.0/basic/patterns/streaming",
   "kill": "stop synthesizing the TEXT_MESSAGE_END when a run-level event closes an open chunk lane",
   "stream": [
-    { "type": "RUN_STARTED", "threadId": "t-chunk-expand", "runId": "chunk-expand-r1", "protocolVersion": "1.0" },
-    { "type": "TEXT_MESSAGE_CHUNK", "messageId": "chunk-expand-m1", "role": "assistant", "delta": "Chunks " },
+    {
+      "type": "RUN_STARTED",
+      "threadId": "t-chunk-expand",
+      "runId": "chunk-expand-r1",
+      "protocolVersion": "1.0"
+    },
+    {
+      "type": "TEXT_MESSAGE_CHUNK",
+      "messageId": "chunk-expand-m1",
+      "role": "assistant",
+      "delta": "Chunks "
+    },
     { "type": "TEXT_MESSAGE_CHUNK", "delta": "expand." },
-    { "type": "RUN_FINISHED", "threadId": "t-chunk-expand", "runId": "chunk-expand-r1" }
+    {
+      "type": "RUN_FINISHED",
+      "threadId": "t-chunk-expand",
+      "runId": "chunk-expand-r1"
+    }
   ],
   "expect": {
     "outcome": "completed",
     "noWarnings": true,
     "messageCount": 1,
-    "messages": [{ "id": "chunk-expand-m1", "role": "assistant", "content": "Chunks expand." }]
+    "messages": [
+      {
+        "id": "chunk-expand-m1",
+        "role": "assistant",
+        "content": "Chunks expand."
+      }
+    ]
   },
   "expectOverrides": {
     "dotnet": {

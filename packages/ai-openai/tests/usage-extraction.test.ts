@@ -281,6 +281,8 @@ describe('OpenAI usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.metadata?.tanstack?.usage?.promptTokensDetails).toBeUndefined()
+    expect(
+      doneChunk?.metadata?.tanstack?.usage?.promptTokensDetails,
+    ).toBeUndefined()
   })
 })

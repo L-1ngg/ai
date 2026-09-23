@@ -422,4 +422,7 @@ export type {
 } from './realtime/types'
 
 export { AGUIEventStream } from './utilities/ag-ui-event-stream'
-export { validateAGUIEvent, validateAGUIInput } from './utilities/ag-ui-validation'
+export {
+  validateAGUIEvent,
+  validateAGUIInput,
+} from './utilities/ag-ui-validation'

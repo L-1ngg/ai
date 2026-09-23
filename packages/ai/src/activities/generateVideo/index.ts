@@ -603,7 +603,7 @@ async function* runStreamingVideoGeneration<
 
   yield {
     protocolVersion: '1.0',
-type: 'RUN_STARTED',
+    type: 'RUN_STARTED',
     runId,
     threadId: wireThreadId,
     timestamp: Date.now(),

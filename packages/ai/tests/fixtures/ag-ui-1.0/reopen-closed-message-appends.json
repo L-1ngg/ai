@@ -5,12 +5,33 @@
   "specPage": "/spec/1.0/events/text-messages",
   "kill": "make the reducer's TEXT_MESSAGE_START branch push a new message unconditionally instead of resolving the existing id",
   "stream": [
-    { "type": "RUN_STARTED", "threadId": "t-reopen", "runId": "reopen-r1", "protocolVersion": "1.0" },
-    { "type": "TEXT_MESSAGE_START", "messageId": "reopen-m1", "role": "assistant" },
-    { "type": "TEXT_MESSAGE_CONTENT", "messageId": "reopen-m1", "delta": "First half." },
+    {
+      "type": "RUN_STARTED",
+      "threadId": "t-reopen",
+      "runId": "reopen-r1",
+      "protocolVersion": "1.0"
+    },
+    {
+      "type": "TEXT_MESSAGE_START",
+      "messageId": "reopen-m1",
+      "role": "assistant"
+    },
+    {
+      "type": "TEXT_MESSAGE_CONTENT",
+      "messageId": "reopen-m1",
+      "delta": "First half."
+    },
     { "type": "TEXT_MESSAGE_END", "messageId": "reopen-m1" },
-    { "type": "TEXT_MESSAGE_START", "messageId": "reopen-m1", "role": "assistant" },
-    { "type": "TEXT_MESSAGE_CONTENT", "messageId": "reopen-m1", "delta": " Second half." },
+    {
+      "type": "TEXT_MESSAGE_START",
+      "messageId": "reopen-m1",
+      "role": "assistant"
+    },
+    {
+      "type": "TEXT_MESSAGE_CONTENT",
+      "messageId": "reopen-m1",
+      "delta": " Second half."
+    },
     { "type": "TEXT_MESSAGE_END", "messageId": "reopen-m1" },
     { "type": "RUN_FINISHED", "threadId": "t-reopen", "runId": "reopen-r1" }
   ],
@@ -18,6 +39,12 @@
     "outcome": "completed",
     "noWarnings": true,
     "messageCount": 1,
-    "messages": [{ "id": "reopen-m1", "role": "assistant", "content": "First half. Second half." }]
+    "messages": [
+      {
+        "id": "reopen-m1",
+        "role": "assistant",
+        "content": "First half. Second half."
+      }
+    ]
   }
 }

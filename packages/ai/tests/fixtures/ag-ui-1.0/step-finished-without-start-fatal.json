@@ -11,7 +11,10 @@
       "runId": "step-finished-without-start-r-1",
       "protocolVersion": "1.0"
     },
-    { "type": "STEP_FINISHED", "stepName": "step-finished-without-start-never-opened" }
+    {
+      "type": "STEP_FINISHED",
+      "stepName": "step-finished-without-start-never-opened"
+    }
   ],
   "expect": {
     "outcome": "failed",

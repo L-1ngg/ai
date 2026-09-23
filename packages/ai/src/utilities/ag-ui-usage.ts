@@ -113,7 +113,14 @@ export function fromSpecTokenUsage(
   leftover?: TokenUsageLeftover,
 ): TokenUsage | undefined {
   const spec = usage?.reduce<SpecTokenUsage>((total, entry) => {
-    for (const key of ['inputTokens', 'outputTokens', 'totalTokens', 'cachedInputTokens', 'cacheWriteInputTokens', 'reasoningTokens'] as const) {
+    for (const key of [
+      'inputTokens',
+      'outputTokens',
+      'totalTokens',
+      'cachedInputTokens',
+      'cacheWriteInputTokens',
+      'reasoningTokens',
+    ] as const) {
       if (entry[key] !== undefined) total[key] = (total[key] ?? 0) + entry[key]
     }
     return total
@@ -157,7 +164,10 @@ export function fromSpecTokenUsage(
 }
 
 /** Convert provider accounting to the fields of an AG-UI terminal event. */
-export function toUsageEventFields(usage: TokenUsage | undefined, options?: ToSpecTokenUsageOptions): {
+export function toUsageEventFields(
+  usage: TokenUsage | undefined,
+  options?: ToSpecTokenUsageOptions,
+): {
   usage?: Array<SpecTokenUsage>
   metadata?: { tanstack: { usage: TokenUsageLeftover } }
 } {
@@ -165,6 +175,8 @@ export function toUsageEventFields(usage: TokenUsage | undefined, options?: ToSp
   const converted = toSpecTokenUsage(usage, options)
   return {
     usage: converted.usage,
-    ...(converted.leftover !== undefined ? { metadata: { tanstack: { usage: converted.leftover } } } : {}),
+    ...(converted.leftover !== undefined
+      ? { metadata: { tanstack: { usage: converted.leftover } } }
+      : {}),
   }
 }

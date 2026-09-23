@@ -227,7 +227,9 @@ describe('Anthropic usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.metadata?.tanstack?.usage?.providerUsageDetails).toMatchObject({
+    expect(
+      doneChunk?.metadata?.tanstack?.usage?.providerUsageDetails,
+    ).toMatchObject({
       serverToolUse: {
         webSearchRequests: 3,
         webFetchRequests: 2,
@@ -289,8 +291,12 @@ describe('Anthropic usage extraction', () => {
     // No cache tokens and no server tool use: the detail objects must be
     // omitted entirely rather than emitted as empty `{}` (matches every other
     // adapter's guarded behavior).
-    expect(doneChunk?.metadata?.tanstack?.usage?.promptTokensDetails).toBeUndefined()
-    expect(doneChunk?.metadata?.tanstack?.usage?.providerUsageDetails).toBeUndefined()
+    expect(
+      doneChunk?.metadata?.tanstack?.usage?.promptTokensDetails,
+    ).toBeUndefined()
+    expect(
+      doneChunk?.metadata?.tanstack?.usage?.providerUsageDetails,
+    ).toBeUndefined()
   })
 
   it('defaults missing output_tokens to 0 instead of NaN', async () => {

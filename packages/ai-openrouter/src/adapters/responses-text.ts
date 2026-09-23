@@ -175,7 +175,7 @@ export class OpenRouterResponsesTextAdapter<
         aguiState.hasEmittedRunStarted = true
         yield {
           protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+          type: EventType.RUN_STARTED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: options.model,
@@ -448,7 +448,7 @@ type: EventType.RUN_STARTED,
           aguiState.hasEmittedRunStarted = true
           yield {
             protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+            type: EventType.RUN_STARTED,
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model,
@@ -661,12 +661,15 @@ type: EventType.RUN_STARTED,
         timestamp: Date.now(),
         finishReason: 'stop',
         ...(usage && {
-          ...toUsageEventFields({
-            promptTokens: usage.inputTokens ?? 0,
-            completionTokens: usage.outputTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
-            ...extractUsageCost(usage),
-          }, { provider: 'openrouter', model: model }),
+          ...toUsageEventFields(
+            {
+              promptTokens: usage.inputTokens ?? 0,
+              completionTokens: usage.outputTokens ?? 0,
+              totalTokens: usage.totalTokens ?? 0,
+              ...extractUsageCost(usage),
+            },
+            { provider: 'openrouter', model: model },
+          ),
         }),
       }
     } catch (error: unknown) {
@@ -674,7 +677,7 @@ type: EventType.RUN_STARTED,
         aguiState.hasEmittedRunStarted = true
         yield {
           protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+          type: EventType.RUN_STARTED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model,
@@ -928,7 +931,7 @@ type: EventType.RUN_STARTED,
           aguiState.hasEmittedRunStarted = true
           yield {
             protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+            type: EventType.RUN_STARTED,
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: model || options.model,
@@ -1572,12 +1575,15 @@ type: EventType.RUN_STARTED,
             threadId: aguiState.threadId,
             model: model || options.model,
             timestamp: Date.now(),
-            ...toUsageEventFields({
-              promptTokens: responseObj.usage?.inputTokens || 0,
-              completionTokens: responseObj.usage?.outputTokens || 0,
-              totalTokens: responseObj.usage?.totalTokens || 0,
-              ...extractUsageCost(responseObj.usage),
-            }, { provider: 'openrouter', model: model || options.model }),
+            ...toUsageEventFields(
+              {
+                promptTokens: responseObj.usage?.inputTokens || 0,
+                completionTokens: responseObj.usage?.outputTokens || 0,
+                totalTokens: responseObj.usage?.totalTokens || 0,
+                ...extractUsageCost(responseObj.usage),
+              },
+              { provider: 'openrouter', model: model || options.model },
+            ),
             finishReason,
           }
           runFinishedEmitted = true

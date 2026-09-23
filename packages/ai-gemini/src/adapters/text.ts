@@ -320,7 +320,7 @@ export class GeminiTextAdapter<
 
       yield {
         protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+        type: EventType.RUN_STARTED,
         runId,
         threadId,
         model,
@@ -604,7 +604,7 @@ type: EventType.RUN_STARTED,
         hasEmittedRunStarted = true
         yield {
           protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+          type: EventType.RUN_STARTED,
           runId,
           threadId,
           model,
@@ -908,7 +908,10 @@ type: EventType.RUN_STARTED,
           // exactOptionalPropertyTypes; only include it when usageMetadata is
           // present rather than assigning an explicit `undefined`.
           ...(chunk.usageMetadata && {
-            ...toUsageEventFields(buildGeminiUsage(chunk.usageMetadata), { provider: 'gemini', model: model }),
+            ...toUsageEventFields(buildGeminiUsage(chunk.usageMetadata), {
+              provider: 'gemini',
+              model: model,
+            }),
           }),
         }
       }

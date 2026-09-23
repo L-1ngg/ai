@@ -41,9 +41,7 @@
   ],
   "expect": {
     "outcome": "completed",
-    "warnings": [
-      "Failed to apply state patch"
-    ],
+    "warnings": ["Failed to apply state patch"],
     "state": {
       "plan": {
         "status": "open"

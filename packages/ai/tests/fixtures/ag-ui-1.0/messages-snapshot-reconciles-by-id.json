@@ -20,7 +20,10 @@
       "messageId": "messages-snapshot-reconciles-a",
       "delta": "first draft"
     },
-    { "type": "TEXT_MESSAGE_END", "messageId": "messages-snapshot-reconciles-a" },
+    {
+      "type": "TEXT_MESSAGE_END",
+      "messageId": "messages-snapshot-reconciles-a"
+    },
     {
       "type": "TEXT_MESSAGE_START",
       "messageId": "messages-snapshot-reconciles-b",
@@ -31,7 +34,10 @@
       "messageId": "messages-snapshot-reconciles-b",
       "delta": "retracted"
     },
-    { "type": "TEXT_MESSAGE_END", "messageId": "messages-snapshot-reconciles-b" },
+    {
+      "type": "TEXT_MESSAGE_END",
+      "messageId": "messages-snapshot-reconciles-b"
+    },
     {
       "type": "MESSAGES_SNAPSHOT",
       "messages": [

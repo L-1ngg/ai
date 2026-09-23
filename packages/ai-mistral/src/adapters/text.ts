@@ -213,7 +213,7 @@ export class MistralTextAdapter<
         aguiState.hasEmittedRunStarted = true
         yield asChunk({
           protocolVersion: '1.0',
-type: 'RUN_STARTED',
+          type: 'RUN_STARTED',
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: options.model,
@@ -348,7 +348,7 @@ type: 'RUN_STARTED',
           aguiState.hasEmittedRunStarted = true
           yield asChunk({
             protocolVersion: '1.0',
-type: 'RUN_STARTED',
+            type: 'RUN_STARTED',
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunkModel,
@@ -588,13 +588,16 @@ type: 'RUN_STARTED',
             threadId: aguiState.threadId,
             model: chunkModel,
             timestamp,
-            ...toUsageEventFields(usage
-              ? {
-                  promptTokens: usage.prompt_tokens || 0,
-                  completionTokens: usage.completion_tokens || 0,
-                  totalTokens: usage.total_tokens || 0,
-                }
-              : undefined, { provider: 'mistral', model: chunkModel }),
+            ...toUsageEventFields(
+              usage
+                ? {
+                    promptTokens: usage.prompt_tokens || 0,
+                    completionTokens: usage.completion_tokens || 0,
+                    totalTokens: usage.total_tokens || 0,
+                  }
+                : undefined,
+              { provider: 'mistral', model: chunkModel },
+            ),
             finishReason: computedFinishReason,
           })
         }
@@ -650,7 +653,10 @@ type: 'RUN_STARTED',
           threadId: aguiState.threadId,
           model: lastChunkModel,
           timestamp,
-          ...toUsageEventFields(undefined, { provider: 'mistral', model: lastChunkModel }),
+          ...toUsageEventFields(undefined, {
+            provider: 'mistral',
+            model: lastChunkModel,
+          }),
           finishReason: hasEmittedToolCall ? 'tool_calls' : 'stop',
         })
       }

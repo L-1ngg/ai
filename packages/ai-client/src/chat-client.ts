@@ -175,7 +175,12 @@ function connectionDrainsOnSend(connection: ConnectionAdapter): boolean {
 
 function isIntermediateToolTurn(chunk: StreamChunk): boolean {
   if (chunk.type !== 'RUN_FINISHED') return false
-  if (chunk.outcome?.type === 'interrupt' || (chunk.outcome?.type === 'success' && chunk.outcome.pendingToolCallIds?.length)) return false
+  if (
+    chunk.outcome?.type === 'interrupt' ||
+    (chunk.outcome?.type === 'success' &&
+      chunk.outcome.pendingToolCallIds?.length)
+  )
+    return false
   const extra = chunk as StreamChunk & { finishReason?: unknown }
   if (extra.finishReason !== undefined) {
     return extra.finishReason === 'tool_calls'
@@ -674,7 +679,8 @@ export class ChatClient<
         : {}),
       ...(initialMessages ? { initialMessages } : {}),
       events: {
-        onStateChange: (state) => this.callbacksRef.current.onStateChange(state),
+        onStateChange: (state) =>
+          this.callbacksRef.current.onStateChange(state),
         onMessagesChange: (messages: Array<UIMessage>) => {
           this.persistor?.notifyMessagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
@@ -846,7 +852,11 @@ export class ChatClient<
             // Track the pending execution
             this.pendingToolExecutions.set(args.toolCallId, executionPromise)
           } else {
-            this.processor.addToolResult(args.toolCallId, '', `Client tool '${args.toolName}' is unavailable`)
+            this.processor.addToolResult(
+              args.toolCallId,
+              '',
+              `Client tool '${args.toolName}' is unavailable`,
+            )
           }
         },
         onApprovalRequest: (args: {
@@ -1947,11 +1957,18 @@ export class ChatClient<
     }
   }
 
-  getAgentState(): unknown { return this.processor.getAgentState() }
-  getSubagents(): ReturnType<StreamProcessor['getSubagents']> { return this.processor.getSubagents() }
+  getAgentState(): unknown {
+    return this.processor.getAgentState()
+  }
+  getSubagents(): ReturnType<StreamProcessor['getSubagents']> {
+    return this.processor.getSubagents()
+  }
 
   private readonly protocolStreams = new Map<string, AGUIEventStream>()
-  private readonly scopedProtocolStreams = new WeakMap<object, AGUIEventStream>()
+  private readonly scopedProtocolStreams = new WeakMap<
+    object,
+    AGUIEventStream
+  >()
   private currentProtocolStream = new AGUIEventStream()
 
   private async processIncomingChunk(
@@ -1964,7 +1981,11 @@ export class ChatClient<
     }
     const scope = getProtocolScope(chunk)
     const runId = getChunkRunId(chunk)
-    let protocol = scope ? this.scopedProtocolStreams.get(scope) : runId === undefined ? this.currentProtocolStream : this.protocolStreams.get(runId)
+    let protocol = scope
+      ? this.scopedProtocolStreams.get(scope)
+      : runId === undefined
+        ? this.currentProtocolStream
+        : this.protocolStreams.get(runId)
     if (!protocol) {
       protocol = new AGUIEventStream()
       if (scope) this.scopedProtocolStreams.set(scope, protocol)
@@ -3363,7 +3384,8 @@ export class ChatClient<
     if (options.onResponse !== undefined) {
       this.callbacksRef.current.onResponse = options.onResponse
     }
-    if (options.onStateChange !== undefined) this.callbacksRef.current.onStateChange = options.onStateChange
+    if (options.onStateChange !== undefined)
+      this.callbacksRef.current.onStateChange = options.onStateChange
     if (options.onChunk !== undefined) {
       this.callbacksRef.current.onChunk = options.onChunk
     }

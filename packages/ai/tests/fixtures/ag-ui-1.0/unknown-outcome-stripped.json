@@ -21,16 +21,9 @@
   ],
   "expect": {
     "outcome": "completed",
-    "warnings": [
-      "/outcome"
-    ],
-    "eventTypes": [
-      "RUN_STARTED",
-      "RUN_FINISHED"
-    ],
-    "eventAbsentPaths": [
-      "1.outcome"
-    ]
+    "warnings": ["/outcome"],
+    "eventTypes": ["RUN_STARTED", "RUN_FINISHED"],
+    "eventAbsentPaths": ["1.outcome"]
   },
   "expectOverrides": {
     "dotnet": {
@@ -39,9 +32,7 @@
       "errorContains": "Unknown RunFinishedOutcome type discriminator: 'paused'",
       "warnings": [],
       "noWarnings": true,
-      "eventTypes": [
-        "RUN_STARTED"
-      ],
+      "eventTypes": ["RUN_STARTED"],
       "eventAbsentPaths": []
     }
   }

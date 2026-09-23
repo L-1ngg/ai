@@ -222,7 +222,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         hasEmittedRunStarted = true
         yield {
           protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+          type: EventType.RUN_STARTED,
           runId,
           threadId,
           model: chunk.model,
@@ -339,7 +339,12 @@ type: EventType.RUN_STARTED,
           finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
           // usage is optional under exactOptionalPropertyTypes; omit the key
           // entirely when Ollama reported no token counts.
-          ...(finishUsage && { ...toUsageEventFields(finishUsage, { provider: 'ollama', model: chunk.model }) }),
+          ...(finishUsage && {
+            ...toUsageEventFields(finishUsage, {
+              provider: 'ollama',
+              model: chunk.model,
+            }),
+          }),
         }
         continue
       }

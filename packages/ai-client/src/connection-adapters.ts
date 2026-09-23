@@ -31,7 +31,9 @@ import { normalizeMessagesDates } from './message-date-normalizer'
  */
 const chunkRunIds = new WeakMap<StreamChunk, string>()
 const protocolScopes = new WeakMap<StreamChunk, object>()
-export function getProtocolScope(chunk: StreamChunk): object | undefined { return protocolScopes.get(chunk) }
+export function getProtocolScope(chunk: StreamChunk): object | undefined {
+  return protocolScopes.get(chunk)
+}
 
 export function copyChunkRunId(source: StreamChunk, target: StreamChunk): void {
   const runId = chunkRunIds.get(source)
@@ -474,7 +476,10 @@ async function* linesToSSEEvents(
       return
     }
     const chunk = parseInboundEvent(JSON.parse(data))
-    if (!chunk) { pendingId = undefined; continue }
+    if (!chunk) {
+      pendingId = undefined
+      continue
+    }
     if ('threadId' in chunk && typeof chunk.threadId === 'string') {
       lastThreadId = chunk.threadId
     }
@@ -500,8 +505,11 @@ async function* linesToNdjsonEvents(
 ): AsyncGenerator<StreamEvent> {
   for await (const line of lines) {
     const parsed = JSON.parse(line) as unknown
-    const chunk = parseInboundEvent(isNdjsonEnvelope(parsed) ? parsed.chunk : parsed)
-    if (chunk) yield { chunk, ...(isNdjsonEnvelope(parsed) ? { id: parsed.id } : {}) }
+    const chunk = parseInboundEvent(
+      isNdjsonEnvelope(parsed) ? parsed.chunk : parsed,
+    )
+    if (chunk)
+      yield { chunk, ...(isNdjsonEnvelope(parsed) ? { id: parsed.id } : {}) }
   }
 }
 
@@ -2312,8 +2320,14 @@ export function webSocket(
       if (isPingFrame(parsed)) return
       const envelopeId = isNdjsonEnvelope(parsed) ? parsed.id : undefined
       let chunk: StreamChunk | undefined
-      try { chunk = parseInboundEvent(isNdjsonEnvelope(parsed) ? parsed.chunk : parsed) }
-      catch (error) { failAll(error instanceof Error ? error : new Error(String(error))); return }
+      try {
+        chunk = parseInboundEvent(
+          isNdjsonEnvelope(parsed) ? parsed.chunk : parsed,
+        )
+      } catch (error) {
+        failAll(error instanceof Error ? error : new Error(String(error)))
+        return
+      }
       if (!chunk) return
 
       // Thread durable chunks through the active run session's tracker (if
@@ -2495,9 +2509,13 @@ export function webSocket(
         }
         if (isPingFrame(parsed)) return
         try {
-          const chunk = parseInboundEvent(isNdjsonEnvelope(parsed) ? parsed.chunk : parsed)
+          const chunk = parseInboundEvent(
+            isNdjsonEnvelope(parsed) ? parsed.chunk : parsed,
+          )
           if (chunk) pipe.push(chunk)
-        } catch (error) { pipe.fail(error instanceof Error ? error : new Error(String(error))) }
+        } catch (error) {
+          pipe.fail(error instanceof Error ? error : new Error(String(error)))
+        }
       }
       ws.onclose = (event?: CloseEvent) => {
         // 1000 = the server finished replaying the log and closed cleanly.

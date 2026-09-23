@@ -131,7 +131,10 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
     ['tools', { ...base, tools: undefined, messages: [] }],
     ['context', { ...base, context: undefined, messages: [] }],
   ])('defaults an omitted `%s` array', async (_label, body) => {
-    await expect(chatParamsFromRequestBody(body)).resolves.toMatchObject({ tools: [], aguiContext: [] })
+    await expect(chatParamsFromRequestBody(body)).resolves.toMatchObject({
+      tools: [],
+      aguiContext: [],
+    })
   })
 
   it('rejects a non-array `messages`', async () => {

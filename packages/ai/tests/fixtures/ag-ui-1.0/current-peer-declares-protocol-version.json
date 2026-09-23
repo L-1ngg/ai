@@ -5,7 +5,12 @@
   "specPage": "/spec/1.0/basic/versioning",
   "kill": "stop declaring protocolVersion on the run input",
   "stream": [
-    { "type": "RUN_STARTED", "threadId": "t-curpin", "runId": "r-1", "protocolVersion": "1.0" },
+    {
+      "type": "RUN_STARTED",
+      "threadId": "t-curpin",
+      "runId": "r-1",
+      "protocolVersion": "1.0"
+    },
     { "type": "RUN_FINISHED", "threadId": "t-curpin", "runId": "r-1" }
   ],
   "expect": {

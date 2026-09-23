@@ -209,7 +209,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         aguiState.hasEmittedRunStarted = true
         yield {
           protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+          type: EventType.RUN_STARTED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: options.model,
@@ -489,7 +489,7 @@ type: EventType.RUN_STARTED,
           aguiState.hasEmittedRunStarted = true
           yield {
             protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+            type: EventType.RUN_STARTED,
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model,
@@ -687,7 +687,10 @@ type: EventType.RUN_STARTED,
         timestamp: Date.now(),
         finishReason: 'stop',
         ...(usage && {
-          ...toUsageEventFields(buildResponsesUsage(usage), { provider: this.name, model: model }),
+          ...toUsageEventFields(buildResponsesUsage(usage), {
+            provider: this.name,
+            model: model,
+          }),
         }),
       }
     } catch (error: unknown) {
@@ -695,7 +698,7 @@ type: EventType.RUN_STARTED,
         aguiState.hasEmittedRunStarted = true
         yield {
           protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+          type: EventType.RUN_STARTED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model,
@@ -1012,7 +1015,7 @@ type: EventType.RUN_STARTED,
           aguiState.hasEmittedRunStarted = true
           yield {
             protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+            type: EventType.RUN_STARTED,
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: model || options.model,
@@ -1747,7 +1750,10 @@ type: EventType.RUN_STARTED,
             // Omit usage entirely when the provider reported none rather than
             // emitting fabricated zeros (also satisfies exactOptionalPropertyTypes).
             ...(chunk.response.usage && {
-              ...toUsageEventFields(buildResponsesUsage(chunk.response.usage), { provider: this.name, model: model || options.model }),
+              ...toUsageEventFields(buildResponsesUsage(chunk.response.usage), {
+                provider: this.name,
+                model: model || options.model,
+              }),
             }),
             finishReason,
           }

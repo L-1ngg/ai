@@ -27,7 +27,13 @@ describe('restorePublicAliases', () => {
           totalTokens: 15,
           cachedInputTokens: 3,
         },
-        { provider: 'other', model: 'other-model', inputTokens: 2, outputTokens: 1, totalTokens: 3 },
+        {
+          provider: 'other',
+          model: 'other-model',
+          inputTokens: 2,
+          outputTokens: 1,
+          totalTokens: 3,
+        },
       ],
       metadata: {
         tanstack: {
@@ -43,8 +49,19 @@ describe('restorePublicAliases', () => {
     restorePublicAliases(chunk)
 
     expect(chunk.usage).toEqual([
-      { inputTokens: 10, outputTokens: 5, totalTokens: 15, cachedInputTokens: 3 },
-      { provider: 'other', model: 'other-model', inputTokens: 2, outputTokens: 1, totalTokens: 3 },
+      {
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        cachedInputTokens: 3,
+      },
+      {
+        provider: 'other',
+        model: 'other-model',
+        inputTokens: 2,
+        outputTokens: 1,
+        totalTokens: 3,
+      },
     ])
     expect(chunk.metadata?.tanstack?.usage?.cost).toBe(0.02)
     expect(chunk).not.toHaveProperty('model')
@@ -98,7 +115,8 @@ describe('restoreInboundChunk', () => {
 
     expect(restored.finishReason).toBe('stop')
     expect(restored.model).toBe('gpt-5.5')
-    if (restored.type !== EventType.RUN_FINISHED) throw new Error('expected RUN_FINISHED')
+    if (restored.type !== EventType.RUN_FINISHED)
+      throw new Error('expected RUN_FINISHED')
     expect(restored.usage).toEqual([
       { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
     ])

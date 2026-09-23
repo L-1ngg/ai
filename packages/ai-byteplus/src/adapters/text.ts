@@ -337,7 +337,7 @@ export class BytePlusTextAdapter<
       const runId = generateId(this.name)
       yield {
         protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+        type: EventType.RUN_STARTED,
         runId,
         threadId: options.chatOptions.threadId ?? generateId(this.name),
         model: options.chatOptions.model,

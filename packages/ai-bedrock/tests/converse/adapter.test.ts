@@ -288,7 +288,9 @@ describe('BedrockConverseTextAdapter', () => {
     // Usage arrives on the trailing metadata event, after messageStop, yet is
     // folded into the single terminal RUN_FINISHED.
     expect(finished[0]?.usage?.[0]).toMatchObject({
-      inputTokens: 7, outputTokens: 11, totalTokens: 18,
+      inputTokens: 7,
+      outputTokens: 11,
+      totalTokens: 18,
     })
   })
 

@@ -1192,7 +1192,7 @@ async function* translateInteractionEvents(
       hasEmittedRunStarted = true
       yield {
         protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+        type: EventType.RUN_STARTED,
         runId,
         threadId,
         model,
@@ -1677,13 +1677,16 @@ type: EventType.RUN_STARTED,
           model,
           timestamp,
           finishReason,
-          ...toUsageEventFields(usage
-            ? {
-                promptTokens: usage.total_input_tokens ?? 0,
-                completionTokens: usage.total_output_tokens ?? 0,
-                totalTokens: usage.total_tokens ?? 0,
-              }
-            : undefined, { provider: 'gemini', model: model }),
+          ...toUsageEventFields(
+            usage
+              ? {
+                  promptTokens: usage.total_input_tokens ?? 0,
+                  completionTokens: usage.total_output_tokens ?? 0,
+                  totalTokens: usage.total_tokens ?? 0,
+                }
+              : undefined,
+            { provider: 'gemini', model: model },
+          ),
         }
         return
       }

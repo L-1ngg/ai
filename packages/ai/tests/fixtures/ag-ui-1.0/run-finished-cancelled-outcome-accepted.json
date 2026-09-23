@@ -59,11 +59,7 @@
   "expectOverrides": {
     "dotnet": {
       "intentional": "The .NET client's event surface is ChatResponseUpdate.RawRepresentation, and the builder-only events yield no update: TEXT_MESSAGE_START and TEXT_MESSAGE_END open and close the message being assembled and hand a consumer nothing, so they cannot appear in a delivered list however faithfully the client processes them. The list here is the base list minus exactly those; every event this fixture is actually about is still in it, in order. RUN_FINISHED carrying the cancelled outcome is still delivered rather than swallowed, which is the half of this fixture the list is here to pin. The outcome payload is pinned at index 2 rather than the base's 4, because the builder-only TEXT_MESSAGE_START and TEXT_MESSAGE_END yield no update on this lane.",
-      "eventTypes": [
-        "RUN_STARTED",
-        "TEXT_MESSAGE_CONTENT",
-        "RUN_FINISHED"
-      ],
+      "eventTypes": ["RUN_STARTED", "TEXT_MESSAGE_CONTENT", "RUN_FINISHED"],
       "eventPaths": {
         "2.outcome.type": "cancelled"
       }

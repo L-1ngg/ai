@@ -5,9 +5,22 @@
   "specPage": "/spec/1.0/basic/patterns/streaming",
   "kill": "make chunk expansion reject any repeated field on a continuation rather than only a conflicting one",
   "stream": [
-    { "type": "RUN_STARTED", "threadId": "t-chunk-repeat", "runId": "chunk-repeat-r1", "protocolVersion": "1.0" },
-    { "type": "TEXT_MESSAGE_START", "messageId": "chunk-repeat-m1", "role": "assistant" },
-    { "type": "TEXT_MESSAGE_CONTENT", "messageId": "chunk-repeat-m1", "delta": "Searching." },
+    {
+      "type": "RUN_STARTED",
+      "threadId": "t-chunk-repeat",
+      "runId": "chunk-repeat-r1",
+      "protocolVersion": "1.0"
+    },
+    {
+      "type": "TEXT_MESSAGE_START",
+      "messageId": "chunk-repeat-m1",
+      "role": "assistant"
+    },
+    {
+      "type": "TEXT_MESSAGE_CONTENT",
+      "messageId": "chunk-repeat-m1",
+      "delta": "Searching."
+    },
     { "type": "TEXT_MESSAGE_END", "messageId": "chunk-repeat-m1" },
     {
       "type": "TOOL_CALL_CHUNK",
@@ -23,7 +36,11 @@
       "parentMessageId": "chunk-repeat-m1",
       "delta": "\"agui\"}"
     },
-    { "type": "RUN_FINISHED", "threadId": "t-chunk-repeat", "runId": "chunk-repeat-r1" }
+    {
+      "type": "RUN_FINISHED",
+      "threadId": "t-chunk-repeat",
+      "runId": "chunk-repeat-r1"
+    }
   ],
   "expect": {
     "outcome": "completed",

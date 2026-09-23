@@ -33,7 +33,11 @@
     "noWarnings": true,
     "messageCount": 1,
     "messages": [
-      { "id": "m-same-version-1", "role": "assistant", "content": "same version" }
+      {
+        "id": "m-same-version-1",
+        "role": "assistant",
+        "content": "same version"
+      }
     ]
   }
 }

@@ -126,7 +126,7 @@ export async function* translateAcpStream(
     runStarted = true
     yield {
       protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+      type: EventType.RUN_STARTED,
       runId,
       threadId,
       model,
@@ -406,7 +406,9 @@ type: EventType.RUN_STARTED,
             model,
             timestamp: now(),
             finishReason,
-            ...(usage !== undefined && { ...toUsageEventFields(usage, { provider: 'acp', model: model }) }),
+            ...(usage !== undefined && {
+              ...toUsageEventFields(usage, { provider: 'acp', model: model }),
+            }),
           }
         }
       }

@@ -56,7 +56,11 @@
         "role": "reasoning",
         "content": "weighing the options"
       },
-      { "id": "m-reasoning-span-2", "role": "assistant", "content": "the answer" }
+      {
+        "id": "m-reasoning-span-2",
+        "role": "assistant",
+        "content": "the answer"
+      }
     ]
   },
   "expectOverrides": {

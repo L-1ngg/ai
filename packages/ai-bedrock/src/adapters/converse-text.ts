@@ -344,7 +344,7 @@ export class BedrockConverseTextAdapter<
           hasEmittedRunStarted = true
           yield {
             protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+            type: EventType.RUN_STARTED,
             runId,
             threadId,
             model: chatOptions.model,
@@ -412,7 +412,7 @@ type: EventType.RUN_STARTED,
         hasEmittedRunStarted = true
         yield {
           protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+          type: EventType.RUN_STARTED,
           runId,
           threadId,
           model: chatOptions.model,
@@ -483,14 +483,19 @@ type: EventType.RUN_STARTED,
         model: chatOptions.model,
         timestamp: Date.now(),
         finishReason,
-        ...(usage && { ...toUsageEventFields(usage, { provider: 'bedrock', model: chatOptions.model }) }),
+        ...(usage && {
+          ...toUsageEventFields(usage, {
+            provider: 'bedrock',
+            model: chatOptions.model,
+          }),
+        }),
       }
     } catch (error: unknown) {
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true
         yield {
           protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+          type: EventType.RUN_STARTED,
           runId,
           threadId,
           model: chatOptions.model,

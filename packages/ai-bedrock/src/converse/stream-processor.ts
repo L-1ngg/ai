@@ -100,7 +100,7 @@ export async function* processConverseStream(
     hasEmittedRunStarted = true
     yield {
       protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+      type: EventType.RUN_STARTED,
       runId,
       threadId,
       parentRunId,

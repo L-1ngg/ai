@@ -14,7 +14,10 @@ import {
 } from './test-utils'
 import type { SubscribeConnectionAdapter } from '@tanstack/ai-client'
 import type { UIMessage } from '../src/types'
-import type { ModelMessage, AdapterYieldChunk as StreamChunk } from '@tanstack/ai'
+import type {
+  ModelMessage,
+  AdapterYieldChunk as StreamChunk,
+} from '@tanstack/ai'
 
 describe('useChat', () => {
   afterEach(() => {

@@ -57,9 +57,7 @@ import type {
   ToolCallStartEvent as AGUIToolCallStartEvent,
   EventType,
 } from '@ag-ui/core'
-import type {
-  TokenUsageLeftover,
-} from './utilities/ag-ui-usage'
+import type { TokenUsageLeftover } from './utilities/ag-ui-usage'
 
 // Re-export ProviderTool so the type is reachable from `@tanstack/ai`'s root
 // entry via `export * from './types'` without forcing the subpath import.

@@ -182,7 +182,7 @@ export async function* translateThreadEvents(
     runStarted = true
     yield {
       protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+      type: EventType.RUN_STARTED,
       runId,
       threadId,
       model,
@@ -201,7 +201,12 @@ type: EventType.RUN_STARTED,
       timestamp: now(),
       finishReason: 'stop',
       ...(toUsage(usage)
-        ? { ...toUsageEventFields(toUsage(usage) as NonNullable<ReturnType<typeof toUsage>>, { provider: 'grok-build' }) }
+        ? {
+            ...toUsageEventFields(
+              toUsage(usage) as NonNullable<ReturnType<typeof toUsage>>,
+              { provider: 'grok-build' },
+            ),
+          }
         : {}),
     }
   }

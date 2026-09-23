@@ -57,9 +57,7 @@
   ],
   "expect": {
     "outcome": "completed",
-    "warnings": [
-      "DROPS non-text parts"
-    ],
+    "warnings": ["DROPS non-text parts"],
     "request": {
       "messages": [
         {

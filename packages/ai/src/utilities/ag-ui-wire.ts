@@ -172,9 +172,17 @@ export function uiMessagesToWire(
 
     const activity = parts.find((part) => part.type === 'activity')
     if (activity) {
-      wire.push({ id: uiMessage.id, role: 'activity', activityType: activity.activityType, content: activity.content,
-        ...(uiMessage.subagentRunId !== undefined ? { subagentRunId: uiMessage.subagentRunId } : {}),
-        ...(uiMessage.metadata !== undefined ? { metadata: uiMessage.metadata } : {}),
+      wire.push({
+        id: uiMessage.id,
+        role: 'activity',
+        activityType: activity.activityType,
+        content: activity.content,
+        ...(uiMessage.subagentRunId !== undefined
+          ? { subagentRunId: uiMessage.subagentRunId }
+          : {}),
+        ...(uiMessage.metadata !== undefined
+          ? { metadata: uiMessage.metadata }
+          : {}),
       })
       continue
     }
@@ -184,8 +192,12 @@ export function uiMessagesToWire(
       if (part.type === 'thinking') {
         const reasoning: WireReasoningMessage = {
           role: 'reasoning',
-          ...(uiMessage.subagentRunId !== undefined ? { subagentRunId: uiMessage.subagentRunId } : {}),
-          id: part.id ?? uniqueWireId(deriveReasoningId(uiMessage.id, part), usedWireIds),
+          ...(uiMessage.subagentRunId !== undefined
+            ? { subagentRunId: uiMessage.subagentRunId }
+            : {}),
+          id:
+            part.id ??
+            uniqueWireId(deriveReasoningId(uiMessage.id, part), usedWireIds),
           content: part.content,
         }
         if (part.signature) {
@@ -197,18 +209,25 @@ export function uiMessagesToWire(
 
     const text = collectText(parts)
     const toolCalls = collectToolCalls(parts)
-    if (!parts.every((part) => (part.type === 'thinking' && part.id === uiMessage.id) || part.type === 'tool-result')) wire.push(
-      toAnchor(
-        uiMessage,
-        'assistant',
-        {
-          ...(text !== '' && { content: text }),
-          ...(toolCalls && { toolCalls }),
-        },
-        parts,
-        includeSnapshotStructuredOutput,
-      ),
+    if (
+      !parts.every(
+        (part) =>
+          (part.type === 'thinking' && part.id === uiMessage.id) ||
+          part.type === 'tool-result',
+      )
     )
+      wire.push(
+        toAnchor(
+          uiMessage,
+          'assistant',
+          {
+            ...(text !== '' && { content: text }),
+            ...(toolCalls && { toolCalls }),
+          },
+          parts,
+          includeSnapshotStructuredOutput,
+        ),
+      )
 
     const explicitToolResults = new Set(
       parts.flatMap((part) =>
@@ -231,11 +250,14 @@ export function uiMessagesToWire(
         wire.push({
           role: 'tool',
           id,
-          ...(uiMessage.subagentRunId !== undefined ? { subagentRunId: uiMessage.subagentRunId } : {}),
+          ...(uiMessage.subagentRunId !== undefined
+            ? { subagentRunId: uiMessage.subagentRunId }
+            : {}),
           toolCallId: part.toolCallId,
           ...(part.name !== undefined && { name: part.name }),
-          content: part.wireContent ?? (
-            typeof part.content === 'string'
+          content:
+            part.wireContent ??
+            (typeof part.content === 'string'
               ? part.content
               : contentPartsToWire(part.content)),
           ...(part.error !== undefined && { error: part.error }),
@@ -318,7 +340,9 @@ function toAnchor(
   const metadata = messageMetadata(msg, parts, includeSnapshotStructuredOutput)
   const base = {
     id: msg.id,
-    ...(msg.subagentRunId !== undefined ? { subagentRunId: msg.subagentRunId } : {}),
+    ...(msg.subagentRunId !== undefined
+      ? { subagentRunId: msg.subagentRunId }
+      : {}),
     ...(msg.name !== undefined && { name: msg.name }),
     ...(metadata !== undefined && { metadata }),
   }
@@ -458,7 +482,11 @@ function collectUserContent(
       p.type === 'video' ||
       p.type === 'document',
   )
-  if (!hasMultimodal && parts.length <= 1 && !parts.some((part) => 'metadata' in part || 'id' in part)) {
+  if (
+    !hasMultimodal &&
+    parts.length <= 1 &&
+    !parts.some((part) => 'metadata' in part || 'id' in part)
+  ) {
     return collectText(parts)
   }
   const out: Array<AGUIContentPart> = []

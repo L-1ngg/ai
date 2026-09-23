@@ -14,7 +14,9 @@ import type {
 
 /** Give request handlers a stable error with migration guidance. */
 function invalidBody(reason: string): never {
-  throw new AGUIError(`Request body is not a valid AG-UI RunAgentInput. See docs/migration/ag-ui-compliance.md. Validation errors: ${reason}`)
+  throw new AGUIError(
+    `Request body is not a valid AG-UI RunAgentInput. See docs/migration/ag-ui-compliance.md. Validation errors: ${reason}`,
+  )
 }
 
 /**
@@ -50,16 +52,27 @@ export async function chatParamsFromRequestBody(body: unknown): Promise<{
   aguiContext: Array<AGUIContext>
 }> {
   let input: AGUIRunAgentInput
-  try { input = validateAGUIInput(body) }
-  catch (error) { invalidBody(error instanceof Error ? error.message : String(error)) }
+  try {
+    input = validateAGUIInput(body)
+  } catch (error) {
+    invalidBody(error instanceof Error ? error.message : String(error))
+  }
   const aguiContext = input.context ?? []
   return {
     messages: input.messages as Array<UIMessage | ModelMessage>,
     threadId: input.threadId,
     runId: input.runId,
-    ...(input.parentRunId !== undefined ? { parentRunId: input.parentRunId } : {}),
-    ...(input.protocolVersion !== undefined ? { protocolVersion: input.protocolVersion } : {}),
-    tools: (input.tools ?? []).map((tool) => ({ ...tool, description: tool.description ?? '', parameters: tool.parameters as JSONSchema })),
+    ...(input.parentRunId !== undefined
+      ? { parentRunId: input.parentRunId }
+      : {}),
+    ...(input.protocolVersion !== undefined
+      ? { protocolVersion: input.protocolVersion }
+      : {}),
+    tools: (input.tools ?? []).map((tool) => ({
+      ...tool,
+      description: tool.description ?? '',
+      parameters: tool.parameters as JSONSchema,
+    })),
     forwardedProps: input.forwardedProps ?? {},
     state: input.state,
     ...(input.resume !== undefined ? { resume: input.resume } : {}),

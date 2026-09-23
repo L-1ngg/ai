@@ -72,8 +72,19 @@ describe('stripToSpec', () => {
       type: EventType.RUN_FINISHED,
       runId: 'run-1',
       threadId: 'thread-1',
-      usage: [{ inputTokens: 10, outputTokens: 5, totalTokens: 15, cachedInputTokens: 3 }],
-      metadata: { tanstack: { usage: { cost: 0.02, promptTokensDetails: { audioTokens: 1 } } } },
+      usage: [
+        {
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
+          cachedInputTokens: 3,
+        },
+      ],
+      metadata: {
+        tanstack: {
+          usage: { cost: 0.02, promptTokensDetails: { audioTokens: 1 } },
+        },
+      },
     })
     if (result.type !== EventType.RUN_FINISHED) {
       throw new Error('expected RUN_FINISHED')

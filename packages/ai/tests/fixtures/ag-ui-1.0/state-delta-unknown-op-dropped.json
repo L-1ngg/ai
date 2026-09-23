@@ -39,9 +39,7 @@
   ],
   "expect": {
     "outcome": "completed",
-    "warnings": [
-      "/delta/0"
-    ],
+    "warnings": ["/delta/0"],
     "state": {
       "count": 5
     }

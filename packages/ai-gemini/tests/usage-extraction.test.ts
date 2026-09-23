@@ -202,7 +202,9 @@ describe('Gemini usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.metadata?.tanstack?.usage?.promptTokensDetails).toMatchObject({
+    expect(
+      doneChunk?.metadata?.tanstack?.usage?.promptTokensDetails,
+    ).toMatchObject({
       textTokens: 100,
       imageTokens: 50,
     })
@@ -243,7 +245,9 @@ describe('Gemini usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.metadata?.tanstack?.usage?.completionTokensDetails).toMatchObject({
+    expect(
+      doneChunk?.metadata?.tanstack?.usage?.completionTokensDetails,
+    ).toMatchObject({
       textTokens: 50,
       audioTokens: 30,
     })
@@ -281,7 +285,9 @@ describe('Gemini usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.metadata?.tanstack?.usage?.providerUsageDetails).toMatchObject({
+    expect(
+      doneChunk?.metadata?.tanstack?.usage?.providerUsageDetails,
+    ).toMatchObject({
       trafficType: 'ON_DEMAND',
     })
   })
@@ -318,7 +324,9 @@ describe('Gemini usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.metadata?.tanstack?.usage?.providerUsageDetails).toMatchObject({
+    expect(
+      doneChunk?.metadata?.tanstack?.usage?.providerUsageDetails,
+    ).toMatchObject({
       toolUsePromptTokenCount: 20,
     })
   })

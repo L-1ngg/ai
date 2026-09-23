@@ -47,13 +47,8 @@
   ],
   "expect": {
     "outcome": "completed",
-    "warnings": [
-      "dropping SUBAGENT_STARTED"
-    ],
-    "eventTypesAbsent": [
-      "SUBAGENT_STARTED",
-      "SUBAGENT_FINISHED"
-    ],
+    "warnings": ["dropping SUBAGENT_STARTED"],
+    "eventTypesAbsent": ["SUBAGENT_STARTED", "SUBAGENT_FINISHED"],
     "messages": [
       {
         "role": "assistant",

@@ -1013,7 +1013,7 @@ export class AnthropicTextAdapter<
           hasEmittedRunStarted = true
           yield {
             protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+            type: EventType.RUN_STARTED,
             runId,
             threadId,
             model,
@@ -1418,7 +1418,10 @@ type: EventType.RUN_STARTED,
                   model,
                   timestamp: Date.now(),
                   finishReason: 'tool_calls',
-                  ...toUsageEventFields(buildAnthropicUsage(event.usage), { provider: 'anthropic', model: model }),
+                  ...toUsageEventFields(buildAnthropicUsage(event.usage), {
+                    provider: 'anthropic',
+                    model: model,
+                  }),
                 }
                 break
               }
@@ -1472,7 +1475,10 @@ type: EventType.RUN_STARTED,
                   model,
                   timestamp: Date.now(),
                   finishReason: 'stop',
-                  ...toUsageEventFields(buildAnthropicUsage(event.usage), { provider: 'anthropic', model: model }),
+                  ...toUsageEventFields(buildAnthropicUsage(event.usage), {
+                    provider: 'anthropic',
+                    model: model,
+                  }),
                 }
               }
             }

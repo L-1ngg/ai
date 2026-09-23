@@ -137,7 +137,6 @@ export function normalizeStreamChunk(
     }
   }
 
-
   const normalized =
     Object.keys(tanstack).length === 0
       ? specChunk

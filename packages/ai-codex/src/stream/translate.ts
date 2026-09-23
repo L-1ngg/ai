@@ -191,7 +191,7 @@ export async function* translateThreadEvents(
     runStarted = true
     yield {
       protocolVersion: '1.0',
-type: EventType.RUN_STARTED,
+      type: EventType.RUN_STARTED,
       runId,
       threadId,
       model,
@@ -441,7 +441,9 @@ type: EventType.RUN_STARTED,
           model,
           timestamp: now(),
           finishReason: 'stop',
-          ...(usage !== undefined && { ...toUsageEventFields(usage, { provider: 'codex', model: model }) }),
+          ...(usage !== undefined && {
+            ...toUsageEventFields(usage, { provider: 'codex', model: model }),
+          }),
         }
       } else if (event.type === 'turn.failed' || event.type === 'error') {
         yield* synthesizeUnresolvedResults()
