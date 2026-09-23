@@ -447,6 +447,51 @@ describe('createMCPServer', () => {
     expect(clientAsks).toEqual([])
   })
 
+  it('keeps a string output schema for spec 2026 and spec 2025 clients', async () => {
+    const server = createMCPServer({
+      name: 'weather',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'forecast',
+          description: 'Forecast text',
+          inputSchema: z.object({}),
+          outputSchema: z.string(),
+        }).server(async () => 'Sunny'),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const listed = await client.listTools()
+      expect(listed.tools[0]?.outputSchema).toMatchObject({ type: 'string' })
+      const called = await client.callTool({ name: 'forecast', arguments: {} })
+      expect(called.structuredContent).toBe('Sunny')
+    })
+    await withClient(server, { era: '2025' }, async (client) => {
+      const called = await client.callTool({ name: 'forecast', arguments: {} })
+      expect(called.content).toEqual([{ type: 'text', text: 'Sunny' }])
+    })
+  })
+
+  it('sends a text string when a tool returns nothing', async () => {
+    const server = createMCPServer({
+      name: 'weather',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'noop',
+          description: 'Returns nothing',
+          inputSchema: z.object({}),
+        }).server(async () => undefined),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      const called = await client.callTool({ name: 'noop', arguments: {} })
+      expect(called.content).toEqual([{ type: 'text', text: '' }])
+    })
+  })
+
   it('gives a spec 2025 session only to the subject that opened it', async () => {
     const server = createMCPServer({
       name: 'secure',

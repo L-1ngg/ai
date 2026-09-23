@@ -14,6 +14,7 @@ import {
   isLegacyRequest,
 } from '@modelcontextprotocol/server'
 import type {
+  JsonSchemaType,
   McpRequestContext,
   ServerContext,
 } from '@modelcontextprotocol/server'
@@ -359,8 +360,12 @@ function registerServerTool(
   },
 ) {
   const inputSchema = standardSchema(tool.inputSchema) ?? emptyObjectSchema
+  // An output schema can have any root, like z.string(). The SDK wraps it
+  // in `{ result }` for a spec 2025 client.
   const outputSchema =
-    tool.execution === 'task' ? undefined : standardSchema(tool.outputSchema)
+    tool.execution === 'task'
+      ? undefined
+      : standardSchema(tool.outputSchema, true)
   const registered = server.registerTool(
     tool.name,
     {
@@ -375,7 +380,7 @@ function registerServerTool(
       const ctx = toolCallContext(input.era, sdkCtx, input.options.sample)
       try {
         const output = await runTool(tool, args, ctx)
-        return toCallToolResult(output)
+        return toCallToolResult(output, outputSchema !== undefined)
       } catch (error) {
         if (error instanceof ToolInputRequiredError) {
           return inputRequired({
@@ -598,7 +603,8 @@ function resourceContents(uri: string, mimeType: string, body: unknown) {
   if (typeof body === 'string') {
     return { contents: [{ uri, mimeType, text: body }] }
   }
-  return { contents: [{ uri, mimeType, text: JSON.stringify(body) }] }
+  // JSON.stringify(undefined) is undefined. A text block needs a string.
+  return { contents: [{ uri, mimeType, text: JSON.stringify(body) ?? '' }] }
 }
 
 function registerServerPrompt(server: McpServer, prompt: McpPrompt) {
@@ -693,11 +699,21 @@ function taskIdFrom(params: unknown) {
   return params.taskId
 }
 
-function standardSchema(schema: unknown) {
+// Input schemas and prompt arguments must have an object root.
+function standardSchema(schema: unknown, anyRoot = false) {
   if (!isSchemaInput(schema)) return undefined
   const jsonSchema = convertSchemaToJsonSchema(schema)
-  if (!isJsonObjectSchema(jsonSchema)) return undefined
-  return fromJsonSchema(jsonSchema)
+  if (!anyRoot) {
+    return isJsonObjectSchema(jsonSchema)
+      ? fromJsonSchema(jsonSchema)
+      : undefined
+  }
+  return isJsonSchemaRoot(jsonSchema) ? fromJsonSchema(jsonSchema) : undefined
+}
+
+// The converter returns one JSON Schema object for a Standard Schema.
+function isJsonSchemaRoot(value: unknown): value is JsonSchemaType {
+  return isRecord(value)
 }
 
 function isSchemaInput(schema: unknown): schema is SchemaInput {

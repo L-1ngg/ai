@@ -275,22 +275,19 @@ function spec2025View(record: StoredTask) {
 
 /**
  * Turns a tool output into an MCP `CallToolResult`.
- * A string becomes one text block.
- * An object becomes a JSON text block and `structuredContent`.
+ * A string becomes one text block. Any other value becomes a JSON text block.
+ * An object also becomes `structuredContent`. With `structured`, every
+ * value does, so the result matches an advertised output schema.
  */
-export function toCallToolResult(output: unknown) {
-  if (typeof output === 'string') {
-    return { content: [{ type: 'text' as const, text: output }] }
+export function toCallToolResult(output: unknown, structured = false) {
+  // JSON.stringify(undefined) is undefined. A text block needs a string.
+  const text =
+    typeof output === 'string' ? output : (JSON.stringify(output) ?? '')
+  const content = [{ type: 'text' as const, text }]
+  if (structured || isRecord(output)) {
+    return { content, structuredContent: output }
   }
-  if (isRecord(output)) {
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify(output) }],
-      structuredContent: output,
-    }
-  }
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify(output) }],
-  }
+  return { content }
 }
 
 function clockFields(record: TaskClock) {
