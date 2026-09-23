@@ -147,10 +147,18 @@ class MCPClientImpl<
     // Try spec 2026-07-28 first. If the server does not support it, the
     // client uses the 2025 initialize handshake. Caller options still apply.
     // `mode` stays `auto` even when `clientOptions` sets another mode.
+    // A spec 2026 server returns `input_required` only to a client that
+    // declares elicitation and sampling. `chat()` turns that result into an
+    // `mcp_input` interrupt, so the client declares both by default.
     this.#client = new Client(
       { name, version },
       {
         ...clientOptions,
+        capabilities: {
+          elicitation: { form: {} },
+          sampling: {},
+          ...clientOptions?.capabilities,
+        },
         versionNegotiation: {
           ...clientOptions?.versionNegotiation,
           mode: 'auto',
@@ -183,7 +191,9 @@ class MCPClientImpl<
       )
       await this.#client.connect(transport)
       this.capabilities = this.#client.getServerCapabilities() ?? {}
-      await this.#listenForToolListChanges()
+      // A failed listen only means that tool changes are not pushed.
+      // The connection still works, so the error does not fail connect.
+      await this.#listenForToolListChanges().catch(() => undefined)
     } catch (err) {
       await this.#toolListSubscription?.close().catch(() => undefined)
       await this.#client.close().catch(() => undefined)
@@ -204,9 +214,11 @@ class MCPClientImpl<
 
   // Read every tools/list page into the definition cache.
   // listPages throws when a cursor repeats or the page cap is passed.
-  // A raw list does not compile `jsonSchemaValidator`. `callTool` then
-  // skips output checks. `tools()` follows the raw walk with `listTools()`
-  // so the SDK cache is filled and the validator runs.
+  // A raw list does not compile `jsonSchemaValidator`. On spec 2025, SDK
+  // `callTool` then skips output checks. So `tools()` follows the raw walk
+  // with `listTools()` to fill the SDK cache and run the validator.
+  // Spec 2026 calls use a raw tools/call, which never reads that cache,
+  // so the second walk is skipped there.
   // `raw: true` is the lazy `callTool` path. It must stay free of that cache.
   async #listTools(options?: { raw?: boolean }) {
     const client = this.#client
@@ -221,7 +233,7 @@ class MCPClientImpl<
       return { items: page.tools, nextCursor: page.nextCursor }
     })
     this.#toolDefinitions = new Map(defs.map((def) => [def.name, def]))
-    if (options?.raw !== true) {
+    if (options?.raw !== true && client.getProtocolEra() !== 'modern') {
       await client.listTools()
     }
     return defs

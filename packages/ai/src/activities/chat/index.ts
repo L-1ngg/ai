@@ -124,6 +124,7 @@ import type {
   ToolCallEndEvent,
   ToolCallResultEvent,
   ToolCallStartEvent,
+  ToolInputResponse,
   UIMessage,
 } from '../../types'
 import type {
@@ -830,6 +831,7 @@ class TextEngine<
   private readonly resumeClientToolResults = new Map<string, any>()
   private readonly resumeDeniedToolResults = new Map<string, unknown>()
   private readonly resumeCancelledToolCallIds = new Set<string>()
+  private readonly resumeInputResponses = new Map<string, ToolInputResponse>()
   private readonly resumeGenericInterrupts = new Map<
     string,
     ChatResumeGenericResolution
@@ -2058,6 +2060,7 @@ class TextEngine<
       {
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
+        inputResponses: this.resumeInputResponses,
       },
     )
 
@@ -2242,6 +2245,7 @@ class TextEngine<
       {
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
+        inputResponses: this.resumeInputResponses,
       },
     )
 
@@ -2749,13 +2753,22 @@ class TextEngine<
     }
 
     for (const pendingInput of inputRequired) {
+      const id = `mcp_input_${pendingInput.toolCallId}`
       interrupts.push({
-        id: `mcp_input_${pendingInput.toolCallId}`,
+        id,
         reason: 'mcp_input',
         message: `Input required to run ${pendingInput.toolName}`,
         toolCallId: pendingInput.toolCallId,
         metadata: {
           toolName: pendingInput.toolName,
+          // A generic binding with no definition id. `useChat` shows it as a
+          // generic interrupt with `resolveInterrupt` and `cancel`. The answer
+          // is not validated here. The MCP server checks it.
+          [interruptBindingMetadataKey]: {
+            v: INTERRUPT_BINDING_VERSION,
+            kind: 'generic',
+            interruptId: id,
+          },
           [INTERRUPT_PAYLOAD_METADATA_KEY]: {
             kind: pendingInput.kind,
             request: pendingInput.request,
@@ -4162,6 +4175,26 @@ class TextEngine<
         : []
     })
     pending.push(...genericPending)
+    // An `mcp_input_*` answer is valid only for a server tool call that is
+    // still pending in history.
+    const mcpInputCallIds = new Map<string, string>()
+    for (const toolCall of pendingToolCalls) {
+      const interruptId = `mcp_input_${toolCall.id}`
+      if (!resumeInterruptIds.has(interruptId)) continue
+      if (!toolsByCallId.get(toolCall.id)?.execute) continue
+      mcpInputCallIds.set(interruptId, toolCall.id)
+      pending.push({
+        interruptId,
+        payload: { id: interruptId },
+        binding: {
+          v: INTERRUPT_BINDING_VERSION,
+          kind: 'generic',
+          interruptId,
+          interruptedRunId,
+          generation: 0,
+        },
+      })
+    }
     const validated = await validateInterruptResumeBatch({
       threadId: this.threadId,
       interruptedRunId,
@@ -4191,6 +4224,16 @@ class TextEngine<
     })
 
     const genericResolutions = validated.resumeToolState.genericInterrupts
+    for (const [interruptId, toolCallId] of mcpInputCallIds) {
+      const resolution = genericResolutions?.get(interruptId)
+      if (!resolution) continue
+      this.resumeInputResponses.set(
+        toolCallId,
+        resolution.status === 'resolved'
+          ? { status: 'resolved', payload: resolution.payload }
+          : { status: 'cancelled' },
+      )
+    }
     if (genericPending.length > 0 && genericResolutions) {
       const resolutions = genericPending
         .sort((left, right) => {

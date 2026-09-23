@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
+  authenticate,
   protectedResourceMetadata,
   requireBearerAuth,
 } from '../../src/server/auth'
@@ -96,7 +97,10 @@ async function signJwt(
     ? { alg: key.alg, typ: 'JWT', kid: key.kid }
     : { alg: key.alg, typ: 'JWT' }
   const encodedHeader = textToBase64Url(JSON.stringify(header))
-  const encodedPayload = textToBase64Url(JSON.stringify(claims))
+  // `aud` is always checked. Most tests use a token for this server.
+  const encodedPayload = textToBase64Url(
+    JSON.stringify({ aud: RESOURCE, ...claims }),
+  )
   const data = new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`)
   const algorithm =
     key.alg === 'RS256'
@@ -107,9 +111,10 @@ async function signJwt(
   return `${encodedHeader}.${encodedPayload}.${encodedSignature}`
 }
 
-function jwksAuth(keys: Array<PublishedJwk>): ResourceServerAuth {
+function jwksAuth(keys: Array<unknown>): ResourceServerAuth {
   return {
     jwksUrl: JWKS_URL,
+    resource: RESOURCE,
     fetch: async (input) => {
       const url = requestUrl(input)
       if (url !== JWKS_URL) return new Response(null, { status: 404 })
@@ -231,6 +236,7 @@ describe('requireBearerAuth', () => {
     const token = await signJwt(key, { sub: 'user', exp: futureExp() })
     const response = await bearerResult(`Bearer ${token}`, {
       jwksUrl: JWKS_URL,
+      resource: RESOURCE,
       fetch: async () =>
         new Response(JSON.stringify({ keys: [key.jwk] }), { status: 500 }),
     })
@@ -298,22 +304,55 @@ describe('requireBearerAuth', () => {
     expect(fetches).toBe(1)
   })
 
-  it('fetches again when the cached keys do not contain kid', async () => {
+  it('fetches again for an unknown kid, but at most once in 30 seconds', async () => {
     const stale = await signingKey('RS256', 'old')
     const current = await signingKey('RS256', 'new')
     const token = await signJwt(current, { sub: 'user', exp: futureExp() })
     let fetches = 0
     const auth = {
       jwksUrl: JWKS_URL,
+      resource: RESOURCE,
       fetch: async () => {
         fetches += 1
         const keys = fetches === 1 ? [stale.jwk] : [stale.jwk, current.jwk]
         return new Response(JSON.stringify({ keys }), { status: 200 })
       },
     }
-    expect((await bearerResult(`Bearer ${token}`, auth))?.status).toBe(401)
-    expect(await bearerResult(`Bearer ${token}`, auth)).toBeUndefined()
-    expect(fetches).toBe(2)
+    const start = Date.now()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(start)
+    try {
+      expect((await bearerResult(`Bearer ${token}`, auth))?.status).toBe(401)
+      expect((await bearerResult(`Bearer ${token}`, auth))?.status).toBe(401)
+      expect(fetches).toBe(1)
+
+      now.mockReturnValue(start + 31 * 1000)
+      expect(await bearerResult(`Bearer ${token}`, auth)).toBeUndefined()
+      expect(fetches).toBe(2)
+    } finally {
+      now.mockRestore()
+    }
+  })
+
+  it('keeps the RSA and EC keys when the JWKS also has an OKP key', async () => {
+    const key = await signingKey('RS256', 'rsa-1')
+    const token = await signJwt(key, { sub: 'user', exp: futureExp() })
+    const okp = { kty: 'OKP', crv: 'Ed25519', x: 'abc', kid: 'ed-1' }
+    const response = await bearerResult(
+      `Bearer ${token}`,
+      jwksAuth([okp, key.jwk]),
+    )
+    expect(response).toBeUndefined()
+  })
+
+  it('returns 401 when the JWT has no aud', async () => {
+    const key = await signingKey('RS256', 'rsa-1')
+    const token = await signJwt(key, {
+      sub: 'user',
+      exp: futureExp(),
+      aud: [],
+    })
+    const response = await bearerResult(`Bearer ${token}`, jwksAuth([key.jwk]))
+    expect(response?.status).toBe(401)
   })
 
   it('returns 401 when the JWKS fetch does not settle', async () => {
@@ -321,6 +360,7 @@ describe('requireBearerAuth', () => {
     const token = await signJwt(key, { sub: 'user', exp: futureExp() })
     const response = await bearerResult(`Bearer ${token}`, {
       jwksUrl: JWKS_URL,
+      resource: RESOURCE,
       fetch: (_input, init) =>
         new Promise((_resolve, reject) => {
           init?.signal?.addEventListener('abort', () => {
@@ -330,6 +370,32 @@ describe('requireBearerAuth', () => {
     })
     expect(response?.status).toBe(401)
   }, 10_000)
+})
+
+describe('authenticate', () => {
+  it('returns the subject from verifyToken', async () => {
+    const result = await authenticate(mcpRequest('Bearer secret'), {
+      verifyToken: async () => ({ subject: 'alice' }),
+    })
+    expect(result).toEqual({ subject: 'alice' })
+  })
+
+  it('returns no subject when verifyToken returns true', async () => {
+    const result = await authenticate(mcpRequest('Bearer secret'), {
+      verifyToken: async () => true,
+    })
+    expect(result).toEqual({ subject: undefined })
+  })
+
+  it('returns the JWT sub as the subject', async () => {
+    const key = await signingKey('ES256', 'ec-sub')
+    const token = await signJwt(key, { sub: 'bob', exp: futureExp() })
+    const result = await authenticate(
+      mcpRequest(`Bearer ${token}`),
+      jwksAuth([key.jwk]),
+    )
+    expect(result).toEqual({ subject: 'bob' })
+  })
 })
 
 describe('protectedResourceMetadata', () => {

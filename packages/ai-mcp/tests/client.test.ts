@@ -400,6 +400,23 @@ describe('createMCPClient', () => {
     expect(sawListen()).toBe(true)
   })
 
+  it('still connects when subscriptions/listen fails', async () => {
+    const { clientTransport } = await makeModernChangingServer({
+      failListen: true,
+    })
+    await using client = await createMCPClientFromTransport(clientTransport)
+    const result = await client.callTool('tool_a')
+    expect(result.content).toEqual([{ type: 'text', text: 'called tool_a' }])
+  })
+
+  it('reads tools/list once per page on a spec 2026 server', async () => {
+    const { clientTransport, getListRequests } =
+      await makeModernChangingServer()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    await client.tools()
+    expect(getListRequests()).toBe(1)
+  })
+
   it('lists tools again after a spec 2026 tool list change', async () => {
     const { clientTransport, notifyToolListChanged, getListRequests } =
       await makeModernChangingServer()
@@ -584,7 +601,7 @@ async function makeServerWithUnendingToolList() {
 
 // Spec 2026 server. Tool-list changes are sent only after subscriptions/listen.
 // The server has no public setter for the negotiated era, so the test sets it.
-async function makeModernChangingServer() {
+async function makeModernChangingServer(options?: { failListen?: boolean }) {
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair()
   const server = new Server(
@@ -617,6 +634,14 @@ async function makeModernChangingServer() {
   serverTransport.onmessage = (message, extra) => {
     if (!isSubscriptionsListen(message)) {
       previous?.(message, extra)
+      return
+    }
+    if (options?.failListen) {
+      void serverTransport.send({
+        jsonrpc: '2.0',
+        id: message.id,
+        error: { code: -32603, message: 'listen failed' },
+      })
       return
     }
     listening = true

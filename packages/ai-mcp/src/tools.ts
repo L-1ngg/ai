@@ -1,4 +1,9 @@
 import {
+  DEFAULT_REQUEST_TIMEOUT_MSEC,
+  ProtocolError,
+  ProtocolErrorCode,
+  SdkError,
+  SdkErrorCode,
   isCallToolResult,
   isInputRequiredResult,
 } from '@modelcontextprotocol/client'
@@ -9,7 +14,7 @@ import type {
   ToolAnnotations,
   Transport,
 } from '@modelcontextprotocol/client'
-import type { ContentPart } from '@tanstack/ai'
+import type { ContentPart, ToolInputResponse } from '@tanstack/ai'
 import {
   isMCPInputRequiredError,
   MCPInputRequiredError,
@@ -118,11 +123,16 @@ export function mcpContentToTanstack(
  * `request` is the input request body.
  * This function does not catch that error.
  *
+ * On spec 2026, pass `inputResponse` to answer an input request.
+ * The call gets the request again, then sends the answer at once
+ * with `inputResponses` and the server's `requestState`.
+ *
  * @param client - Connected MCP client
  * @param mcpName - Server tool name
  * @param args - Tool arguments
  * @param taskRequired - True when the tool requires a spec 2025 task
  * @param signal - Stops the wait when the caller aborts
+ * @param inputResponse - The user's answer from an `mcp_input` interrupt
  */
 export async function callMcpTool(
   client: Client,
@@ -130,6 +140,7 @@ export async function callMcpTool(
   args: Record<string, unknown>,
   taskRequired: boolean,
   signal?: AbortSignal,
+  inputResponse?: ToolInputResponse,
 ) {
   signal?.throwIfAborted()
   const isModern = client.getProtocolEra() === 'modern'
@@ -142,20 +153,66 @@ export async function callMcpTool(
     return result
   }
 
-  const raw = isModern
-    ? await rawRequest(
-        client,
-        'tools/call',
-        { name: mcpName, arguments: args },
-        signal,
-      )
+  const params = { name: mcpName, arguments: args }
+  let raw = isModern
+    ? await rawRequest(client, 'tools/call', params, signal)
     : await sdkRequest(
         client,
         'tools/call',
         { name: mcpName, arguments: args, task: {} },
         signal,
       )
+  // ponytail: the answer is sent on the second call, so the server state never
+  // travels through the browser. The cost is one extra tools/call.
+  if (isModern && inputResponse !== undefined && isInputRequiredResult(raw)) {
+    raw = await rawRequest(
+      client,
+      'tools/call',
+      { ...params, ...retryParams(raw, inputResponse) },
+      signal,
+    )
+  }
   return finishToolCall(client, mcpName, raw, signal)
+}
+
+// Answers only the first input request. That is the one the interrupt shows.
+function retryParams(
+  result: { inputRequests?: unknown; requestState?: string },
+  response: ToolInputResponse,
+) {
+  const requests = isRecord(result.inputRequests) ? result.inputRequests : {}
+  const key = Object.keys(requests)[0]
+  const entry = key === undefined ? undefined : requests[key]
+  const method = isRecord(entry) ? entry.method : undefined
+  const requestState =
+    result.requestState === undefined
+      ? {}
+      : { requestState: result.requestState }
+  if (key === undefined) return requestState
+  return {
+    inputResponses: { [key]: inputAnswer(method, response) },
+    ...requestState,
+  }
+}
+
+function inputAnswer(method: unknown, response: ToolInputResponse) {
+  if (method === 'sampling/createMessage') {
+    if (response.status === 'cancelled') {
+      throw new Error('The user cancelled the MCP sampling request.')
+    }
+    const payload = response.payload
+    if (typeof payload !== 'string') return payload
+    return {
+      role: 'assistant',
+      content: { type: 'text', text: payload },
+      model: 'user',
+    }
+  }
+  if (response.status === 'cancelled') return { action: 'cancel' }
+  const payload = response.payload
+  // An ElicitResult passes as is. Any other value is the accepted content.
+  if (isRecord(payload) && typeof payload.action === 'string') return payload
+  return { action: 'accept', content: payload }
 }
 
 const schemaSlot: unknown = undefined
@@ -233,8 +290,17 @@ async function pollTask(
       current.status === 'working' ||
       current.status === 'input_required'
     ) {
-      if (current.status === 'input_required' && hasInputRequests(current)) {
-        throwInputRequired(current.inputRequests, current.inputRequests)
+      if (current.status === 'input_required') {
+        if (hasInputRequests(current)) {
+          throwInputRequired(current.inputRequests, current.inputRequests)
+        }
+        // A spec 2025 task sends its input request on tasks/result, as a
+        // request to the client. This client does not answer those requests,
+        // so stop here. Polling again would never end.
+        void cancelTask(client, current.taskId)
+        throw new Error(
+          `MCP task "${current.taskId}" needs input. This client cannot answer a spec 2025 task input request.`,
+        )
       }
       const delay = current.pollIntervalMs ?? defaultPollMs
       await waitForPoll(delay, signal)
@@ -345,9 +411,19 @@ function rawRequest(
   const body = withEnvelope(params, readEnvelope(client))
   return new Promise<unknown>((resolve, reject) => {
     let settled = false
+    // Same limit as an SDK request, so a lost response cannot hang the call.
+    const timer = setTimeout(() => {
+      finish(
+        new SdkError(
+          SdkErrorCode.RequestTimeout,
+          `The MCP request ${method} timed out after ${DEFAULT_REQUEST_TIMEOUT_MSEC} ms.`,
+        ),
+      )
+    }, DEFAULT_REQUEST_TIMEOUT_MSEC)
     const finish = (error: unknown, result?: unknown) => {
       if (settled) return
       settled = true
+      clearTimeout(timer)
       listeners.delete(accept)
       if (signal !== undefined) {
         signal.removeEventListener('abort', onAbort)
@@ -361,10 +437,12 @@ function rawRequest(
     const accept = (message: unknown) => {
       if (!isRecord(message) || message.id !== id) return false
       if (isRecord(message.error)) {
-        const text = message.error.message
+        const { code, message: text, data } = message.error
         finish(
-          new Error(
+          new ProtocolError(
+            typeof code === 'number' ? code : ProtocolErrorCode.InternalError,
             typeof text === 'string' ? text : 'The MCP request failed.',
+            data,
           ),
         )
         return true
@@ -597,13 +675,17 @@ export function makeMcpExecute(
   preferStructured: boolean,
   taskRequired = false,
 ) {
-  return async (args: unknown, ctx?: { abortSignal?: AbortSignal }) => {
+  return async (
+    args: unknown,
+    ctx?: { abortSignal?: AbortSignal; inputResponse?: ToolInputResponse },
+  ) => {
     const result = await callMcpTool(
       client,
       mcpName,
       isRecord(args) ? args : {},
       taskRequired,
       ctx?.abortSignal,
+      ctx?.inputResponse,
     )
     if (result.isError) {
       const text = Array.isArray(result.content)

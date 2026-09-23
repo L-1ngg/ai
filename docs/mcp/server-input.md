@@ -54,8 +54,12 @@ export function fetch(request: Request) {
 
 On spec 2025, `requestInput` waits on the open session. The same tool call then continues with the answer.
 
-On spec 2026, the handler returns `input_required`. Then the client runs the tool again. On spec 2026, the code before `requestInput` runs twice.
+On spec 2026, the handler returns `input_required`. Then the client runs the tool again with the answer. On spec 2026, the code before `requestInput` runs on each call, so it can run more than once.
 
 If the work must run once, put that work after `requestInput` returns.
+
+A TanStack `chat()` host pauses on `input_required` and shows the request to the user. [MCP Client Input](../tools/mcp-input) shows how the user answers.
+
+`requestInput` does not work in an `execution: 'task'` tool. [MCP Server Tasks](./server-tasks) has the details.
 
 If the user sends `yes`, the tool returns `Deleted` plus the file path.

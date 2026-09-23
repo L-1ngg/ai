@@ -52,7 +52,7 @@ export default {
 
 Add your tools on the `tools` field. If `MCP_TOKEN` is empty, `verifyToken` accepts no token.
 
-`verifyToken` returns true only for a token that can call this server.
+`verifyToken` returns `false` for a token that cannot call this server.
 
 A missing token returns 401. In that response, the `WWW-Authenticate` header is `Bearer`. A bad token returns 401. In that response, the `WWW-Authenticate` header is `Bearer error="invalid_token"`.
 
@@ -95,14 +95,42 @@ The server reads keys from `jwksUrl`.
 - If the JWT has `kid`, the JWKS contains that key.
 - If the JWT has no `kid`, the JWKS contains one key.
 
-Pass `resource` when `aud` must match this server URL.
+`resource` is the URL of this server. It is required, because a token for a different API must not call your tools.
 
 - A string `aud` must equal `resource`.
 - An array `aud` must include `resource`.
 - A missing or different `aud` returns 401.
 
-When `resource` is absent, this path does not read `aud`.
+If the JWKS request fails, the server returns 401. The server keeps the keys for 5 minutes. When a token has a new `kid`, the server gets the keys again, but not more than once in 30 seconds.
 
-If the JWKS request fails, the server returns 401.
+The server uses only RSA and EC keys. It skips other keys in the JWKS.
+
+## Keep sessions and tasks per caller
+
+Each user must see only the sessions and tasks that they started. Give each caller a subject:
+
+```ts
+import { createMCPServer } from '@tanstack/ai-mcp/server'
+
+const server = createMCPServer({
+  name: 'notes',
+  version: '1.0.0',
+  auth: {
+    verifyToken: async (token) => {
+      const user = await findUserByToken(token)
+      return user ? { subject: user.id } : false
+    },
+  },
+})
+
+async function findUserByToken(token: string) {
+  return token === process.env.MCP_TOKEN ? { id: 'user-1' } : undefined
+}
+```
+
+- `verifyToken` returns `{ subject }` for a caller. It can also return `true`, and then the caller has no subject.
+- The `jwksUrl` path uses the JWT `sub` claim as the subject.
+
+A spec 2025 session belongs to the subject that opened it. A task belongs to the subject that started it. A request from another subject gets "not found".
 
 A request with no token, or with a bad token, returns 401. The metadata URL names your authorization server. A request with the token you accept calls the server.

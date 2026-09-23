@@ -77,6 +77,8 @@ import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
 import { Route as ApiMcpNoTasksServerRouteImport } from './routes/api.mcp-no-tasks-server'
 import { Route as ApiMcpManagedTestRouteImport } from './routes/api.mcp-managed-test'
 import { Route as ApiMcpLifecycleTestRouteImport } from './routes/api.mcp-lifecycle-test'
+import { Route as ApiMcpInputTestRouteImport } from './routes/api.mcp-input-test'
+import { Route as ApiMcpInputServerRouteImport } from './routes/api.mcp-input-server'
 import { Route as ApiMcpAppsServerRouteImport } from './routes/api.mcp-apps-server'
 import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
@@ -464,6 +466,16 @@ const ApiMcpLifecycleTestRoute = ApiMcpLifecycleTestRouteImport.update({
   path: '/api/mcp-lifecycle-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpInputTestRoute = ApiMcpInputTestRouteImport.update({
+  id: '/api/mcp-input-test',
+  path: '/api/mcp-input-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpInputServerRoute = ApiMcpInputServerRouteImport.update({
+  id: '/api/mcp-input-server',
+  path: '/api/mcp-input-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpAppsServerRoute = ApiMcpAppsServerRouteImport.update({
   id: '/api/mcp-apps-server',
   path: '/api/mcp-apps-server',
@@ -684,6 +696,8 @@ export interface FileRoutesByFullPath {
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
+  '/api/mcp-input-server': typeof ApiMcpInputServerRoute
+  '/api/mcp-input-test': typeof ApiMcpInputTestRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
@@ -786,6 +800,8 @@ export interface FileRoutesByTo {
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
+  '/api/mcp-input-server': typeof ApiMcpInputServerRoute
+  '/api/mcp-input-test': typeof ApiMcpInputTestRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
@@ -889,6 +905,8 @@ export interface FileRoutesById {
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
   '/api/mcp-apps-chat': typeof ApiMcpAppsChatRoute
   '/api/mcp-apps-server': typeof ApiMcpAppsServerRoute
+  '/api/mcp-input-server': typeof ApiMcpInputServerRoute
+  '/api/mcp-input-test': typeof ApiMcpInputTestRoute
   '/api/mcp-lifecycle-test': typeof ApiMcpLifecycleTestRoute
   '/api/mcp-managed-test': typeof ApiMcpManagedTestRoute
   '/api/mcp-no-tasks-server': typeof ApiMcpNoTasksServerRoute
@@ -993,6 +1011,8 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
+    | '/api/mcp-input-server'
+    | '/api/mcp-input-test'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
@@ -1095,6 +1115,8 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
+    | '/api/mcp-input-server'
+    | '/api/mcp-input-test'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
@@ -1197,6 +1219,8 @@ export interface FileRouteTypes {
     | '/api/mcp-apps-call'
     | '/api/mcp-apps-chat'
     | '/api/mcp-apps-server'
+    | '/api/mcp-input-server'
+    | '/api/mcp-input-test'
     | '/api/mcp-lifecycle-test'
     | '/api/mcp-managed-test'
     | '/api/mcp-no-tasks-server'
@@ -1300,6 +1324,8 @@ export interface RootRouteChildren {
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
   ApiMcpAppsChatRoute: typeof ApiMcpAppsChatRoute
   ApiMcpAppsServerRoute: typeof ApiMcpAppsServerRoute
+  ApiMcpInputServerRoute: typeof ApiMcpInputServerRoute
+  ApiMcpInputTestRoute: typeof ApiMcpInputTestRoute
   ApiMcpLifecycleTestRoute: typeof ApiMcpLifecycleTestRoute
   ApiMcpManagedTestRoute: typeof ApiMcpManagedTestRoute
   ApiMcpNoTasksServerRoute: typeof ApiMcpNoTasksServerRoute
@@ -1822,6 +1848,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpLifecycleTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-input-test': {
+      id: '/api/mcp-input-test'
+      path: '/api/mcp-input-test'
+      fullPath: '/api/mcp-input-test'
+      preLoaderRoute: typeof ApiMcpInputTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-input-server': {
+      id: '/api/mcp-input-server'
+      path: '/api/mcp-input-server'
+      fullPath: '/api/mcp-input-server'
+      preLoaderRoute: typeof ApiMcpInputServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-apps-server': {
       id: '/api/mcp-apps-server'
       path: '/api/mcp-apps-server'
@@ -2161,6 +2201,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,
   ApiMcpAppsChatRoute: ApiMcpAppsChatRoute,
   ApiMcpAppsServerRoute: ApiMcpAppsServerRoute,
+  ApiMcpInputServerRoute: ApiMcpInputServerRoute,
+  ApiMcpInputTestRoute: ApiMcpInputTestRoute,
   ApiMcpLifecycleTestRoute: ApiMcpLifecycleTestRoute,
   ApiMcpManagedTestRoute: ApiMcpManagedTestRoute,
   ApiMcpNoTasksServerRoute: ApiMcpNoTasksServerRoute,

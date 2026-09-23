@@ -12,13 +12,6 @@ interface KeyedStore<Value> {
 }
 
 /**
- * Keeps one JSON value for each protocol session id.
- * `inMemoryProtocolSessionStore` keeps those values in one process.
- * When the server runs on more than one instance, pass a store that you own.
- */
-export type ProtocolSessionStore<Value = unknown> = KeyedStore<Value>
-
-/**
  * Keeps one JSON value for each task id.
  * `inMemoryTaskStore` keeps those values in one process.
  * When the server runs on more than one instance, pass a store that you own.
@@ -42,20 +35,6 @@ function createInMemoryStore<Value = unknown>() {
       values.delete(id)
     },
   }
-}
-
-/**
- * Creates a {@link ProtocolSessionStore} that keeps values in memory.
- * Each call has its own map. The map lives in this process only.
- *
- * ```ts
- * const sessions = inMemoryProtocolSessionStore()
- * await sessions.set('sess-1', { protocolVersion: '2025-11-25' })
- * await sessions.get('sess-1')
- * ```
- */
-export function inMemoryProtocolSessionStore() {
-  return createInMemoryStore()
 }
 
 /**

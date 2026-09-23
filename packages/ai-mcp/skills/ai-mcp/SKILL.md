@@ -127,9 +127,10 @@ You can also pass `resources` and `prompts`.
 Build them with `resourceDefinition` and `promptDefinition` from `@tanstack/ai-mcp/server`.
 
 On spec 2026, `ctx.requestInput` returns `input_required`.
-The client runs the tool again.
-Code before `requestInput` runs on both calls.
+The client runs the tool again with the answer.
+Code before `requestInput` runs on each call, so it can run more than once.
 Put work that must run once after `requestInput` returns.
+In an `execution: 'task'` tool, `ctx.requestInput` throws an error.
 On spec 2025, `requestInput` waits on the open session.
 The same tool call then continues.
 The tool context type does not list `requestInput`.
@@ -577,10 +578,16 @@ try {
 }
 ```
 
-`chat({ resume })` does not continue this interrupt.
-The interrupt has no binding.
-Read `request` in the UI.
-On spec 2026, run the server tool again with the answer.
+The interrupt has a generic binding.
+In `useChat`, the item `kind` is `generic`.
+Call `resolveInterrupt(answer)` or `cancel()` on the item.
+For a `form`, the answer is an object that matches `request.requestedSchema`.
+A `createMCPServer` server asks for `{ value: string }`.
+For `sampling`, the answer is the reply text or a full `CreateMessageResult`.
+The route must pass `parentRunId` and `resume` to `chat()`.
+The next run calls the tool again, and the tool reads `ctx.inputResponse`.
+On spec 2026, the MCP client sends that answer with `inputResponses` and the server `requestState`.
+On spec 2025, the tool call fails, because `chat()` cannot pause that call.
 
 ## `createMCPClients` — multiple servers
 

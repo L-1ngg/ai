@@ -16,6 +16,7 @@ import type {
   ToolCallEndEvent,
   ToolCallStartEvent,
   ToolExecutionContext,
+  ToolInputResponse,
   ToolOutputState,
 } from '../../../types'
 import type {
@@ -388,10 +389,6 @@ export class ToolCallManager<
           toolOutput = result
           toolResultContent = normalizeToolResult(result)
         } catch (error: unknown) {
-          // Do not store this shape as a tool error.
-          if (isMcpInputRequired(error)) {
-            throw error
-          }
           // If tool execution fails, add error message
           const message =
             error instanceof Error ? error.message : 'Unknown error'
@@ -501,6 +498,8 @@ function isMcpInputRequired(value: unknown): value is McpInputRequiredThrow {
 export interface ToolResumeExecutionState {
   deniedToolResults?: ReadonlyMap<string, unknown>
   cancelledToolCallIds?: ReadonlySet<string>
+  /** Answers to `mcp_input` interrupts, by tool call id. */
+  inputResponses?: ReadonlyMap<string, ToolInputResponse>
 }
 
 function approvalResolution(
@@ -918,10 +917,12 @@ export async function* executeToolCalls<TContext = unknown>(
 
     // Create a ToolExecutionContext for this tool call with event emission
     const pendingEvents: Array<CustomEvent> = []
+    const inputResponse = resumeState?.inputResponses?.get(toolCall.id)
     const context = {
       toolCallId: toolCall.id,
       context: userContext,
       abortSignal,
+      ...(inputResponse !== undefined ? { inputResponse } : {}),
       emitCustomEvent: (
         eventName: string,
         value: Record<string, any>,

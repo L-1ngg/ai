@@ -2,7 +2,7 @@
 title: MCP Client Input
 id: mcp-input
 order: 12
-description: "When an MCP server asks for input, chat() pauses so the UI can read the request."
+description: "When an MCP server asks for input, chat() pauses so the UI can show the request and send the answer."
 keywords:
   - tanstack ai
   - mcp
@@ -16,7 +16,7 @@ An MCP server can stop a tool call. The server asks for input.
 - A form needs an answer from the user.
 - A sampling request needs a model reply.
 
-You want that request in the UI. `chat()` ends the run with an interrupt. `outcome.type` is `interrupt`. The payload has `kind` and `request`.
+You want that request in the UI, and you want the answer to reach the server. `chat()` ends the run with an interrupt. `outcome.type` is `interrupt`. The payload has `kind` and `request`. When the user answers, the next run calls the tool again with the answer.
 
 ## Read the pause
 
@@ -72,16 +72,51 @@ The interrupt has these fields:
 
 `kind` is `form` or `sampling`. `request` is the MCP input body.
 
-## Show the request
+## Answer the request
 
-The route returns the `chat()` stream. [MCP Server Tools](./mcp) has that route.
+The answer comes back in a new request. Pass `parentRunId` and `resume` from that request to `chat()`:
+
+```ts
+// app/api/chat/route.ts
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+  const mcp = await createMCPClient({
+    transport: {
+      type: 'http',
+      url: 'https://my-mcp-server.example.com/mcp',
+    },
+  })
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
+    ...(params.resume ? { resume: params.resume } : {}),
+    mcp: { clients: [mcp] },
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+Then answer the request in the UI:
 
 1. Read `interrupts` from `useChat`.
 2. Find the item where `reason` is `mcp_input`.
-3. Read `metadata['tanstack:interruptPayload']`.
-4. Show `kind` and `request`.
+3. Read `metadata['tanstack:interruptPayload']` and show the request.
+4. Call `resolveInterrupt` with the answer, or call `cancel()`.
 
 ```tsx
+import { useState } from 'react'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -95,11 +130,12 @@ function readMcpInput(
   if (!isRecord(payload)) return undefined
   const kind = payload.kind
   if (kind !== 'form' && kind !== 'sampling') return undefined
-  if (!('request' in payload)) return undefined
+  if (!isRecord(payload.request)) return undefined
   return { kind, request: payload.request }
 }
 
 export function McpInputPrompt() {
+  const [answer, setAnswer] = useState('')
   const { interrupts } = useChat({
     threadId: 'thread-1',
     connection: fetchServerSentEvents('/api/chat'),
@@ -109,16 +145,29 @@ export function McpInputPrompt() {
     <>
       {interrupts.map((interrupt) => {
         if (interrupt.reason !== 'mcp_input') return null
+        if (interrupt.kind !== 'generic') return null
         const input = readMcpInput(interrupt.metadata)
         if (!input) return null
-        const label = input.kind === 'form' ? 'User input' : 'Model input'
         return (
-          <article key={interrupt.id}>
-            <p>{interrupt.message}</p>
-            <p>
-              {label}: {JSON.stringify(input.request)}
-            </p>
-          </article>
+          <form
+            key={interrupt.id}
+            onSubmit={(event) => {
+              event.preventDefault()
+              interrupt.resolveInterrupt({ value: answer })
+            }}
+          >
+            <label>
+              {String(input.request.message ?? interrupt.message)}
+              <input
+                value={answer}
+                onChange={(event) => setAnswer(event.target.value)}
+              />
+            </label>
+            <button type="submit">Send</button>
+            <button type="button" onClick={() => interrupt.cancel()}>
+              Cancel
+            </button>
+          </form>
         )
       })}
     </>
@@ -126,9 +175,21 @@ export function McpInputPrompt() {
 }
 ```
 
-The `useChat` item `kind` is `unbound`. This interrupt has no `resolveInterrupt`. Your UI reads `request`.
+`useChat` sends the answer in a new run. Then `chat()` runs the tool again, and the MCP client sends the answer to the server.
 
-If `kind` is `form`, show `request` to the user. If `kind` is `sampling`, show `request` as the model request.
+## What to send
+
+The answer depends on `kind`.
+
+- `form`: send an object that matches `request.requestedSchema`. A server from `createMCPServer` asks for `{ value: string }`. The MCP client sends the object as the accepted content.
+- `sampling`: send the model reply as a string. You can also send a full MCP `CreateMessageResult`.
+- `cancel()`: for a form, the server gets `{ action: 'cancel' }`. For a sampling request, the tool call ends with an error.
+
+To decline a form, send the full MCP answer: `{ action: 'decline' }`.
+
+A resumed tool gets the answer on `ctx.inputResponse`. The MCP tools read it for you. Your own server tool can read it too.
+
+The pause and the resume work on spec 2026. On spec 2025, the server asks the client for input in the middle of the tool call. `chat()` cannot pause that call, so the tool call fails.
 
 ## A tool error
 

@@ -2,8 +2,9 @@ import {
   Client,
   StreamableHTTPClientTransport,
 } from '@modelcontextprotocol/client'
+import { PROTOCOL_VERSION_META_KEY } from '@modelcontextprotocol/server'
 import { toolDefinition } from '@tanstack/ai'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import {
   promptDefinition,
@@ -11,10 +12,7 @@ import {
 } from '../../src/server/definitions'
 import { createMCPServer } from '../../src/server/create-server'
 import type { SampleRequest } from '../../src/server/context'
-import {
-  inMemoryProtocolSessionStore,
-  inMemoryTaskStore,
-} from '../../src/server/stores'
+import { inMemoryTaskStore } from '../../src/server/stores'
 
 const serverUrl = new URL('https://mcp.example.com/mcp')
 const protectedResourceUrl =
@@ -48,16 +46,83 @@ function summarizePrompt() {
   }).render(async (args) => [{ role: 'user', content: args.topic }])
 }
 
-function surfaceServer(
-  sessionStore?: ReturnType<typeof inMemoryProtocolSessionStore>,
-) {
+function surfaceServer() {
   return createMCPServer({
     name: 'weather',
     version: '1.0.0',
     tools: [echoTool()],
     resources: [readmeResource()],
     prompts: [summarizePrompt()],
-    sessionStore,
+  })
+}
+
+// Each token names its own subject.
+const subjectAuth = {
+  verifyToken: async (token: string) => ({ subject: token }),
+}
+
+function initializeRequest(token: string) {
+  return new Request(serverUrl, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-11-25',
+        capabilities: {},
+        clientInfo: { name: 'raw', version: '1.0.0' },
+      },
+    }),
+  })
+}
+
+function sessionRequest(token: string, sessionId: string) {
+  return new Request(serverUrl, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+      'mcp-session-id': sessionId,
+      'mcp-protocol-version': '2025-11-25',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }),
+  })
+}
+
+async function openSession(
+  server: { fetch(request: Request): Promise<Response> },
+  token: string,
+) {
+  const opened = await server.fetch(initializeRequest(token))
+  const sessionId = opened.headers.get('mcp-session-id')
+  if (sessionId === null) throw new Error('The server opened no session')
+  return sessionId
+}
+
+function modernTaskGet(token: string, taskId: string) {
+  return new Request(serverUrl, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 3,
+      method: 'tasks/get',
+      params: {
+        taskId,
+        _meta: { [PROTOCOL_VERSION_META_KEY]: '2026-07-28' },
+      },
+    }),
   })
 }
 
@@ -193,17 +258,10 @@ describe('createMCPServer', () => {
   })
 
   it('lists and calls a tool for a spec 2025 session', async () => {
-    const sessionStore = inMemoryProtocolSessionStore()
-    const server = surfaceServer(sessionStore)
+    const server = surfaceServer()
 
     await withClient(server, { era: '2025' }, async (client, transport) => {
-      const sessionId = transport.sessionId
-      if (sessionId === undefined || sessionId.length === 0) {
-        throw new Error('The 2025 session has no session id')
-      }
-      expect(await sessionStore.get(sessionId)).toEqual({
-        protocolVersion: '2025-11-25',
-      })
+      expect(transport.sessionId).toEqual(expect.any(String))
 
       const listed = await client.listTools()
       expect(listed.tools.map((tool) => tool.name)).toEqual(['echo'])
@@ -387,5 +445,142 @@ describe('createMCPServer', () => {
 
     expect(seen).toEqual([summaryRequest])
     expect(clientAsks).toEqual([])
+  })
+
+  it('gives a spec 2025 session only to the subject that opened it', async () => {
+    const server = createMCPServer({
+      name: 'secure',
+      version: '1.0.0',
+      auth: subjectAuth,
+      tools: [echoTool()],
+    })
+    const sessionId = await openSession(server, 'alice')
+
+    const own = await server.fetch(sessionRequest('alice', sessionId))
+    expect(own.status).toBe(200)
+    const other = await server.fetch(sessionRequest('bob', sessionId))
+    expect(other.status).toBe(404)
+  })
+
+  it('closes a spec 2025 session after 30 idle minutes', async () => {
+    const server = surfaceServer()
+    const start = Date.now()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(start)
+    try {
+      const opened = await server.fetch(initializeRequest('any'))
+      const sessionId = opened.headers.get('mcp-session-id')
+      if (sessionId === null) throw new Error('The server opened no session')
+
+      now.mockReturnValue(start + 31 * 60 * 1000)
+      const late = await server.fetch(sessionRequest('any', sessionId))
+      expect(late.status).toBe(404)
+    } finally {
+      now.mockRestore()
+    }
+  })
+
+  it('shows a task only to the subject that started it', async () => {
+    const taskStore = inMemoryTaskStore()
+    const bodies: Array<string> = []
+    const server = createMCPServer({
+      name: 'tasks',
+      version: '1.0.0',
+      auth: subjectAuth,
+      taskStore,
+      tools: [
+        toolDefinition({
+          name: 'slow',
+          description: 'Slow work',
+          execution: 'task',
+        }).server(async () => 'done'),
+      ],
+    })
+
+    await withClient(
+      server,
+      {
+        era: '2026',
+        authToken: 'alice',
+        onResponse(text) {
+          bodies.push(text)
+        },
+      },
+      async (client) => {
+        await client
+          .callTool({ name: 'slow', arguments: {} })
+          .catch(() => undefined)
+      },
+    )
+    const handle = taskResultFrom(bodies)
+    if (!isRecord(handle) || typeof handle.taskId !== 'string') {
+      throw new Error('The task handle has no task id')
+    }
+
+    const own = rpcResult(
+      await (await server.fetch(modernTaskGet('alice', handle.taskId))).text(),
+    )
+    expect(own).toMatchObject({
+      status: 'completed',
+      result: { content: [{ type: 'text', text: 'done' }] },
+    })
+    const other = await (
+      await server.fetch(modernTaskGet('bob', handle.taskId))
+    ).json()
+    expect(other).toMatchObject({ error: { message: 'Task not found' } })
+  })
+
+  it('gives a task tool its own context, not the finished request', async () => {
+    const taskStore = inMemoryTaskStore()
+    const seen: Array<{ aborted: boolean; message: string }> = []
+    const calls: Array<Promise<unknown>> = []
+    const server = createMCPServer({
+      name: 'tasks',
+      version: '1.0.0',
+      taskStore,
+      waitUntil(promise) {
+        calls.push(promise)
+      },
+      tools: [
+        toolDefinition({
+          name: 'ask',
+          description: 'Asks in a task',
+          execution: 'task',
+        }).server(async (_args, ctx) => {
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          const aborted = ctx?.abortSignal?.aborted ?? true
+          try {
+            if (ctx === undefined || !('requestInput' in ctx)) {
+              throw new Error('no requestInput')
+            }
+            const requestInput = ctx.requestInput
+            if (typeof requestInput !== 'function') {
+              throw new Error('no requestInput')
+            }
+            await requestInput({ message: 'City?' })
+          } catch (error) {
+            seen.push({
+              aborted,
+              message: error instanceof Error ? error.message : '',
+            })
+          }
+          return 'done'
+        }),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      await client
+        .callTool({ name: 'ask', arguments: {} })
+        .catch(() => undefined)
+    })
+    await Promise.all(calls)
+
+    expect(seen).toEqual([
+      {
+        aborted: false,
+        message:
+          'ctx.requestInput is not supported in an execution: "task" tool.',
+      },
+    ])
   })
 })

@@ -13,18 +13,22 @@ import {
   inputRequired,
   isLegacyRequest,
 } from '@modelcontextprotocol/server'
-import type { ServerContext } from '@modelcontextprotocol/server'
+import type {
+  McpRequestContext,
+  ServerContext,
+} from '@modelcontextprotocol/server'
 import type { ResourceServerAuth } from './auth'
-import { requireBearerAuth } from './auth'
+import { authenticate } from './auth'
 import { ToolInputRequiredError, createServerToolContext } from './context'
 import type { SampleRequest, ToolInputRequest } from './context'
-import { protocolSessions } from './sessions'
-import { getTask, startTask } from './tasks'
+import { getTask, startTask, toCallToolResult } from './tasks'
 import { inMemoryTaskStore } from './stores'
-import type { ProtocolSessionStore, TaskStore } from './stores'
+import type { TaskStore } from './stores'
 
-const spec2025 = '2025-11-25'
 const spec2026 = '2026-07-28'
+// ponytail: idle sessions close only when a later request runs the sweep.
+// A server that gets no traffic keeps them until the next request.
+const sessionIdleMs = 30 * 60 * 1000
 const protectedResourcePath = '/.well-known/oauth-protected-resource'
 const inputKey = 'input'
 const sampleMaxTokens = 1024
@@ -78,7 +82,6 @@ type MCPServerOptions = {
   tools?: ReadonlyArray<AnyServerTool>
   resources?: ReadonlyArray<McpResource>
   prompts?: ReadonlyArray<McpPrompt>
-  sessionStore?: ProtocolSessionStore
   taskStore?: TaskStore
   auth?: ResourceServerAuth
   sample?: (request: SampleRequest) => Promise<unknown>
@@ -105,8 +108,21 @@ export type MCPServer<
   fetch: (request: Request) => Promise<Response>
 }
 
-type SessionRecord = {
-  protocolVersion: typeof spec2025
+type LegacySession = {
+  transport: WebStandardStreamableHTTPServerTransport
+  server: McpServer
+  owner: string | undefined
+  lastUsed: number
+}
+
+type LegacySessions = Map<string, LegacySession>
+
+// Keeps the options of each server for `directMCPClient`.
+const serverOptionsByServer = new WeakMap<object, MCPServerOptions>()
+
+/** Internal. Returns the options that `server` was created with. */
+export function optionsOfServer(server: object) {
+  return serverOptionsByServer.get(server)
 }
 
 /**
@@ -116,9 +132,10 @@ type SessionRecord = {
  * `options.tools` is a list of `toolDefinition().server()` tools.
  * `options.resources` uses `resourceDefinition().read()`.
  * `options.prompts` uses `promptDefinition().render()`.
- * `options.sessionStore` keeps spec 2025 sessions. The default store is in memory.
  * `options.taskStore` keeps task records. The default store is in memory.
  * `options.auth` checks the bearer token. A missing token gets a 401 response.
+ * When auth names a subject, spec 2025 sessions and tasks belong to it.
+ * Spec 2025 sessions live in this process. They close after 30 idle minutes.
  * `options.sample` is the model adapter for `ctx.sample` on spec 2026.
  * `options.waitUntil` receives the task promise so a worker can stay alive.
  *
@@ -161,8 +178,7 @@ export function createMCPServer<
   },
 ) {
   const taskStore = options.taskStore ?? inMemoryTaskStore()
-  const sessions = protocolSessions(options.sessionStore)
-  const transports = new Map<string, WebStandardStreamableHTTPServerTransport>()
+  const sessions: LegacySessions = new Map()
   const tools = options.tools ?? []
   const resources = options.resources ?? []
   const prompts = options.prompts ?? []
@@ -178,11 +194,12 @@ export function createMCPServer<
         taskStore,
         era: ctx.era === 'modern' ? '2026' : '2025',
         hasTaskTool,
+        owner: subjectOf(ctx),
       }),
     { legacy: 'reject', keepAliveMs: 0 },
   )
 
-  return {
+  const mcpServer = {
     name: options.name,
     version: options.version,
     tools,
@@ -202,14 +219,17 @@ export function createMCPServer<
       if (isProtectedResourcePath(request)) {
         return new Response(null, { status: 404 })
       }
+      await closeIdleSessions(sessions)
 
+      let owner: string | undefined
       const auth = options.auth
       if (auth !== undefined) {
-        const denied = await requireBearerAuth(request, auth)
-        if (denied !== undefined) return denied
+        const result = await authenticate(request, auth)
+        if ('denied' in result) return result.denied
+        owner = result.subject
       }
 
-      const taskResponse = await modernTaskGet(request, taskStore)
+      const taskResponse = await modernTaskGet(request, taskStore, owner)
       if (taskResponse !== undefined) return taskResponse
 
       const legacy = await isLegacyRequest(request)
@@ -218,7 +238,7 @@ export function createMCPServer<
           open: () =>
             openLegacySession(request, {
               sessions,
-              transports,
+              owner,
               build: () =>
                 buildMcpServer({
                   options,
@@ -228,15 +248,46 @@ export function createMCPServer<
                   taskStore,
                   era: '2025',
                   hasTaskTool,
+                  owner,
                 }),
             }),
           resume: (sessionId) =>
-            resumeLegacySession(request, sessionId, sessions, transports),
+            resumeLegacySession(request, sessionId, sessions, owner),
         })
       }
 
-      return modern.fetch(request)
+      // authInfo is a pass-through. It carries the subject to the factory.
+      return modern.fetch(
+        request,
+        owner === undefined
+          ? undefined
+          : {
+              authInfo: {
+                token: '',
+                clientId: owner,
+                scopes: [],
+                extra: { subject: owner },
+              },
+            },
+      )
     },
+  }
+  serverOptionsByServer.set(mcpServer, options)
+  return mcpServer
+}
+
+function subjectOf(ctx: McpRequestContext) {
+  const subject = ctx.authInfo?.extra?.subject
+  return typeof subject === 'string' ? subject : undefined
+}
+
+async function closeIdleSessions(sessions: LegacySessions) {
+  const cutoff = Date.now() - sessionIdleMs
+  for (const [id, session] of sessions) {
+    if (session.lastUsed > cutoff) continue
+    sessions.delete(id)
+    await session.transport.close().catch(() => undefined)
+    await session.server.close().catch(() => undefined)
   }
 }
 
@@ -255,6 +306,7 @@ function buildMcpServer(input: {
   taskStore: TaskStore
   era: ProtocolYear
   hasTaskTool: boolean
+  owner: string | undefined
 }) {
   const server = new McpServer(
     { name: input.options.name, version: input.options.version },
@@ -273,7 +325,7 @@ function buildMcpServer(input: {
     registerServerPrompt(server, prompt)
   }
   if (input.era === '2025') {
-    registerLegacyTaskMethods(server, input.taskStore)
+    registerLegacyTaskMethods(server, input.taskStore, input.owner)
   }
   return server
 }
@@ -303,6 +355,7 @@ function registerServerTool(
     options: MCPServerOptions
     taskStore: TaskStore
     era: ProtocolYear
+    owner: string | undefined
   },
 ) {
   const inputSchema = standardSchema(tool.inputSchema) ?? emptyObjectSchema
@@ -316,10 +369,10 @@ function registerServerTool(
       outputSchema,
     },
     async (args, sdkCtx) => {
-      const ctx = toolCallContext(input.era, sdkCtx, input.options.sample)
       if (tool.execution === 'task') {
-        return runTaskTool(tool, args, ctx, input)
+        return runTaskTool(tool, args, input)
       }
+      const ctx = toolCallContext(input.era, sdkCtx, input.options.sample)
       try {
         const output = await runTool(tool, args, ctx)
         return toCallToolResult(output)
@@ -347,22 +400,50 @@ function registerServerTool(
 async function runTaskTool(
   tool: AnyServerTool,
   args: unknown,
-  ctx: ReturnType<typeof toolCallContext>,
   input: {
     options: MCPServerOptions
     taskStore: TaskStore
     era: ProtocolYear
+    owner: string | undefined
   },
 ) {
+  const ctx = taskContext(input.options.sample)
   const handle = await startTask(
     () => Promise.resolve(runTool(tool, args, ctx)),
-    { store: input.taskStore, waitUntil: input.options.waitUntil },
+    {
+      store: input.taskStore,
+      waitUntil: input.options.waitUntil,
+      owner: input.owner,
+    },
   )
-  const polled = await getTask(handle.taskId, input.taskStore)
+  const polled = await getTask(handle.taskId, input.taskStore, input.owner)
   if (polled === null) {
     throw new Error(`Task ${handle.taskId} was not saved.`)
   }
   return taskCallResult(input.era, polled)
+}
+
+// A task keeps running after tools/call answers with the task handle.
+// So it must not use that request: its signal, elicitation, or sampling.
+function taskContext(sample: MCPServerOptions['sample']) {
+  return {
+    async requestInput(_request: ToolInputRequest): Promise<never> {
+      throw new Error(
+        'ctx.requestInput is not supported in an execution: "task" tool.',
+      )
+    },
+    async sample(request: SampleRequest) {
+      if (sample === undefined) {
+        throw new Error(
+          'ctx.sample in an execution: "task" tool needs the sample option of createMCPServer.',
+        )
+      }
+      return sample(request)
+    },
+    // ponytail: nothing aborts this signal until tasks/cancel is implemented.
+    abortSignal: new AbortController().signal,
+    emitCustomEvent() {},
+  }
 }
 
 function taskCallResult(
@@ -400,7 +481,7 @@ function taskCallResult(
 function runTool(
   tool: AnyServerTool,
   args: unknown,
-  ctx: ReturnType<typeof toolCallContext>,
+  ctx: ReturnType<typeof toolCallContext> | ReturnType<typeof taskContext>,
 ) {
   const execute = tool.execute
   if (execute === undefined) {
@@ -567,12 +648,16 @@ const taskIdParams = {
   },
 }
 
-function registerLegacyTaskMethods(server: McpServer, store: TaskStore) {
+function registerLegacyTaskMethods(
+  server: McpServer,
+  store: TaskStore,
+  owner: string | undefined,
+) {
   server.server.setRequestHandler(
     'tasks/get',
     { params: taskIdParams },
     async (params) => {
-      const polled = await getTask(taskIdFrom(params), store)
+      const polled = await getTask(taskIdFrom(params), store, owner)
       if (polled === null) {
         throw new ProtocolError(
           ProtocolErrorCode.InvalidParams,
@@ -586,7 +671,7 @@ function registerLegacyTaskMethods(server: McpServer, store: TaskStore) {
     'tasks/result',
     { params: taskIdParams },
     async (params) => {
-      const polled = await getTask(taskIdFrom(params), store)
+      const polled = await getTask(taskIdFrom(params), store, owner)
       if (polled === null || polled.record.status !== 'completed') {
         throw new ProtocolError(
           ProtocolErrorCode.InvalidParams,
@@ -625,21 +710,6 @@ function isJsonObjectSchema(value: unknown): value is { type: 'object' } {
   return isRecord(value) && value.type === 'object'
 }
 
-function toCallToolResult(output: unknown) {
-  if (typeof output === 'string') {
-    return { content: [{ type: 'text' as const, text: output }] }
-  }
-  if (isRecord(output)) {
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify(output) }],
-      structuredContent: output,
-    }
-  }
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify(output) }],
-  }
-}
-
 async function legacyFetch(
   request: Request,
   routes: {
@@ -657,38 +727,43 @@ async function legacyFetch(
 async function resumeLegacySession(
   request: Request,
   sessionId: string,
-  sessions: ReturnType<typeof protocolSessions>,
-  transports: Map<string, WebStandardStreamableHTTPServerTransport>,
+  sessions: LegacySessions,
+  owner: string | undefined,
 ) {
-  const transport = transports.get(sessionId)
-  const record = await sessions.load(sessionId)
-  if (transport === undefined || record === null) return sessionNotFound()
-  return transport.handleRequest(request)
+  const session = sessions.get(sessionId)
+  // Another subject gets the same answer as an unknown id.
+  if (session === undefined || session.owner !== owner) {
+    return sessionNotFound()
+  }
+  session.lastUsed = Date.now()
+  return session.transport.handleRequest(request)
 }
 
 async function openLegacySession(
   request: Request,
   input: {
-    sessions: ReturnType<typeof protocolSessions>
-    transports: Map<string, WebStandardStreamableHTTPServerTransport>
+    sessions: LegacySessions
+    owner: string | undefined
     build: () => McpServer
   },
 ) {
+  const server = input.build()
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
     enableJsonResponse: true,
     keepAliveMs: 0,
-    onsessioninitialized: async (id) => {
-      input.transports.set(id, transport)
-      const record: SessionRecord = { protocolVersion: spec2025 }
-      await input.sessions.save(id, record)
+    onsessioninitialized: (id) => {
+      input.sessions.set(id, {
+        transport,
+        server,
+        owner: input.owner,
+        lastUsed: Date.now(),
+      })
     },
-    onsessionclosed: async (id) => {
-      input.transports.delete(id)
-      await input.sessions.delete(id)
+    onsessionclosed: (id) => {
+      input.sessions.delete(id)
     },
   })
-  const server = input.build()
   try {
     await server.connect(transport)
     return await transport.handleRequest(request)
@@ -709,7 +784,11 @@ function sessionNotFound() {
   )
 }
 
-async function modernTaskGet(request: Request, store: TaskStore) {
+async function modernTaskGet(
+  request: Request,
+  store: TaskStore,
+  owner: string | undefined,
+) {
   if (request.method !== 'POST') return undefined
   let body: unknown
   try {
@@ -727,7 +806,7 @@ async function modernTaskGet(request: Request, store: TaskStore) {
   if (taskId === undefined || taskId.length === 0) {
     return jsonRpcError(id, ProtocolErrorCode.InvalidParams, 'Invalid params')
   }
-  const polled = await getTask(taskId, store)
+  const polled = await getTask(taskId, store, owner)
   if (polled === null) {
     return jsonRpcError(id, ProtocolErrorCode.InvalidParams, 'Task not found')
   }

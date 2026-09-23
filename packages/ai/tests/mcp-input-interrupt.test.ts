@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { chat } from '../src/activities/chat/index'
+import { ToolCallManager } from '../src/activities/chat/tools/tool-calls'
 import { EventType } from '../src/types'
 import { collectChunks, createMockAdapter, ev, serverTool } from './test-utils'
-import type { StreamChunk } from '../src/types'
+import type { StreamChunk, ToolExecutionContext } from '../src/types'
 
 function inputRequiredThrow(kind: 'form' | 'sampling', request: unknown) {
   return {
@@ -83,6 +84,20 @@ describe('MCP input interrupt', () => {
     })
   })
 
+  it('binds the pause so useChat can resolve or cancel it', async () => {
+    const finished = await runInputRequiredChat('form', { message: 'City?' })
+    const interrupt =
+      finished?.outcome?.type === 'interrupt'
+        ? finished.outcome.interrupts[0]
+        : undefined
+
+    expect(interrupt?.metadata?.['tanstack:interruptBinding']).toMatchObject({
+      kind: 'generic',
+      interruptId: 'mcp_input_call_1',
+      generation: 0,
+    })
+  })
+
   it('pauses a sampling request as a different interrupt', async () => {
     const request = { messages: [{ role: 'user', content: 'Hi' }] }
     const finished = await runInputRequiredChat('sampling', request)
@@ -102,6 +117,130 @@ describe('MCP input interrupt', () => {
           },
         },
       ],
+    })
+  })
+})
+
+describe('MCP input resume', () => {
+  const pausedHistory = [
+    { role: 'user' as const, content: 'Ask' },
+    {
+      role: 'assistant' as const,
+      content: '',
+      toolCalls: [
+        {
+          id: 'call_1',
+          type: 'function' as const,
+          function: { name: 'askInput', arguments: '{}' },
+        },
+      ],
+    },
+  ]
+
+  async function resumeWith(
+    resume: Array<{
+      interruptId: string
+      status: 'resolved' | 'cancelled'
+      payload?: unknown
+    }>,
+  ) {
+    const execute = vi.fn(
+      (_args: unknown, ctx?: ToolExecutionContext) => ctx?.inputResponse,
+    )
+    const { adapter } = createMockAdapter({
+      iterations: [
+        [
+          ev.runStarted(),
+          ev.textStart(),
+          ev.textContent('done'),
+          ev.textEnd(),
+          ev.runFinished('stop'),
+        ],
+      ],
+    })
+    const chunks = await collectChunks(
+      chat({
+        adapter,
+        threadId: 'thread-1',
+        runId: 'continuation-run',
+        parentRunId: 'interrupted-run',
+        messages: pausedHistory,
+        tools: [serverTool('askInput', execute)],
+        resume,
+      }) as AsyncIterable<StreamChunk>,
+    )
+    return { execute, chunks }
+  }
+
+  it('runs the tool again with the answer', async () => {
+    const { execute, chunks } = await resumeWith([
+      {
+        interruptId: 'mcp_input_call_1',
+        status: 'resolved',
+        payload: { value: 'Paris' },
+      },
+    ])
+
+    expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      false,
+    )
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(execute.mock.calls[0]?.[1]?.inputResponse).toEqual({
+      status: 'resolved',
+      payload: { value: 'Paris' },
+    })
+  })
+
+  it('passes a cancel to the tool', async () => {
+    const { execute } = await resumeWith([
+      { interruptId: 'mcp_input_call_1', status: 'cancelled' },
+    ])
+
+    expect(execute.mock.calls[0]?.[1]?.inputResponse).toEqual({
+      status: 'cancelled',
+    })
+  })
+
+  it('rejects an answer for a tool call that is not pending', async () => {
+    const { execute, chunks } = await resumeWith([
+      { interruptId: 'mcp_input_call_2', status: 'resolved', payload: 'x' },
+    ])
+
+    expect(execute).not.toHaveBeenCalled()
+    expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      true,
+    )
+  })
+})
+
+describe('ToolCallManager and MCP input', () => {
+  it('records the input request as a tool error', async () => {
+    const manager = new ToolCallManager([
+      serverTool('askInput', () => {
+        throw inputRequiredThrow('form', { message: 'City?' })
+      }),
+    ])
+    manager.addToolCallStartEvent({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: 'call_1',
+      toolCallName: 'askInput',
+      toolName: 'askInput',
+      timestamp: Date.now(),
+    })
+    manager.addToolCallArgsEvent({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: 'call_1',
+      delta: '{}',
+      timestamp: Date.now(),
+    })
+
+    const results = await collectChunks(
+      manager.executeTools(ev.runFinished('tool_calls')),
+    )
+
+    expect(results.at(-1)).toMatchObject({
+      type: 'TOOL_CALL_END',
+      state: 'output-error',
     })
   })
 })

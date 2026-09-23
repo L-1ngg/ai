@@ -17,6 +17,8 @@ type TaskClock = {
   taskId: string
   createdAt: string
   lastUpdatedAt: string
+  /** The auth subject that started the task. Absent without auth. */
+  owner?: string
 }
 
 type WorkingTask = TaskClock & {
@@ -57,6 +59,8 @@ type StartTaskOptions = {
    * or the tool error.
    */
   waitUntil?: (promise: Promise<unknown>) => void
+  /** The auth subject that starts the task. Only this subject can read it. */
+  owner?: string
 }
 
 /**
@@ -89,7 +93,7 @@ export async function startTask(
 ) {
   const taskId = crypto.randomUUID()
   const now = new Date().toISOString()
-  const working = workingTask(taskId, now)
+  const working = workingTask(taskId, now, options.owner)
   await options.store.set(taskId, working)
 
   const inflight = settleTask(options.store, working, startTool(run))
@@ -105,10 +109,13 @@ export async function startTask(
 
 /**
  * Returns the task record for a poll, or `null` when the id is absent.
+ * The result is also `null` when `owner` is not the subject that
+ * started the task.
  *
  * `spec2026` is the `tasks/get` result for the 2026 tasks extension.
  * That result has the task id and the status.
- * When the status is `completed`, `spec2026` also has the tool result.
+ * When the status is `completed`, `spec2026` also has the tool result
+ * as a `CallToolResult`.
  * When the status is `failed`, `spec2026` has the error.
  * `spec2025` is the task object that the 2025-11-25 `tasks/get` method returns.
  * `spec2025` names the time to live `ttl`.
@@ -116,15 +123,21 @@ export async function startTask(
  *
  * @param taskId - Id from `startTask`.
  * @param store - Same store that `startTask` received.
+ * @param owner - The auth subject of the caller. Absent without auth.
  *
  * @example
  * ```ts
  * const polled = await getTask(handle.taskId, store)
  * ```
  */
-export async function getTask(taskId: string, store: TaskStore) {
+export async function getTask(
+  taskId: string,
+  store: TaskStore,
+  owner?: string,
+) {
   const value = await store.get(taskId)
   if (!isStoredTask(value)) return null
+  if (value.owner !== owner) return null
   return {
     record: value,
     spec2026: spec2026View(value),
@@ -132,7 +145,7 @@ export async function getTask(taskId: string, store: TaskStore) {
   }
 }
 
-function workingTask(taskId: string, now: string) {
+function workingTask(taskId: string, now: string, owner: string | undefined) {
   const status = 'working' as const
   const ttlMs = null
   return {
@@ -141,13 +154,13 @@ function workingTask(taskId: string, now: string) {
     createdAt: now,
     lastUpdatedAt: now,
     ttlMs,
+    ...(owner === undefined ? {} : { owner }),
   }
 }
 
-function completedTask(
-  task: { taskId: string; createdAt: string },
-  result: unknown,
-) {
+type TaskStart = { taskId: string; createdAt: string; owner?: string }
+
+function completedTask(task: TaskStart, result: unknown) {
   const status = 'completed' as const
   const ttlMs = null
   return {
@@ -156,14 +169,12 @@ function completedTask(
     createdAt: task.createdAt,
     lastUpdatedAt: new Date().toISOString(),
     ttlMs,
+    ...(task.owner === undefined ? {} : { owner: task.owner }),
     result,
   }
 }
 
-function failedTask(
-  task: { taskId: string; createdAt: string },
-  error: unknown,
-) {
+function failedTask(task: TaskStart, error: unknown) {
   const status = 'failed' as const
   const ttlMs = null
   return {
@@ -172,6 +183,7 @@ function failedTask(
     createdAt: task.createdAt,
     lastUpdatedAt: new Date().toISOString(),
     ttlMs,
+    ...(task.owner === undefined ? {} : { owner: task.owner }),
     error: {
       code: internalErrorCode,
       message: errorMessage(error),
@@ -189,11 +201,7 @@ function startTool(run: () => Promise<unknown>) {
   }
 }
 
-function settleTask(
-  store: TaskStore,
-  task: { taskId: string; createdAt: string },
-  run: Promise<unknown>,
-) {
+function settleTask(store: TaskStore, task: TaskStart, run: Promise<unknown>) {
   return run.then(
     (result) => store.set(task.taskId, completedTask(task, result)),
     (error: unknown) => store.set(task.taskId, failedTask(task, error)),
@@ -218,7 +226,8 @@ function spec2026View(record: StoredTask) {
         ...timing,
         status: record.status,
         ttlMs: record.ttlMs,
-        result: record.result,
+        // The 2025 tasks/result wraps the output the same way.
+        result: toCallToolResult(record.result),
       } satisfies Spec2026TaskGet
     case 'failed':
       return {
@@ -264,6 +273,26 @@ function spec2025View(record: StoredTask) {
   }
 }
 
+/**
+ * Turns a tool output into an MCP `CallToolResult`.
+ * A string becomes one text block.
+ * An object becomes a JSON text block and `structuredContent`.
+ */
+export function toCallToolResult(output: unknown) {
+  if (typeof output === 'string') {
+    return { content: [{ type: 'text' as const, text: output }] }
+  }
+  if (isRecord(output)) {
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(output) }],
+      structuredContent: output,
+    }
+  }
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify(output) }],
+  }
+}
+
 function clockFields(record: TaskClock) {
   return {
     taskId: record.taskId,
@@ -286,6 +315,7 @@ function isStoredTask(value: unknown): value is StoredTask {
   if (typeof value.createdAt !== 'string') return false
   if (typeof value.lastUpdatedAt !== 'string') return false
   if (value.ttlMs !== null) return false
+  if (value.owner !== undefined && typeof value.owner !== 'string') return false
   switch (value.status) {
     case 'working':
       return true

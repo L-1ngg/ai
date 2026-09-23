@@ -1,4 +1,7 @@
+import { parseWithStandardSchema } from '@tanstack/ai'
 import type { InferToolInput, InferToolOutput } from '@tanstack/ai'
+import { createServerToolContext } from './server/context'
+import { optionsOfServer } from './server/create-server'
 import type { MCPServer } from './server/create-server'
 
 type Named = { name: string }
@@ -46,13 +49,24 @@ type PromptMessages<TPrompt> = TPrompt extends {
   ? Awaited<TResult>
   : never
 
-const directToolContext = {
-  emitCustomEvent() {},
+// The same context shape that a spec 2026 call on the server gets.
+function directToolContext(server: object, signal: AbortSignal | undefined) {
+  return {
+    ...createServerToolContext({
+      era: '2026',
+      sample: optionsOfServer(server)?.sample,
+    }),
+    abortSignal: signal ?? new AbortController().signal,
+    emitCustomEvent() {},
+  }
 }
+
+type DirectToolContext = ReturnType<typeof directToolContext>
 
 type ListedTool = {
   name: string
-  execute?: (input: never, context?: typeof directToolContext) => unknown
+  inputSchema?: unknown
+  execute?: (input: never, context?: DirectToolContext) => unknown
 }
 
 type ListedResource = {
@@ -71,6 +85,9 @@ type ListedPrompt = {
  * `server` is the object from `createMCPServer`.
  * The tool names, resource URIs, and prompt arguments stay typed.
  * This client does not open a network connection.
+ * `callTool` checks `args` with the tool input schema, like the HTTP server.
+ * The tool gets the spec 2026 context: `ctx.requestInput` throws
+ * `ToolInputRequiredError`, and `ctx.sample` uses the server `sample` option.
  *
  * @param server - The server object to call
  *
@@ -93,6 +110,7 @@ export function directMCPClient<const TServer extends MCPServer>(
     async callTool<const TName extends ToolNames<TServer['tools']>>(
       name: TName,
       args: InferToolInput<ToolByName<TServer['tools'], TName>>,
+      options?: { signal?: AbortSignal },
     ) {
       const tool = tools.find((item) => item.name === name)
       if (tool === undefined || tool.execute === undefined) {
@@ -100,11 +118,15 @@ export function directMCPClient<const TServer extends MCPServer>(
       }
       const execute = tool.execute as (
         input: InferToolInput<ToolByName<TServer['tools'], TName>>,
-        context?: typeof directToolContext,
+        context?: DirectToolContext,
       ) =>
         | InferToolOutput<ToolByName<TServer['tools'], TName>>
         | Promise<InferToolOutput<ToolByName<TServer['tools'], TName>>>
-      return execute(args, directToolContext)
+      // A schema that is not a Standard Schema passes `args` through.
+      const input = parseWithStandardSchema<
+        InferToolInput<ToolByName<TServer['tools'], TName>>
+      >(tool.inputSchema, args)
+      return execute(input, directToolContext(server, options?.signal))
     },
 
     async readResource<const TUri extends ResourceUris<TServer['resources']>>(

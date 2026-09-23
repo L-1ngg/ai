@@ -1,8 +1,12 @@
 /**
  * Accept or reject one bearer token.
- * Return true only for a token that can call this server.
+ * Return `false` for a token that cannot call this server.
+ * Return `true`, or `{ subject }` to name the caller.
+ * When a subject is set, spec 2025 sessions and tasks belong to that subject.
  */
-export type VerifyToken = (token: string) => Promise<boolean>
+export type VerifyToken = (
+  token: string,
+) => Promise<boolean | { subject: string }>
 
 type JwksFetch = (
   input: RequestInfo | URL,
@@ -11,11 +15,8 @@ type JwksFetch = (
 
 type JwksAuth = {
   jwksUrl: string
-  /**
-   * When set, the JWT `aud` claim must match this MCP server URL.
-   * Omit it and this path does not read `aud`.
-   */
-  resource?: string
+  /** The JWT `aud` claim must match this MCP server URL. */
+  resource: string
   fetch?: JwksFetch
 }
 
@@ -35,6 +36,7 @@ type JwtPayload = {
   exp?: number
   nbf?: number
   aud?: unknown
+  sub?: unknown
 }
 
 type ParsedJwt = {
@@ -63,10 +65,9 @@ type ServerJwk = JsonWebKey & {
  * The `jwksUrl` path checks an RS256 or ES256 signature with Web Crypto.
  * The JWT must include a future `exp`.
  * If the JWT includes `nbf`, this path checks that claim.
- * Pass `resource` when `aud` must match this server URL.
+ * `aud` must match `resource`, the URL of this server.
  * A string `aud` must equal `resource`.
  * An array `aud` must include `resource`.
- * When `resource` is absent, this path does not read `aud`.
  *
  * @example
  * const denied = await requireBearerAuth(request, {
@@ -78,11 +79,28 @@ export async function requireBearerAuth(
   request: Request,
   auth: ResourceServerAuth,
 ) {
+  const result = await authenticate(request, auth)
+  return 'denied' in result ? result.denied : undefined
+}
+
+/**
+ * Checks the bearer token and returns the caller subject.
+ * `subject` comes from `verifyToken`, or from the JWT `sub` claim.
+ * It is `undefined` when the verifier returns `true`.
+ * A missing or invalid token returns `{ denied }` with a 401 response.
+ *
+ * @param request - The HTTP request
+ * @param auth - The auth options of the server
+ */
+export async function authenticate(
+  request: Request,
+  auth: ResourceServerAuth,
+): Promise<{ denied: Response } | { subject: string | undefined }> {
   const token = bearerToken(request)
-  if (token === undefined) return unauthorized('missing')
-  const valid = await tokenIsValid(token, auth)
-  if (!valid) return unauthorized('invalid')
-  return undefined
+  if (token === undefined) return { denied: unauthorized('missing') }
+  const verdict = await tokenVerdict(token, auth)
+  if (verdict === false) return { denied: unauthorized('invalid') }
+  return { subject: verdict === true ? undefined : verdict.subject }
 }
 
 /**
@@ -142,12 +160,15 @@ function unauthorized(kind: 'missing' | 'invalid') {
   })
 }
 
-async function tokenIsValid(token: string, auth: ResourceServerAuth) {
+async function tokenVerdict(
+  token: string,
+  auth: ResourceServerAuth,
+): Promise<boolean | { subject: string }> {
   if ('verifyToken' in auth) return auth.verifyToken(token)
-  return jwtIsValid(token, auth)
+  return jwtVerdict(token, auth)
 }
 
-async function jwtIsValid(token: string, auth: JwksAuth) {
+async function jwtVerdict(token: string, auth: JwksAuth) {
   const parsed = parsedJwt(token)
   if (parsed === undefined) return false
   if (!timeClaimsAllow(parsed.payload)) return false
@@ -160,7 +181,10 @@ async function jwtIsValid(token: string, auth: JwksAuth) {
   if (keys === undefined) return false
   const jwk = jwkForHeader(keys, parsed.header)
   if (jwk === undefined) return false
-  return verifySignature(parsed.header.alg, jwk, parsed)
+  const valid = await verifySignature(parsed.header.alg, jwk, parsed)
+  if (!valid) return false
+  const sub = parsed.payload.sub
+  return typeof sub === 'string' && sub.length > 0 ? { subject: sub } : true
 }
 
 function parsedJwt(token: string) {
@@ -212,10 +236,14 @@ function timeClaimsAllow(payload: JwtPayload) {
 
 const jwksTtlMs = 5 * 60 * 1000
 const jwksFetchTimeoutMs = 3_000
+// An unknown kid refetches a fresh key set at most this often.
+// The kid is read before the signature check, so any caller can send one.
+const unknownKidRefetchMs = 30 * 1000
 
 type CachedJwks = {
   keys: ReadonlyArray<ServerJwk>
   expiresAt: number
+  fetchedAt: number
 }
 
 // Each fetch function has its own cache entry.
@@ -243,8 +271,14 @@ async function fetchJwks(auth: JwksAuth, kid: string | undefined) {
   // Use the caller jwksUrl only. Do not read jku from the token.
   const cacheKey = `${auth.jwksUrl}\n${fetchCacheId(auth.fetch)}`
   const cached = jwksCache.get(cacheKey)
-  const fresh = cached !== undefined && cached.expiresAt > Date.now()
+  const now = Date.now()
+  const fresh = cached !== undefined && cached.expiresAt > now
   if (fresh && cacheHasKid(cached.keys, kid)) return cached.keys
+  // A rotated key can appear before the cache expires. Look again, but not
+  // on every request.
+  if (fresh && now - cached.fetchedAt < unknownKidRefetchMs) {
+    return cached.keys
+  }
 
   const fetchImpl = auth.fetch ?? fetch
   const controller = new AbortController()
@@ -255,12 +289,15 @@ async function fetchJwks(auth: JwksAuth, kid: string | undefined) {
     })
     if (!response.ok) return undefined
     const body: unknown = await response.json()
-    if (!isJwks(body)) return undefined
+    const keys = supportedKeys(body)
+    if (keys === undefined) return undefined
+    const fetchedAt = Date.now()
     jwksCache.set(cacheKey, {
-      keys: body.keys,
-      expiresAt: Date.now() + jwksTtlMs,
+      keys,
+      expiresAt: fetchedAt + jwksTtlMs,
+      fetchedAt,
     })
-    return body.keys
+    return keys
   } catch {
     return undefined
   } finally {
@@ -268,8 +305,7 @@ async function fetchJwks(auth: JwksAuth, kid: string | undefined) {
   }
 }
 
-function audienceAllows(aud: unknown, resource: string | undefined) {
-  if (resource === undefined) return true
+function audienceAllows(aud: unknown, resource: string) {
   if (typeof aud === 'string') return aud === resource
   if (!Array.isArray(aud)) return false
   return aud.some((item) => item === resource)
@@ -403,9 +439,12 @@ function isJwtPayload(value: unknown): value is JwtPayload {
   return true
 }
 
-function isJwks(value: unknown): value is { keys: Array<ServerJwk> } {
-  if (!isRecord(value) || !Array.isArray(value.keys)) return false
-  return value.keys.every((key) => isJwk(key))
+// A key set can also hold key types this server cannot use, like OKP.
+// Keep the RSA and EC keys and drop the rest.
+function supportedKeys(value: unknown) {
+  if (!isRecord(value) || !Array.isArray(value.keys)) return undefined
+  const keys: Array<unknown> = value.keys
+  return keys.filter(isJwk)
 }
 
 function isJwk(value: unknown): value is ServerJwk {

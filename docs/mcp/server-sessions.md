@@ -2,76 +2,40 @@
 title: MCP Server Sessions
 id: mcp-server-sessions
 order: 13
-description: "Keep a spec 2025 session in your store so each instance can read the session id."
+description: "Route spec 2025 sessions to the instance that opened them, and learn when a session closes."
 keywords:
   - tanstack ai
   - mcp
   - model context protocol
   - createMCPServer
-  - sessionStore
+  - sticky sessions
   - spec 2025
-  - inMemoryProtocolSessionStore
+  - mcp-session-id
 ---
 
-A spec 2025 client sends the same session id on later requests. The default store keeps that session in one process. A second instance cannot read that session.
+A spec 2025 client opens a session, then sends the same session id on each later request. On a deploy with more than one instance, a later request can reach an instance that did not open the session. That request gets 404.
 
-On the edge, pass `sessionStore` to `createMCPServer`.
+Route each session to one instance. Use the `mcp-session-id` header as the key for sticky routing on your load balancer.
 
-```ts
-import {
-  createMCPServer,
-  type ProtocolSessionStore,
-} from '@tanstack/ai-mcp/server'
+## Where a session lives
 
-type TextStore = {
-  get(id: string): Promise<string | null>
-  put(id: string, value: string): Promise<void>
-  delete(id: string): Promise<void>
-}
+A spec 2025 session keeps a live connection object. That object stays in the process that opened the session. Another process cannot read it.
 
-export function createNotesServer(textStore: TextStore) {
-  const sessionStore: ProtocolSessionStore = {
-    async get(id: string) {
-      const raw = await textStore.get(id)
-      if (raw === null) return null
-      const value: unknown = JSON.parse(raw)
-      return value
-    },
-    async set(id: string, value: unknown) {
-      await textStore.put(id, JSON.stringify(value))
-    },
-    async delete(id: string) {
-      await textStore.delete(id)
-    },
-  }
+- The client sends the session id on the `mcp-session-id` header.
+- A request with an unknown session id gets 404 `Session not found`.
+- A spec 2026 client sends no session id. Any instance can serve a spec 2026 request.
 
-  return createMCPServer({
-    name: 'notes',
-    version: '1.0.0',
-    sessionStore,
-  })
-}
-```
+## When a session closes
 
-1. Call `createNotesServer` once.
-2. Call `fetch` on that server for each request.
+A session closes in two cases:
 
-`inMemoryProtocolSessionStore()` is the default for one process.
+- The client sends `DELETE` with its session id.
+- The session gets no request for 30 minutes.
 
-The store has three methods:
+The server checks for idle sessions when a request comes in. After a session closes, the client must open a new session.
 
-- `get` returns the value for the session id. When the id is absent, `get` returns `null`.
-- `set` saves the value. A later `set` for the same id replaces that value.
-- `delete` deletes the value for that id. An absent id stays absent.
+## Sessions and auth
 
-This package does not ship these products:
+When `auth` names a subject, the session belongs to that subject. A request from another subject gets 404, the same as an unknown id. [MCP Server Auth](./server-auth) shows how to set the subject.
 
-- Redis
-- Workers KV
-- a Durable Object
-
-When a session opens, the server calls `set` with `{ protocolVersion: '2025-11-25' }`. Then the client sends that id on the `mcp-session-id` header.
-
-When the request reaches a server that did not open the session, the response status is 404.
-
-The saved value stays in your store. When every instance uses that store, each instance can `get` the saved value.
+A client on one instance opens a session, sends its requests, and gets its answers from that same instance.

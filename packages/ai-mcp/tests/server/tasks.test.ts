@@ -129,7 +129,11 @@ describe('server tasks', () => {
       createdAt: working.record.createdAt,
       lastUpdatedAt: polled.record.lastUpdatedAt,
       ttlMs: null,
-      result: { text: 'done' },
+      // The same CallToolResult that the 2025 tasks/result returns.
+      result: {
+        content: [{ type: 'text', text: '{"text":"done"}' }],
+        structuredContent: { text: 'done' },
+      },
     })
     expect(polled.spec2025).toEqual({
       taskId: handle.taskId,
@@ -216,5 +220,17 @@ describe('server tasks', () => {
   it('returns null when the task id is absent', async () => {
     const store = inMemoryTaskStore()
     expect(await getTask('missing', store)).toBeNull()
+  })
+
+  it('returns the task only to its owner', async () => {
+    const store = inMemoryTaskStore()
+    const handle = await startTask(async () => 'done', {
+      store,
+      owner: 'alice',
+    })
+
+    expect(await getTask(handle.taskId, store, 'alice')).not.toBeNull()
+    expect(await getTask(handle.taskId, store, 'bob')).toBeNull()
+    expect(await getTask(handle.taskId, store)).toBeNull()
   })
 })

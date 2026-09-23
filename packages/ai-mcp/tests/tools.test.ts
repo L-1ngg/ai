@@ -4,7 +4,12 @@ import {
   InMemoryTransport,
   SUPPORTED_PROTOCOL_VERSIONS,
 } from '@modelcontextprotocol/client'
-import { inputRequired, Server } from '@modelcontextprotocol/server'
+import {
+  ProtocolError,
+  ProtocolErrorCode,
+  inputRequired,
+  Server,
+} from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { MCPInputRequiredError } from '../src/input-required'
 import {
@@ -397,6 +402,121 @@ describe('callMcpTool', () => {
       const error = await inputRequiredFrom(() => execute({}))
       expect(error.kind).toBe('sampling')
       expect(error.request).toEqual(request)
+    } finally {
+      await client.close()
+      await server.close()
+    }
+  })
+
+  async function answerCityWith(
+    inputResponse:
+      | { status: 'resolved'; payload: unknown }
+      | { status: 'cancelled' },
+  ) {
+    const seen: Array<{ responses: unknown; state: unknown }> = []
+    const server = modernInputServer()
+    server.setRequestHandler('tools/call', (_request, ctx) => {
+      const responses = ctx.mcpReq.inputResponses
+      if (responses === undefined) {
+        return inputRequired({
+          inputRequests: {
+            city: inputRequired.elicit({
+              message: 'Which city?',
+              requestedSchema: {
+                type: 'object',
+                properties: { city: { type: 'string' } },
+              },
+            }),
+          },
+          requestState: 'state-1',
+        })
+      }
+      seen.push({ responses, state: ctx.mcpReq.requestState() })
+      return { content: [{ type: 'text', text: 'answered' }] }
+    })
+    const client = await connectModernClient(server)
+    try {
+      const execute = makeMcpExecute(client, 'ask', false)
+      const result = await execute(
+        {},
+        { abortSignal: undefined, inputResponse },
+      )
+      return { result, seen }
+    } finally {
+      await client.close()
+      await server.close()
+    }
+  }
+
+  it('sends the answer back with inputResponses and requestState', async () => {
+    const { result, seen } = await answerCityWith({
+      status: 'resolved',
+      payload: { city: 'Paris' },
+    })
+
+    expect(result).toBe('answered')
+    expect(seen).toEqual([
+      {
+        responses: { city: { action: 'accept', content: { city: 'Paris' } } },
+        state: 'state-1',
+      },
+    ])
+  })
+
+  it('sends a cancel when the user cancels the form', async () => {
+    const { seen } = await answerCityWith({ status: 'cancelled' })
+
+    expect(seen[0]?.responses).toEqual({ city: { action: 'cancel' } })
+  })
+
+  it('stops a spec 2025 task that needs input instead of polling forever', async () => {
+    const clock = taskClock()
+    const server = new Server(
+      { name: 'job', version: '1.0.0' },
+      {
+        capabilities: {
+          tools: {},
+          tasks: { requests: { tools: { call: {} } } },
+        },
+      },
+    )
+    server.setRequestHandler('tools/call', () => ({
+      content: [],
+      task: {
+        taskId: 'job-1',
+        status: 'input_required',
+        ttl: null,
+        pollInterval: 1,
+        ...clock,
+      },
+    }))
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair()
+    await server.connect(serverTransport)
+    const client = await connectClient(clientTransport)
+    try {
+      await expect(callMcpTool(client, 'job', {}, true)).rejects.toThrow(
+        /needs input/,
+      )
+    } finally {
+      await client.close()
+      await server.close()
+    }
+  })
+
+  it('keeps the JSON-RPC error code on a spec 2026 call', async () => {
+    const server = modernInputServer()
+    server.setRequestHandler('tools/call', () => {
+      throw new ProtocolError(ProtocolErrorCode.InvalidParams, 'Unknown tool')
+    })
+    const client = await connectModernClient(server)
+    try {
+      await expect(
+        callMcpTool(client, 'nope', {}, false),
+      ).rejects.toMatchObject({
+        code: ProtocolErrorCode.InvalidParams,
+        message: 'Unknown tool',
+      })
     } finally {
       await client.close()
       await server.close()
