@@ -468,9 +468,13 @@ const server = createMCPServer({
   tools: [getWeather],
 })
 
-export function POST(request: Request) {
+export function handleMcp(request: Request) {
   return server.fetch(request)
 }
+
+// Mount handleMcp on GET, POST, and DELETE.
+// GET is the spec 2025 stream.
+// DELETE closes a spec 2025 session.
 ```
 
 `serveMCPStdio` from `@tanstack/ai-mcp/server/stdio` serves that server on stdin and stdout.
@@ -518,25 +522,32 @@ const client = await createMCPClient({
   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
 })
 
-const stream = chat({
-  adapter: openaiText('gpt-5.6'),
-  messages: [{ role: 'user', content: 'Weather in Paris?' }],
-  mcp: { clients: [client], connection: 'keep-alive' },
-})
+try {
+  const stream = chat({
+    adapter: openaiText('gpt-5.6'),
+    messages: [{ role: 'user', content: 'Weather in Paris?' }],
+    tools: await client.tools(),
+  })
 
-for await (const chunk of stream) {
-  if (chunk.type !== 'RUN_FINISHED') continue
-  if (chunk.outcome?.type !== 'interrupt') continue
+  for await (const chunk of stream) {
+    if (chunk.type !== 'RUN_FINISHED') continue
+    if (chunk.outcome?.type !== 'interrupt') continue
 
-  for (const item of chunk.outcome.interrupts) {
-    if (item.reason !== 'mcp_input') continue
-    const payload = item.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
-    if (typeof payload !== 'object' || payload === null) continue
-    if (!('kind' in payload)) continue
-    // payload.kind is 'form' or 'sampling'
+    for (const item of chunk.outcome.interrupts) {
+      if (item.reason !== 'mcp_input') continue
+      const payload = item.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
+      if (typeof payload !== 'object' || payload === null) continue
+      if (!('kind' in payload)) continue
+      // payload.kind is 'form' or 'sampling'
+    }
   }
+} finally {
+  await client.close()
 }
 ```
+
+`chat({ resume })` does not continue this interrupt.
+Read `request` in the UI.
 
 ### 7. Queueing Messages Sent While Streaming
 

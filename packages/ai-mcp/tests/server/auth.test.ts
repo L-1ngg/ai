@@ -27,6 +27,7 @@ type JwtClaims = {
   exp: number
   nbf?: number
   sub?: string
+  aud?: string | Array<string>
 }
 
 function mcpRequest(authorization?: string) {
@@ -235,6 +236,100 @@ describe('requireBearerAuth', () => {
     })
     expect(response?.status).toBe(401)
   })
+
+  it('returns 401 when resource is set and aud does not match', async () => {
+    const key = await signingKey('RS256', 'rsa-1')
+    const token = await signJwt(key, {
+      sub: 'user',
+      exp: futureExp(),
+      aud: 'https://other.example.com',
+    })
+    let fetches = 0
+    const response = await bearerResult(`Bearer ${token}`, {
+      jwksUrl: JWKS_URL,
+      resource: RESOURCE,
+      fetch: async () => {
+        fetches += 1
+        return new Response(JSON.stringify({ keys: [key.jwk] }), {
+          status: 200,
+        })
+      },
+    })
+    expect(response?.status).toBe(401)
+    expect(fetches).toBe(0)
+  })
+
+  it('accepts a token whose aud array contains resource', async () => {
+    const key = await signingKey('RS256', 'rsa-1')
+    const token = await signJwt(key, {
+      sub: 'user',
+      exp: futureExp(),
+      aud: ['https://other.example.com', RESOURCE],
+    })
+    const response = await bearerResult(`Bearer ${token}`, {
+      jwksUrl: JWKS_URL,
+      resource: RESOURCE,
+      fetch: async () =>
+        new Response(JSON.stringify({ keys: [key.jwk] }), { status: 200 }),
+    })
+    expect(response).toBeUndefined()
+  })
+
+  it('reuses a fresh JWKS response for the same fetch function', async () => {
+    const key = await signingKey('RS256', 'rsa-1')
+    const token = await signJwt(key, {
+      sub: 'user',
+      exp: futureExp(),
+      aud: RESOURCE,
+    })
+    let fetches = 0
+    const auth = {
+      jwksUrl: JWKS_URL,
+      resource: RESOURCE,
+      fetch: async () => {
+        fetches += 1
+        return new Response(JSON.stringify({ keys: [key.jwk] }), {
+          status: 200,
+        })
+      },
+    }
+    expect(await bearerResult(`Bearer ${token}`, auth)).toBeUndefined()
+    expect(await bearerResult(`Bearer ${token}`, auth)).toBeUndefined()
+    expect(fetches).toBe(1)
+  })
+
+  it('fetches again when the cached keys do not contain kid', async () => {
+    const stale = await signingKey('RS256', 'old')
+    const current = await signingKey('RS256', 'new')
+    const token = await signJwt(current, { sub: 'user', exp: futureExp() })
+    let fetches = 0
+    const auth = {
+      jwksUrl: JWKS_URL,
+      fetch: async () => {
+        fetches += 1
+        const keys = fetches === 1 ? [stale.jwk] : [stale.jwk, current.jwk]
+        return new Response(JSON.stringify({ keys }), { status: 200 })
+      },
+    }
+    expect((await bearerResult(`Bearer ${token}`, auth))?.status).toBe(401)
+    expect(await bearerResult(`Bearer ${token}`, auth)).toBeUndefined()
+    expect(fetches).toBe(2)
+  })
+
+  it('returns 401 when the JWKS fetch does not settle', async () => {
+    const key = await signingKey('RS256', 'rsa-1')
+    const token = await signJwt(key, { sub: 'user', exp: futureExp() })
+    const response = await bearerResult(`Bearer ${token}`, {
+      jwksUrl: JWKS_URL,
+      fetch: (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new Error('aborted'))
+          })
+        }),
+    })
+    expect(response?.status).toBe(401)
+  }, 10_000)
 })
 
 describe('protectedResourceMetadata', () => {

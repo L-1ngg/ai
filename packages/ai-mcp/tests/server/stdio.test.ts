@@ -28,6 +28,8 @@ function startChildServer() {
 
 if (process.env[childEnv] === '1') {
   startChildServer()
+} else if (process.env[childEnv] === 'input') {
+  startInputServer()
 } else {
   describe('serveMCPStdio', () => {
     it('lists and calls the tool for a spec 2025 stdio client', async () => {
@@ -41,7 +43,41 @@ if (process.env[childEnv] === '1') {
       expect(result.names).toEqual(['echo'])
       expect(result.content).toEqual([{ type: 'text', text: 'hi' }])
     }, 60000)
+
+    it('answers a spec 2025 input request while the tool is still running', async () => {
+      const result = await askOverStdio()
+      expect(result).toEqual([{ type: 'text', text: 'Paris' }])
+    }, 60000)
   })
+}
+
+function askTool() {
+  return toolDefinition({
+    name: 'ask',
+    description: 'Ask for a city',
+    inputSchema: z.object({}),
+  }).server(async (_args, ctx) => {
+    const hooks = ctx as
+      | {
+          requestInput?: (request: { message: string }) => Promise<unknown>
+        }
+      | undefined
+    const requestInput = hooks?.requestInput
+    if (typeof requestInput !== 'function') {
+      throw new Error('requestInput is missing')
+    }
+    const answer = await requestInput({ message: 'Which city?' })
+    return typeof answer === 'string' ? answer : 'missing'
+  })
+}
+
+function startInputServer() {
+  const server = createMCPServer({
+    name: 'weather',
+    version: '1.0.0',
+    tools: [askTool()],
+  })
+  serveMCPStdio(server)
 }
 
 function clientFor(era: '2025' | '2026') {
@@ -83,6 +119,48 @@ async function echoOverStdio(era: '2025' | '2026') {
       names: listed.tools.map((tool) => tool.name),
       content: echoed.content,
     }
+  } catch (error) {
+    const detail =
+      error instanceof Error ? error.message : 'The stdio client failed.'
+    throw new Error(`${detail}\n${stderrChunks.join('')}`)
+  } finally {
+    try {
+      await client.close()
+    } catch {
+      // close rejects when connect did not finish.
+    }
+  }
+}
+
+async function askOverStdio() {
+  const testFile = fileURLToPath(import.meta.url)
+  const packageRoot = fileURLToPath(new URL('../..', import.meta.url))
+  const stderrChunks: Array<string> = []
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: ['--import', 'jiti/register', testFile],
+    cwd: packageRoot,
+    env: { [childEnv]: 'input' },
+    stderr: 'pipe',
+  })
+  transport.stderr?.on('data', (chunk) => {
+    stderrChunks.push(chunkText(chunk))
+  })
+  const client = new Client(
+    { name: 'tester', version: '1.0.0' },
+    {
+      capabilities: { elicitation: { form: {} } },
+      versionNegotiation: { mode: 'legacy' },
+    },
+  )
+  client.setRequestHandler('elicitation/create', async () => ({
+    action: 'accept',
+    content: { value: 'Paris' },
+  }))
+  try {
+    await client.connect(transport)
+    const answered = await client.callTool({ name: 'ask', arguments: {} })
+    return answered.content
   } catch (error) {
     const detail =
       error instanceof Error ? error.message : 'The stdio client failed.'

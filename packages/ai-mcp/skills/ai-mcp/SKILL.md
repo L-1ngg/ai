@@ -83,9 +83,13 @@ const server = createMCPServer({
   tools: [getWeather],
 })
 
-export function POST(request: Request) {
+export function handleMcp(request: Request) {
   return server.fetch(request)
 }
+
+// Mount handleMcp on GET, POST, and DELETE.
+// GET is the spec 2025 stream.
+// DELETE closes a spec 2025 session.
 ```
 
 `createMCPServer` speaks spec `2026-07-28`.
@@ -122,7 +126,12 @@ serveMCPStdio(server)
 You can also pass `resources` and `prompts`.
 Build them with `resourceDefinition` and `promptDefinition` from `@tanstack/ai-mcp/server`.
 
-On spec 2026, `ctx.requestInput` stops the tool until the client sends the answer.
+On spec 2026, `ctx.requestInput` returns `input_required`.
+The client runs the tool again.
+Code before `requestInput` runs on both calls.
+Put work that must run once after `requestInput` returns.
+On spec 2025, `requestInput` waits on the open session.
+The same tool call then continues.
 The tool context type does not list `requestInput`.
 Narrow the context.
 Then call `requestInput`.
@@ -154,10 +163,12 @@ const server = createMCPServer({
   tools: [askCity],
 })
 
-export function POST(request: Request) {
+export function handleMcp(request: Request) {
   return server.fetch(request)
 }
 ```
+
+Mount `handleMcp` on GET, POST, and DELETE.
 
 If a tool calls `ctx.sample` on spec 2026, pass `sample` to `createMCPServer`.
 On spec 2026, `ctx.sample` calls the `sample` function.
@@ -541,26 +552,35 @@ const client = await createMCPClient({
   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
 })
 
-const stream = chat({
-  adapter: openaiText('gpt-5.5'),
-  messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
-  tools: await client.tools(),
-})
+try {
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages: [{ role: 'user', content: 'What is the weather in Paris?' }],
+    tools: await client.tools(),
+  })
 
-for await (const chunk of stream) {
-  if (chunk.type !== 'RUN_FINISHED') continue
-  if (chunk.outcome?.type !== 'interrupt') continue
+  for await (const chunk of stream) {
+    if (chunk.type !== 'RUN_FINISHED') continue
+    if (chunk.outcome?.type !== 'interrupt') continue
 
-  for (const item of chunk.outcome.interrupts) {
-    if (item.reason !== 'mcp_input') continue
-    const payload = item.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
-    if (typeof payload !== 'object' || payload === null) continue
-    if (!('kind' in payload)) continue
-    // payload.kind is 'form' or 'sampling'
-    // payload.request is the MCP input body
+    for (const item of chunk.outcome.interrupts) {
+      if (item.reason !== 'mcp_input') continue
+      const payload = item.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
+      if (typeof payload !== 'object' || payload === null) continue
+      if (!('kind' in payload)) continue
+      // payload.kind is 'form' or 'sampling'
+      // payload.request is the MCP input body
+    }
   }
+} finally {
+  await client.close()
 }
 ```
+
+`chat({ resume })` does not continue this interrupt.
+The interrupt has no binding.
+Read `request` in the UI.
+On spec 2026, run the server tool again with the answer.
 
 ## `createMCPClients` — multiple servers
 

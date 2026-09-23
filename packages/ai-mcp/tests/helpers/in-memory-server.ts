@@ -387,9 +387,9 @@ export async function makeServerWithPaginatedTools() {
 }
 
 /**
- * Two-page tools/list whose first-page tool declares an outputSchema but
- * answers with text-only content. After a full paginated tools list, structured
- * output validation must still apply to the first-page tool.
+ * Two-page tools/list. Both tools declare an outputSchema and answer with
+ * text-only content. After tools(), structured output validation applies to
+ * both pages.
  */
 export async function makeServerWithPaginatedLaxSchemaTool() {
   const { server, getListRequests } = makeLowLevelToolServer({
@@ -409,8 +409,12 @@ export async function makeServerWithPaginatedLaxSchemaTool() {
       [
         {
           name: 'second_page_tool',
-          description: 'On page two',
+          description: 'On page two, declares an output schema it never honors',
           inputSchema: { type: 'object' },
+          outputSchema: {
+            type: 'object',
+            properties: { value: { type: 'string' } },
+          },
         },
       ],
     ],

@@ -61,6 +61,8 @@ export function inMemoryProtocolSessionStore() {
 /**
  * Creates a {@link TaskStore} that keeps values in memory.
  * Each call has its own map. The map lives in this process only.
+ * A saved task stays in the map until `delete`, or until the process exits.
+ * A long-lived server passes its own store.
  *
  * ```ts
  * const tasks = inMemoryTaskStore()

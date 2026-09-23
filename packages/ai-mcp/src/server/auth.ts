@@ -11,6 +11,11 @@ type JwksFetch = (
 
 type JwksAuth = {
   jwksUrl: string
+  /**
+   * When set, the JWT `aud` claim must match this MCP server URL.
+   * Omit it and this path does not read `aud`.
+   */
+  resource?: string
   fetch?: JwksFetch
 }
 
@@ -29,6 +34,7 @@ type JwtHeader = {
 type JwtPayload = {
   exp?: number
   nbf?: number
+  aud?: unknown
 }
 
 type ParsedJwt = {
@@ -57,8 +63,10 @@ type ServerJwk = JsonWebKey & {
  * The `jwksUrl` path checks an RS256 or ES256 signature with Web Crypto.
  * The JWT must include a future `exp`.
  * If the JWT includes `nbf`, this path checks that claim.
- * This path does not check the audience.
- * If the audience must match this server, pass `verifyToken`.
+ * Pass `resource` when `aud` must match this server URL.
+ * A string `aud` must equal `resource`.
+ * An array `aud` must include `resource`.
+ * When `resource` is absent, this path does not read `aud`.
  *
  * @example
  * const denied = await requireBearerAuth(request, {
@@ -146,8 +154,9 @@ async function jwtIsValid(token: string, auth: JwksAuth) {
   const supportedAlg =
     parsed.header.alg === RS256 || parsed.header.alg === ES256
   if (!supportedAlg) return false
+  if (!audienceAllows(parsed.payload.aud, auth.resource)) return false
 
-  const keys = await fetchJwks(auth)
+  const keys = await fetchJwks(auth, parsed.header.kid)
   if (keys === undefined) return false
   const jwk = jwkForHeader(keys, parsed.header)
   if (jwk === undefined) return false
@@ -201,18 +210,69 @@ function timeClaimsAllow(payload: JwtPayload) {
   return Number.isFinite(nbf) && nowSeconds >= nbf
 }
 
-async function fetchJwks(auth: JwksAuth) {
+const jwksTtlMs = 5 * 60 * 1000
+const jwksFetchTimeoutMs = 3_000
+
+type CachedJwks = {
+  keys: ReadonlyArray<ServerJwk>
+  expiresAt: number
+}
+
+// Each fetch function has its own cache entry.
+// A test double does not reuse keys from another test.
+const jwksCache = new Map<string, CachedJwks>()
+const fetchIds = new WeakMap<JwksFetch, number>()
+let nextFetchId = 1
+
+function fetchCacheId(fetchImpl: JwksFetch | undefined) {
+  if (fetchImpl === undefined) return 'default'
+  const existing = fetchIds.get(fetchImpl)
+  if (existing !== undefined) return String(existing)
+  const id = nextFetchId
+  nextFetchId += 1
+  fetchIds.set(fetchImpl, id)
+  return String(id)
+}
+
+function cacheHasKid(keys: ReadonlyArray<ServerJwk>, kid: string | undefined) {
+  if (kid === undefined) return true
+  return keys.some((key) => key.kid === kid)
+}
+
+async function fetchJwks(auth: JwksAuth, kid: string | undefined) {
   // Use the caller jwksUrl only. Do not read jku from the token.
+  const cacheKey = `${auth.jwksUrl}\n${fetchCacheId(auth.fetch)}`
+  const cached = jwksCache.get(cacheKey)
+  const fresh = cached !== undefined && cached.expiresAt > Date.now()
+  if (fresh && cacheHasKid(cached.keys, kid)) return cached.keys
+
   const fetchImpl = auth.fetch ?? fetch
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), jwksFetchTimeoutMs)
   try {
-    const response = await fetchImpl(auth.jwksUrl)
+    const response = await fetchImpl(auth.jwksUrl, {
+      signal: controller.signal,
+    })
     if (!response.ok) return undefined
     const body: unknown = await response.json()
     if (!isJwks(body)) return undefined
+    jwksCache.set(cacheKey, {
+      keys: body.keys,
+      expiresAt: Date.now() + jwksTtlMs,
+    })
     return body.keys
   } catch {
     return undefined
+  } finally {
+    clearTimeout(timer)
   }
+}
+
+function audienceAllows(aud: unknown, resource: string | undefined) {
+  if (resource === undefined) return true
+  if (typeof aud === 'string') return aud === resource
+  if (!Array.isArray(aud)) return false
+  return aud.some((item) => item === resource)
 }
 
 function jwkForHeader(keys: ReadonlyArray<ServerJwk>, header: JwtHeader) {

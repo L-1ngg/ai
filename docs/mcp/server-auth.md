@@ -82,6 +82,7 @@ const server = createMCPServer({
   version: '1.0.0',
   auth: {
     jwksUrl: 'https://auth.example.com/jwks.json',
+    resource: 'https://mcp.example.com',
   },
 })
 ```
@@ -94,9 +95,13 @@ The server reads keys from `jwksUrl`.
 - If the JWT has `kid`, the JWKS contains that key.
 - If the JWT has no `kid`, the JWKS contains one key.
 
-This path does not read `aud`.
+Pass `resource` when `aud` must match this server URL.
 
-If `aud` must match this server, pass `verifyToken`.
+- A string `aud` must equal `resource`.
+- An array `aud` must include `resource`.
+- A missing or different `aud` returns 401.
+
+When `resource` is absent, this path does not read `aud`.
 
 If the JWKS request fails, the server returns 401.
 

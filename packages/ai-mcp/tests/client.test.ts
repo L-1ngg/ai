@@ -248,9 +248,10 @@ describe('createMCPClient', () => {
     const { clientTransport } = await makeServerWithPaginatedLaxSchemaTool()
     await using client = await createMCPClientFromTransport(clientTransport)
     await client.tools()
-    // Page 1 declared an outputSchema. The SDK cache must keep that schema.
+    // Both pages declared an outputSchema. listTools() caches the full list.
     // Text-only content then fails structured-content validation.
     await expect(client.callTool('first_page_tool')).rejects.toThrow()
+    await expect(client.callTool('second_page_tool')).rejects.toThrow()
   })
 
   it('fails tools() when tools/list repeats a pagination cursor', async () => {

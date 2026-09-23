@@ -42,8 +42,10 @@ export function serveMCPStdio(server: {
   const aborts = new Set<AbortController>()
   let sessionId: string | undefined
   let legacyProtocol: string | undefined
+  let legacyStream = false
   let closed = false
   let tail = Promise.resolve()
+  const sideMessages = new Set<Promise<void>>()
 
   async function forward(message: unknown) {
     if (closed) return
@@ -68,6 +70,17 @@ export function serveMCPStdio(server: {
       legacyProtocol = nextLegacyProtocol(response, legacyProtocol)
       const text = await response.text()
       if (closed) return
+      if (legacyProtocol === undefined) {
+        const version = protocolVersionFromBody(
+          response.headers.get('content-type'),
+          text,
+        )
+        if (version !== undefined && !isModernVersion(version)) {
+          legacyProtocol = version
+        }
+      }
+      await ensureLegacyStream()
+      if (closed) return
       const outbound = messagesFromBody(
         response.headers.get('content-type'),
         text,
@@ -85,14 +98,81 @@ export function serveMCPStdio(server: {
   }
 
   transport.onmessage = (message) => {
-    tail = tail
-      .then(() => forward(message))
-      .catch((error) => {
-        console.error(errorText(error))
-      })
+    // A spec 2025 tool can wait inside server.fetch for the client answer.
+    // That answer, and notifications/cancelled, must not wait behind the tool.
+    if (isJSONRPCRequest(message)) {
+      tail = tail
+        .then(() => forward(message))
+        .catch((error) => {
+          console.error(errorText(error))
+        })
+      return
+    }
+    const run = forward(message).catch((error) => {
+      console.error(errorText(error))
+    })
+    sideMessages.add(run)
+    void run.finally(() => {
+      sideMessages.delete(run)
+    })
   }
   transport.onerror = (error) => {
     console.error(error.message)
+  }
+
+  async function ensureLegacyStream() {
+    if (legacyStream || closed) return
+    if (sessionId === undefined || legacyProtocol === undefined) return
+    if (isModernVersion(legacyProtocol)) return
+    legacyStream = true
+    const controller = new AbortController()
+    aborts.add(controller)
+    const headers = new Headers({
+      accept: 'text/event-stream',
+      'mcp-session-id': sessionId,
+      'mcp-protocol-version': legacyProtocol,
+    })
+    const response = await server.fetch(
+      new Request(mcpUrl, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      }),
+    )
+    if (!response.ok || response.body === null) {
+      legacyStream = false
+      aborts.delete(controller)
+      console.error(`MCP stdio legacy stream failed: ${response.status}`)
+      return
+    }
+    void pumpLegacyStream(response.body, controller)
+  }
+
+  async function pumpLegacyStream(
+    body: ReadableStream<Uint8Array>,
+    controller: AbortController,
+  ) {
+    const reader = body.getReader()
+    const decoder = new TextDecoder()
+    let pending = ''
+    try {
+      while (!controller.signal.aborted) {
+        const read = await reader.read()
+        if (read.done) return
+        pending += decoder.decode(read.value, { stream: true })
+        const events = pending.split('\n\n')
+        pending = events.pop() ?? ''
+        for (const event of events) {
+          const messages = sseMessages(`${event}\n\n`)
+          for (const message of messages) {
+            await transport.send(message)
+          }
+        }
+      }
+    } catch (error) {
+      if (closed || controller.signal.aborted) return
+      console.error(errorText(error))
+    }
   }
 
   const started = transport.start()
@@ -119,6 +199,8 @@ export function serveMCPStdio(server: {
     } catch {
       // start() already wrote this error to stderr.
     }
+    await tail.catch(() => undefined)
+    await Promise.all([...sideMessages])
     await transport.close()
   }
 
@@ -163,6 +245,21 @@ function nextSessionId(response: Response, current: string | undefined) {
   const headerSession = response.headers.get('mcp-session-id')
   if (headerSession !== null && headerSession.length > 0) return headerSession
   return current
+}
+
+function protocolVersionFromBody(contentType: string | null, text: string) {
+  let messages: Array<unknown>
+  try {
+    messages = messagesFromBody(contentType, text)
+  } catch {
+    return undefined
+  }
+  for (const message of messages) {
+    if (!isRecord(message) || !isRecord(message.result)) continue
+    const version = message.result.protocolVersion
+    if (typeof version === 'string' && version.length > 0) return version
+  }
+  return undefined
 }
 
 function nextLegacyProtocol(response: Response, current: string | undefined) {
