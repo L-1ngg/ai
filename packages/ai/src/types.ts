@@ -19,6 +19,7 @@ import type {
   UsageCostBreakdown,
 } from '@tanstack/ai-event-client'
 import type {
+  ActivityMessage as AGUIActivityMessage,
   ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
   ActivityDeltaEvent as AGUIActivityDeltaEvent,
   RawEvent as AGUIRawEvent,
@@ -522,10 +523,11 @@ export interface UIResourcePart {
   meta?: Record<string, unknown>
 }
 
-export interface ActivityPart {
+export interface ActivityPart extends Pick<
+  AGUIActivityMessage,
+  'activityType' | 'content'
+> {
   type: 'activity'
-  activityType: string
-  content: Record<string, unknown>
 }
 
 export type MessagePart<TData = unknown> =
