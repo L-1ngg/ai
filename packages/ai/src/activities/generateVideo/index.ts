@@ -602,7 +602,8 @@ async function* runStreamingVideoGeneration<
   const wireThreadId = options.threadId ?? createId('thread')
 
   yield {
-    type: 'RUN_STARTED',
+    protocolVersion: '1.0',
+type: 'RUN_STARTED',
     runId,
     threadId: wireThreadId,
     timestamp: Date.now(),

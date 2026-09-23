@@ -192,3 +192,24 @@ describe('rebuildTokenUsage', () => {
     })
   })
 })
+
+it('maps cache-write usage in both directions', () => {
+  const usage: TokenUsage = {
+    promptTokens: 12,
+    completionTokens: 3,
+    totalTokens: 15,
+    promptTokensDetails: { cachedTokens: 4, cacheWriteTokens: 5 },
+  }
+  const wire = toSpecTokenUsage(usage)
+  expect(wire.usage).toEqual([
+    {
+      inputTokens: 12,
+      outputTokens: 3,
+      totalTokens: 15,
+      cachedInputTokens: 4,
+      cacheWriteInputTokens: 5,
+    },
+  ])
+  expect(wire.leftover).toBeUndefined()
+  expect(fromSpecTokenUsage(wire.usage)).toEqual(usage)
+})

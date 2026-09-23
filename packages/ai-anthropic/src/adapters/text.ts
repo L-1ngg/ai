@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
@@ -1011,7 +1012,8 @@ export class AnthropicTextAdapter<
         if (!hasEmittedRunStarted) {
           hasEmittedRunStarted = true
           yield {
-            type: EventType.RUN_STARTED,
+            protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
             runId,
             threadId,
             model,
@@ -1416,7 +1418,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   finishReason: 'tool_calls',
-                  usage: buildAnthropicUsage(event.usage),
+                  ...toUsageEventFields(buildAnthropicUsage(event.usage), { provider: 'anthropic', model: model }),
                 }
                 break
               }
@@ -1470,7 +1472,7 @@ export class AnthropicTextAdapter<
                   model,
                   timestamp: Date.now(),
                   finishReason: 'stop',
-                  usage: buildAnthropicUsage(event.usage),
+                  ...toUsageEventFields(buildAnthropicUsage(event.usage), { provider: 'anthropic', model: model }),
                 }
               }
             }

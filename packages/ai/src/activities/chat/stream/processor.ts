@@ -1,3 +1,6 @@
+import { EventType } from '@ag-ui/core'
+import { applyAGUIPatch } from '../../../utilities/ag-ui-json-patch'
+import { aguiContentToContentParts } from '../messages'
 /**
  * Unified Stream Processor
  *
@@ -78,6 +81,8 @@ import type {
 export interface StreamProcessorEvents {
   // State events - full array on any change
   onMessagesChange?: (messages: Array<UIMessage>) => void
+  onStateChange?: (state: unknown) => void
+  onSubagentsChange?: (subagents: ReadonlyMap<string, SubagentState>) => void
 
   // Lifecycle events
   onStreamStart?: () => void
@@ -133,6 +138,12 @@ export interface StreamProcessorEvents {
 /**
  * Options for StreamProcessor
  */
+export interface SubagentState {
+  started: Extract<StreamChunk, { type: 'SUBAGENT_STARTED' }>
+  status: 'running' | 'finished' | 'error' | 'abandoned'
+  terminal?: Extract<StreamChunk, { type: 'SUBAGENT_FINISHED' | 'SUBAGENT_ERROR' }>
+}
+
 export interface StreamProcessorOptions {
   chunkStrategy?: ChunkStrategy
   /** Event-driven handlers */
@@ -188,13 +199,17 @@ export class StreamProcessor {
 
   // Message state
   private messages: Array<UIMessage> = []
+  private agentState: unknown = {}
+  private readonly subagents = new Map<string, SubagentState>()
+
+  getAgentState(): unknown { return this.agentState }
+  getSubagents(): ReadonlyMap<string, SubagentState> { return this.subagents }
 
   // Per-message stream state
   private readonly messageStates: Map<string, MessageStreamState> = new Map()
   private readonly activeMessageIds: Set<string> = new Set()
   private readonly toolCallToMessage: Map<string, string> = new Map()
   private pendingManualMessageId: string | null = null
-  private pendingThinkingStepId: string | null = null
 
   private readonly structuredMessageIds: Set<string> = new Set()
   private readonly structuredOutputUpdateBatches = new Map<
@@ -581,6 +596,12 @@ export class StreamProcessor {
     // Cast needed: @ag-ui/core Zod passthrough types add `& { [k: string]: unknown }`
     // which prevents TypeScript from narrowing the `type` discriminant in switch.
     const c = chunk
+    if ((c.type === 'TOOL_CALL_ARGS' || c.type === 'TOOL_CALL_END') && c.metadata !== undefined) {
+      const messageId = this.toolCallToMessage.get(c.toolCallId)
+      const call = messageId === undefined ? undefined : this.messageStates.get(messageId)?.toolCalls.get(c.toolCallId)
+      if (call) call.metadata = { ...call.metadata, ...c.metadata }
+      this.messages = this.messages.map((message) => ({ ...message, parts: message.parts.map((part) => part.type === 'tool-call' && part.id === c.toolCallId ? { ...part, metadata: { ...(part.metadata !== null && typeof part.metadata === 'object' ? part.metadata : {}), ...c.metadata } } : part) }))
+    }
     // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
     switch (c.type) {
       // AG-UI Events
@@ -656,12 +677,18 @@ export class StreamProcessor {
         )
         break
 
-      case 'REASONING_START':
-      case 'REASONING_MESSAGE_START':
-      case 'REASONING_MESSAGE_END':
-      case 'REASONING_END':
-        // No special handling needed
+      case 'REASONING_MESSAGE_START': {
+        this.handleTextMessageStartEvent({ ...c, type: EventType.TEXT_MESSAGE_START, role: 'assistant' })
+        this.messages = this.messages.map((message) => message.id === c.messageId && !message.parts.some((part) => part.type === 'thinking' && part.id === c.messageId)
+          ? { ...message, parts: [...message.parts, { type: 'thinking', id: c.messageId, stepId: c.messageId, content: '' }] } : message)
+        this.emitMessagesChange()
         break
+      }
+      case 'REASONING_MESSAGE_END':
+        this.mergeMessageMetadata(c.messageId, c.metadata)
+        break
+      case 'REASONING_START':
+      case 'REASONING_END': break
 
       case 'REASONING_MESSAGE_CONTENT':
         this.handleReasoningMessageContentEvent(
@@ -687,9 +714,55 @@ export class StreamProcessor {
         )
         break
 
-      default:
-        // STATE_SNAPSHOT, STATE_DELTA - no special handling needed
+      case 'STATE_SNAPSHOT':
+        this.agentState = c.snapshot
+        this.events.onStateChange?.(this.agentState)
         break
+      case 'STATE_DELTA':
+        try {
+          this.agentState = applyAGUIPatch(this.agentState, c.delta)
+          this.events.onStateChange?.(this.agentState)
+        } catch (error) { console.warn('[AG-UI] State delta could not be applied; state retained', error) }
+        break
+      case 'ACTIVITY_SNAPSHOT': {
+        const existing = this.messages.find((message) => message.id === c.messageId)
+        if (existing && c.replace === false) break
+        const message: UIMessage = {
+          id: c.messageId,
+          role: 'assistant',
+          parts: [{ type: 'activity', activityType: c.activityType, content: c.content }],
+          ...(c.subagentRunId !== undefined ? { subagentRunId: c.subagentRunId } : {}),
+          ...(c.metadata !== undefined ? { metadata: c.metadata } : {}),
+        }
+        this.messages = existing ? this.messages.map((item) => item.id === c.messageId ? message : item) : [...this.messages, message]
+        this.emitMessagesChange()
+        break
+      }
+      case 'ACTIVITY_DELTA': {
+        const message = this.messages.find((item) => item.id === c.messageId)
+        const part = message?.parts.find((item) => item.type === 'activity')
+        if (!message || !part) { console.warn('[AG-UI] Activity delta target is missing'); break }
+        try {
+          const content = applyAGUIPatch(part.content, c.patch)
+          if (content === null || typeof content !== 'object' || Array.isArray(content)) throw new Error('Activity content must remain an object')
+          this.messages = this.messages.map((item) => item === message ? { ...item, parts: item.parts.map((value) => value === part ? { ...part, content: content as Record<string, unknown> } : value) } : item)
+          this.mergeMessageMetadata(c.messageId, c.metadata)
+          this.emitMessagesChange()
+        } catch (error) { console.warn('[AG-UI] Activity delta could not be applied; content retained', error) }
+        break
+      }
+      case 'SUBAGENT_STARTED':
+        this.subagents.set(c.subagentRunId, { started: c, status: 'running' })
+        this.events.onSubagentsChange?.(new Map(this.subagents))
+        break
+      case 'SUBAGENT_FINISHED':
+      case 'SUBAGENT_ERROR': {
+        const current = this.subagents.get(c.subagentRunId)
+        if (current) this.subagents.set(c.subagentRunId, { ...current, status: c.type === 'SUBAGENT_ERROR' ? 'error' : 'finished', terminal: c })
+        this.events.onSubagentsChange?.(new Map(this.subagents))
+        break
+      }
+      default: break
     }
   }
 
@@ -729,23 +802,6 @@ export class StreamProcessor {
    */
   private getMessageState(messageId: string): MessageStreamState | undefined {
     return this.messageStates.get(messageId)
-  }
-
-  /**
-   * Promote a pending stepId from a STEP_STARTED that fired before the
-   * assistant message existed onto the given message state, so the next
-   * thinking event (STEP_FINISHED or REASONING_MESSAGE_CONTENT) attributes
-   * to the correct step.
-   */
-  private consumePendingThinkingStep(state: MessageStreamState): void {
-    if (!this.pendingThinkingStepId) return
-    const stepId = this.pendingThinkingStepId
-    state.currentThinkingStepId = stepId
-    if (!state.thinkingSteps.has(stepId)) {
-      state.thinkingSteps.set(stepId, '')
-      state.thinkingStepOrder.push(stepId)
-    }
-    this.pendingThinkingStepId = null
   }
 
   /**
@@ -805,7 +861,7 @@ export class StreamProcessor {
 
     // Try active assistant message
     const activeId = this.getActiveAssistantMessageId()
-    if (activeId) {
+    if (activeId && preferredId === undefined) {
       const state = this.getMessageState(activeId)
       if (state) {
         this.resumeAssistantState(activeId, state)
@@ -849,7 +905,7 @@ export class StreamProcessor {
     this.messages = [...this.messages, assistantMessage]
     const state = this.createMessageState(id, 'assistant')
     this.activeMessageIds.add(id)
-    this.pendingManualMessageId = id
+    this.pendingManualMessageId = preferredId === undefined ? id : null
     this.events.onStreamStart?.()
     this.emitMessagesChange()
     return { messageId: id, state }
@@ -1005,6 +1061,7 @@ export class StreamProcessor {
     // Case 3: New message from the stream
     const newMessage: UIMessage = {
       id: messageId,
+      ...(chunk.subagentRunId !== undefined ? { subagentRunId: chunk.subagentRunId } : {}),
       role: uiRole,
       parts: [],
       createdAt: new Date(),
@@ -1641,7 +1698,7 @@ export class StreamProcessor {
     // owns the tool-call part — matching `addToolResult`/`handleInterrupts`.
     // Without this the result is dropped, the follow-up request omits the tool
     // message, and the still-"pending" tool call re-interrupts (issue #532).
-    const messageId =
+    let messageId =
       this.toolCallToMessage.get(chunk.toolCallId) ??
       this.messages.find((m) =>
         m.parts.some(
@@ -1649,7 +1706,13 @@ export class StreamProcessor {
             p.type === 'tool-call' && p.id === chunk.toolCallId,
         ),
       )?.id
-    if (!messageId) return
+    if (!messageId) {
+      messageId = chunk.messageId
+      if (!this.messages.some((message) => message.id === messageId)) this.messages = [...this.messages, {
+        id: messageId, role: 'assistant', parts: [],
+        ...(chunk.subagentRunId !== undefined ? { subagentRunId: chunk.subagentRunId } : {}),
+      }]
+    }
 
     const extra = chunk as AdapterYieldChunk
     const isOutputError =
@@ -1659,7 +1722,10 @@ export class StreamProcessor {
     // Step 1: Update the tool-call part's output field
     let output: unknown
     try {
-      output = JSON.parse(chunk.content)
+      output =
+        typeof chunk.content === 'string'
+          ? JSON.parse(chunk.content)
+          : chunk.content
     } catch {
       output = chunk.content
     }
@@ -1676,10 +1742,17 @@ export class StreamProcessor {
       this.messages,
       messageId,
       chunk.toolCallId,
-      chunk.content,
+      aguiContentToContentParts(chunk.content, false),
       resultState,
       resultState === 'error' ? this.extractToolResultError(output) : undefined,
     )
+    this.messages = this.messages.map((message) => message.id === messageId ? {
+      ...message,
+      parts: message.parts.map((part) => part.type === 'tool-result' && part.toolCallId === chunk.toolCallId ? {
+        ...part, id: chunk.messageId, wireContent: chunk.content,
+        ...(chunk.metadata !== undefined ? { metadata: chunk.metadata } : {}),
+      } : part),
+    } : message)
     this.emitMessagesChange()
   }
 
@@ -1693,6 +1766,18 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_STARTED' }>,
   ): void {
     this.activeRuns.add(chunk.runId)
+    this.isDone = false
+    this.hasError = false
+    this.streamEndEmitted = false
+    if (chunk.input?.state !== undefined) {
+      this.agentState = chunk.input.state
+      this.events.onStateChange?.(this.agentState)
+    }
+    if (chunk.input?.messages.length) {
+      const known = new Set(this.messages.map((message) => message.id))
+      this.messages = [...chunk.input.messages.filter((message) => !known.has(message.id)).map(aguiSnapshotMessageToUIMessage), ...this.messages]
+      this.emitMessagesChange()
+    }
   }
 
   /**
@@ -1717,13 +1802,25 @@ export class StreamProcessor {
 
     if (chunk.outcome?.type === 'interrupt') {
       this.handleInterrupts(chunk.outcome.interrupts)
+    } else if (chunk.outcome?.type !== 'cancelled') {
+      const pending = chunk.outcome?.pendingToolCallIds
+      for (const message of this.messages) {
+        for (const part of message.parts) {
+          if (part.type !== 'tool-call' || part.output !== undefined || part.state === 'error' || part.approval?.approved === false) continue
+          if (pending ? !pending.includes(part.id) : message.parts.some((value) => value.type === 'tool-result' && value.toolCallId === part.id)) continue
+          let input: unknown
+          try { input = JSON.parse(part.arguments || '{}') } catch { this.addToolResult(part.id, '', 'Invalid tool call arguments'); continue }
+          this.events.onToolCall?.({ toolCallId: part.id, toolName: part.name, input })
+        }
+      }
     }
 
     if (this.activeRuns.size === 0) {
       this.completeAllToolCalls()
       const isIntermediateToolTurn =
         this.finishReason === 'tool_calls' &&
-        chunk.outcome?.type !== 'interrupt'
+        chunk.outcome?.type !== 'interrupt' &&
+        !(chunk.outcome?.type === 'success' && chunk.outcome.pendingToolCallIds?.length)
       if (isIntermediateToolTurn) {
         return
       }
@@ -1811,13 +1908,17 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.hasError = true
+    for (const [id, subagent] of this.subagents) {
+      if (subagent.status === 'running') this.subagents.set(id, { ...subagent, status: 'abandoned' })
+    }
+    this.events.onSubagentsChange?.(new Map(this.subagents))
     const runId = getChunkRunId(chunk)
     if (runId) {
       this.activeRuns.delete(runId)
     } else {
       this.activeRuns.clear()
     }
-    const { messageId } = this.ensureAssistantMessage()
+    const messageId = this.getActiveAssistantMessageId()
     // Prefer spec field `message`; fall back to deprecated `error.message`.
     // If neither is set, the chunk still carries debug context (provider
     // error codes, request ids, etc.) — log it so the failure isn't silent.
@@ -1829,7 +1930,7 @@ export class StreamProcessor {
       )
     }
 
-    if (this.structuredMessageIds.has(messageId)) {
+    if (messageId !== null && this.structuredMessageIds.has(messageId)) {
       this.flushStructuredOutputUpdate(messageId)
       this.messages = errorStructuredOutputPart(
         this.messages,
@@ -1872,14 +1973,12 @@ export class StreamProcessor {
         // before the assistant message existed. Now that we're tracking
         // the step directly on message state, the pending value is stale
         // and must not leak into the next REASONING_MESSAGE_CONTENT.
-        this.pendingThinkingStepId = null
-        return
+            return
       }
     }
 
     // No active message yet — defer until ensureAssistantMessage in
     // REASONING_MESSAGE_CONTENT
-    this.pendingThinkingStepId = stepId
   }
 
   /**
@@ -1926,15 +2025,13 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
     const { messageId, state } = this.ensureAssistantMessage(
-      this.getActiveAssistantMessageId() ?? undefined,
+      chunk.messageId,
     )
 
     state.hasSeenReasoningEvents = true
     const delta = chunk.delta || ''
 
-    this.consumePendingThinkingStep(state)
-
-    const stepId = state.currentThinkingStepId ?? chunk.messageId
+    const stepId = chunk.messageId
     if (!state.thinkingSteps.has(stepId)) {
       state.thinkingSteps.set(stepId, '')
       state.thinkingStepOrder.push(stepId)
@@ -1951,6 +2048,11 @@ export class StreamProcessor {
       nextThinking,
       state.thinkingStepSignatures.get(stepId),
     )
+    this.messages = this.messages.map((message) => message.id === messageId ? {
+      ...message,
+      parts: message.parts.map((part) => part.type === 'thinking' && part.stepId === stepId ? { ...part, id: chunk.messageId } : part),
+    } : message)
+    this.mergeMessageMetadata(messageId, chunk.metadata)
     this.emitMessagesChange()
 
     this.events.onThinkingUpdate?.(messageId, stepId, nextThinking)
@@ -1972,10 +2074,12 @@ export class StreamProcessor {
       return
     }
 
-    const { messageId, state } = this.ensureAssistantMessage(
-      this.getActiveAssistantMessageId() ?? undefined,
-    )
-    const stepId = state.currentThinkingStepId ?? chunk.entityId
+    const target = this.messages.find((message) => message.id === chunk.entityId || message.parts.some((part) => part.type === 'thinking' && (part.id === chunk.entityId || part.stepId === chunk.entityId)))
+    if (!target) return
+    const messageId = target.id
+    const state = this.getMessageState(messageId)
+    if (!state) return
+    const stepId = chunk.entityId
     state.thinkingStepSignatures.set(stepId, encryptedValue)
     const content = state.thinkingSteps.get(stepId) ?? ''
     if (!state.thinkingSteps.has(stepId)) {
@@ -2603,7 +2707,6 @@ export class StreamProcessor {
     this.structuredMessageIds.clear()
     this.structuredOutputUpdateBatches.clear()
     this.pendingManualMessageId = null
-    this.pendingThinkingStepId = null
     this.finishReason = null
     this.hasError = false
     this.isDone = false

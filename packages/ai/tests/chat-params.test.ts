@@ -1,3 +1,4 @@
+import { convertMessagesToModelMessages } from '../src/activities/chat/messages'
 import { describe, expect, it } from 'vitest'
 import {
   chatParamsFromRequest,
@@ -129,14 +130,14 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
   it.each([
     ['tools', { ...base, tools: undefined, messages: [] }],
     ['context', { ...base, context: undefined, messages: [] }],
-  ])('rejects a missing required `%s` array', async (_label, body) => {
-    await expect(chatParamsFromRequestBody(body)).rejects.toThrow(/AG-UI/i)
+  ])('defaults an omitted `%s` array', async (_label, body) => {
+    await expect(chatParamsFromRequestBody(body)).resolves.toMatchObject({ tools: [], aguiContext: [] })
   })
 
   it('rejects a non-array `messages`', async () => {
     await expect(
       chatParamsFromRequestBody({ ...base, messages: {} }),
-    ).rejects.toThrow(/messages must be an array/)
+    ).rejects.toThrow(/messages: expected array/)
   })
 
   it('reports the offending index and field in the error', async () => {
@@ -147,15 +148,15 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
           { id: 'm2', role: 'user' },
         ]),
       ),
-    ).rejects.toThrow(/messages\[1\]\.content/)
+    ).rejects.toThrow(/messages\/1\/content/)
   })
 
-  it('rejects an unknown role', async () => {
+  it('drops a message with an unknown role', async () => {
     await expect(
       chatParamsFromRequestBody(
         withMessages([{ id: 'm1', role: 'wizard', content: 'hi' }]),
       ),
-    ).rejects.toThrow(/messages\[0\]\.role/)
+    ).resolves.toMatchObject({ messages: [] })
   })
 
   it('rejects a message without a string id', async () => {
@@ -163,7 +164,7 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
       chatParamsFromRequestBody(
         withMessages([{ id: 7, role: 'user', content: 'hi' }]),
       ),
-    ).rejects.toThrow(/messages\[0\]\.id/)
+    ).rejects.toThrow(/messages\/0\/id/)
   })
 
   it.each(['developer', 'system', 'reasoning', 'user'] as const)(
@@ -171,7 +172,7 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
     async (role) => {
       await expect(
         chatParamsFromRequestBody(withMessages([{ id: 'm1', role }])),
-      ).rejects.toThrow(/messages\[0\]\.content/)
+      ).rejects.toThrow(/messages\/0\/content/)
     },
   )
 
@@ -212,7 +213,7 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
       chatParamsFromRequestBody(
         withMessages([{ id: 'm1', role: 'tool', content: 'result' }]),
       ),
-    ).rejects.toThrow(/messages\[0\]\.toolCallId/)
+    ).rejects.toThrow(/messages\/0\/toolCallId/)
   })
 
   it('requires activityType and object content on an activity message', async () => {
@@ -220,7 +221,7 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
       chatParamsFromRequestBody(
         withMessages([{ id: 'm1', role: 'activity', content: {} }]),
       ),
-    ).rejects.toThrow(/messages\[0\]\.activityType/)
+    ).rejects.toThrow(/messages\/0\/activityType/)
 
     await expect(
       chatParamsFromRequestBody(
@@ -228,7 +229,7 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
           { id: 'm1', role: 'activity', activityType: 'search', content: 'no' },
         ]),
       ),
-    ).rejects.toThrow(/messages\[0\]\.content/)
+    ).rejects.toThrow(/messages\/0\/content/)
   })
 
   it('drops `parts` that contain unrecognized part types', async () => {
@@ -291,9 +292,9 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
       chatParamsFromRequestBody({
         ...base,
         messages: [],
-        tools: [{ name: 'greet' }],
+        tools: [{ name: 'greet', description: 1 }],
       }),
-    ).rejects.toThrow(/tools\[0\]\.description/)
+    ).rejects.toThrow(/tools\/0\/description/)
   })
 
   it('rejects a malformed context entry', async () => {
@@ -303,17 +304,17 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
         messages: [],
         context: [{ description: 'user tz', value: 5 }],
       }),
-    ).rejects.toThrow(/context\[0\]\.value/)
+    ).rejects.toThrow(/context\/0\/value/)
   })
 
-  it('rejects an unknown resume status', async () => {
+  it('drops an unrecognized resume member', async () => {
     await expect(
       chatParamsFromRequestBody({
         ...base,
         messages: [],
         resume: [{ interruptId: 'i1', status: 'maybe' }],
       }),
-    ).rejects.toThrow(/resume\[0\]\.status/)
+    ).resolves.toMatchObject({ resume: [] })
   })
 
   it('omits `payload` on resume entries that carry none', async () => {
@@ -366,7 +367,7 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
         messages: [],
         resume: [{ interruptId: 'i1', status: 'cancelled', metadata: 'nope' }],
       }),
-    ).rejects.toThrow(/resume\[0\]\.metadata/)
+    ).rejects.toThrow(/resume\/0\/metadata/)
   })
 
   it('rejects non-object message metadata', async () => {
@@ -376,10 +377,10 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
           { id: 'm1', role: 'user', content: 'hi', metadata: 'nope' },
         ]),
       ),
-    ).rejects.toThrow(/messages\[0\]\.metadata/)
+    ).rejects.toThrow(/messages\/0\/metadata/)
   })
 
-  it('defaults forwardedProps to {} and rejects a non-object one', async () => {
+  it('defaults forwardedProps to {} and preserves arbitrary JSON', async () => {
     const result = await chatParamsFromRequestBody(withMessages([]))
     expect(result.forwardedProps).toEqual({})
 
@@ -388,7 +389,7 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
         ...withMessages([]),
         forwardedProps: 'nope',
       }),
-    ).rejects.toThrow(/forwardedProps/)
+    ).resolves.toMatchObject({ forwardedProps: 'nope' })
   })
 
   it('passes `state` through untouched without validating it', async () => {
@@ -554,5 +555,41 @@ describe('mergeAgentTools', () => {
 
   it('handles empty server and empty client', () => {
     expect(mergeAgentTools([], [])).toEqual([])
+  })
+})
+
+it('accepts AG-UI 1.0 tool parts and preserves protocolVersion', async () => {
+  const params = await chatParamsFromRequestBody({
+    threadId: 'thread-1',
+    runId: 'run-1',
+    protocolVersion: '1.0',
+    tools: [],
+    context: [],
+    messages: [
+      {
+        id: 'result-1',
+        role: 'tool',
+        toolCallId: 'tool-1',
+        content: [
+          { type: 'text', text: 'Found', metadata: { source: 'catalog' } },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/item.png' },
+          },
+        ],
+      },
+    ],
+  })
+  expect(params.protocolVersion).toBe('1.0')
+  expect(convertMessagesToModelMessages(params.messages)[0]).toMatchObject({
+    role: 'tool',
+    toolCallId: 'tool-1',
+    content: [
+      { type: 'text', content: 'Found', metadata: { source: 'catalog' } },
+      {
+        type: 'image',
+        source: { type: 'url', value: 'https://example.com/item.png' },
+      },
+    ],
   })
 })

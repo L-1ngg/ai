@@ -1,3 +1,4 @@
+import type { AdapterYieldChunk as StreamChunk } from '@tanstack/ai'
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, withTanstackMetadata } from '@tanstack/ai/client'
 import { ChatClient } from '../src/chat-client'
@@ -14,7 +15,7 @@ import type {
   ConnectConnectionAdapter,
   ConnectionAdapter,
 } from '../src/connection-adapters'
-import type { ModelMessage, StreamChunk } from '@tanstack/ai/client'
+import type { ModelMessage } from '@tanstack/ai/client'
 import type {
   ChatClientPersistence,
   ChatPersistedState,

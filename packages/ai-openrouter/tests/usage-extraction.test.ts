@@ -95,9 +95,9 @@ describe('OpenRouter usage extraction', () => {
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     if (doneChunk?.type === 'RUN_FINISHED') {
-      expect(doneChunk.usage).toMatchObject({
-        promptTokens: 100,
-        completionTokens: 50,
+      expect(doneChunk.usage?.[0]).toMatchObject({
+        inputTokens: 100,
+        outputTokens: 50,
         totalTokens: 150,
       })
     }
@@ -153,8 +153,8 @@ describe('OpenRouter usage extraction', () => {
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     if (doneChunk?.type === 'RUN_FINISHED') {
-      expect(doneChunk.usage?.promptTokensDetails).toEqual({
-        cachedTokens: 25,
+      expect(doneChunk.usage?.[0]).toMatchObject({
+        cachedInputTokens: 25,
       })
     }
   })
@@ -209,7 +209,7 @@ describe('OpenRouter usage extraction', () => {
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     if (doneChunk?.type === 'RUN_FINISHED') {
-      expect(doneChunk.usage?.completionTokensDetails).toEqual({
+      expect(doneChunk.usage?.[0]).toMatchObject({
         reasoningTokens: 30,
       })
     }
@@ -267,7 +267,7 @@ describe('OpenRouter usage extraction', () => {
     expect(doneChunk).toBeDefined()
     // Prediction tokens are OpenRouter-specific, so they go in providerUsageDetails
     if (doneChunk?.type === 'RUN_FINISHED') {
-      expect(doneChunk.usage?.providerUsageDetails).toEqual({
+      expect(doneChunk.metadata?.tanstack?.usage?.providerUsageDetails).toEqual({
         acceptedPredictionTokens: 20,
         rejectedPredictionTokens: 5,
       })

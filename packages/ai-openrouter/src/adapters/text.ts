@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { OpenRouter } from '@openrouter/sdk'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
@@ -188,7 +189,8 @@ export class OpenRouterTextAdapter<
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
         yield {
-          type: EventType.RUN_STARTED,
+          protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: options.model,
@@ -440,7 +442,8 @@ export class OpenRouterTextAdapter<
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
           yield {
-            type: EventType.RUN_STARTED,
+            protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunk.model || chatOptions.model,
@@ -587,14 +590,15 @@ export class OpenRouterTextAdapter<
         timestamp: Date.now(),
         finishReason: 'stop',
         ...(finalUsage && {
-          usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
+          ...toUsageEventFields({ ...finalUsage, ...extractUsageCost(lastUsage) }, { provider: 'openrouter', model: lastModel || chatOptions.model }),
         }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
         yield {
-          type: EventType.RUN_STARTED,
+          protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: chatOptions.model,
@@ -792,7 +796,8 @@ export class OpenRouterTextAdapter<
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
           yield {
-            type: EventType.RUN_STARTED,
+            protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunk.model || options.model,
@@ -1150,7 +1155,7 @@ export class OpenRouterTextAdapter<
           model: lastModel || options.model,
           timestamp: Date.now(),
           ...(finalUsage && {
-            usage: { ...finalUsage, ...extractUsageCost(lastUsage) },
+            ...toUsageEventFields({ ...finalUsage, ...extractUsageCost(lastUsage) }, { provider: 'openrouter', model: lastModel || options.model }),
           }),
           finishReason,
         }

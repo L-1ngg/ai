@@ -59,3 +59,5 @@ export {
 } from './utilities/structured-output-events'
 export { tanstackMetadata } from './utilities/merge-metadata'
 export { isSpecTopLevelKey } from './utilities/spec-event-keys'
+
+export { toUsageEventFields } from './utilities/ag-ui-usage'

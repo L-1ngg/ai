@@ -1,3 +1,4 @@
+import type { AdapterYieldChunk as StreamChunk } from '@tanstack/ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { aiEventClient } from '@tanstack/ai-event-client'
@@ -8,7 +9,7 @@ import {
   createTextChunks,
   createToolCallChunks,
 } from './test-utils'
-import type { AnyClientTool, StreamChunk } from '@tanstack/ai'
+import type { AnyClientTool } from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
   RunAgentInputContext,

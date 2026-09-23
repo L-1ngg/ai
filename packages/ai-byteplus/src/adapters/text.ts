@@ -336,7 +336,8 @@ export class BytePlusTextAdapter<
       // consumers keep a single error-handling path.
       const runId = generateId(this.name)
       yield {
-        type: EventType.RUN_STARTED,
+        protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
         runId,
         threadId: options.chatOptions.threadId ?? generateId(this.name),
         model: options.chatOptions.model,

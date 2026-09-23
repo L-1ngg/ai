@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { EventType, convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
@@ -342,7 +343,8 @@ export class BedrockConverseTextAdapter<
         if (!hasEmittedRunStarted) {
           hasEmittedRunStarted = true
           yield {
-            type: EventType.RUN_STARTED,
+            protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
             runId,
             threadId,
             model: chatOptions.model,
@@ -409,7 +411,8 @@ export class BedrockConverseTextAdapter<
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true
         yield {
-          type: EventType.RUN_STARTED,
+          protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
           runId,
           threadId,
           model: chatOptions.model,
@@ -480,13 +483,14 @@ export class BedrockConverseTextAdapter<
         model: chatOptions.model,
         timestamp: Date.now(),
         finishReason,
-        ...(usage && { usage }),
+        ...(usage && { ...toUsageEventFields(usage, { provider: 'bedrock', model: chatOptions.model }) }),
       }
     } catch (error: unknown) {
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true
         yield {
-          type: EventType.RUN_STARTED,
+          protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
           runId,
           threadId,
           model: chatOptions.model,

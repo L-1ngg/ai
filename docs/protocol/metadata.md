@@ -92,6 +92,16 @@ AG-UI `RUN_ERROR` has `message` and optional `code` at the top. Put correlation 
 }
 ```
 
+## Subagent attribution
+
+Keep `subagentRunId` at the top level on attributable events. This includes text, tool, reasoning, activity, state, step, custom, and raw events.
+
+Run lifecycle events and `MESSAGES_SNAPSHOT` describe the whole run or conversation. They do not carry subagent attribution.
+
+`SUBAGENT_STARTED`, `SUBAGENT_FINISHED`, and `SUBAGENT_ERROR` keep their spec fields at the top level. The wire encoder preserves parent references and results.
+
+Keep `protocolVersion` at the top level of `RUN_STARTED`. The usage array also accepts `cacheWriteInputTokens`.
+
 ## Later
 
 Add these when you use the matching feature:

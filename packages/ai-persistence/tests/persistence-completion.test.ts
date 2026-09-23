@@ -1,3 +1,4 @@
+import type { AdapterYieldChunk as StreamChunk } from '@tanstack/ai'
 import { describe, expect, it, vi } from 'vitest'
 import {
   DetachableRunCapability,
@@ -11,7 +12,6 @@ import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
   ModelMessage,
-  StreamChunk,
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'

@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { EventType } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { parse as parsePartialJSON } from 'partial-json'
@@ -1190,7 +1191,8 @@ async function* translateInteractionEvents(
     if (!hasEmittedRunStarted) {
       hasEmittedRunStarted = true
       yield {
-        type: EventType.RUN_STARTED,
+        protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
         runId,
         threadId,
         model,
@@ -1675,13 +1677,13 @@ async function* translateInteractionEvents(
           model,
           timestamp,
           finishReason,
-          usage: usage
+          ...toUsageEventFields(usage
             ? {
                 promptTokens: usage.total_input_tokens ?? 0,
                 completionTokens: usage.total_output_tokens ?? 0,
                 totalTokens: usage.total_tokens ?? 0,
               }
-            : undefined,
+            : undefined, { provider: 'gemini', model: model }),
         }
         return
       }

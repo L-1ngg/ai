@@ -1,3 +1,5 @@
+import type { Event as SpecEvent } from '@ag-ui/core'
+import type { StreamChunk } from '../src/types'
 /**
  * Wire events put TanStack extras in metadata.tanstack. Client restore copies
  * model/finishReason back onto RunFinishedEvent for onChunk.
@@ -32,4 +34,9 @@ describe('public StreamChunk extras', () => {
       TextActivityResult<undefined, true>
     >().toEqualTypeOf<ChatStream>()
   })
+})
+
+it('accepts every AG-UI 1.0 event without requiring extra fields', () => {
+  expectTypeOf<SpecEvent>().toExtend<StreamChunk>()
+  expectTypeOf<`${StreamChunk['type']}`>().toEqualTypeOf<`${SpecEvent['type']}`>()
 })

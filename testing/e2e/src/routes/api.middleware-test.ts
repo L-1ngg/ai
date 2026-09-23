@@ -139,7 +139,6 @@ const chunkTransformMiddleware: ChatMiddleware = {
       return {
         ...chunk,
         delta: '[MW] ' + chunk.delta,
-        content: '[MW] ' + (chunk.content || ''),
       }
     }
     return chunk
@@ -195,7 +194,6 @@ const prefixConsumerMiddleware: ChatMiddleware = {
       return {
         ...chunk,
         delta: prefix + ' ' + chunk.delta,
-        content: prefix + ' ' + (chunk.content || ''),
       }
     }
     return chunk

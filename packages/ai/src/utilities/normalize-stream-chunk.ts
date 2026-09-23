@@ -1,7 +1,7 @@
+import { contentPartsToWire } from './ag-ui-wire'
 import { EventType } from '../types'
 import type { StreamChunk, ToolCallResultEvent } from '../types'
 import type { AdapterYieldChunk } from './adapter-yield-chunk'
-import { isTanstackUsage, toSpecTokenUsage } from './ag-ui-usage'
 import type { MetadataRecord } from './merge-metadata'
 import { withTanstackMetadata } from './merge-metadata'
 import { reasoningEncryptedValue } from './reasoning-encrypted-value'
@@ -19,7 +19,7 @@ function encryptedValueExtras(chunk: AdapterYieldChunk): Array<StreamChunk> {
       : undefined
 
   if (typeof chunk.signature === 'string' && chunk.signature !== '') {
-    const source = chunk as Record<string, unknown>
+    const source = { ...chunk } as Record<string, unknown>
     const toolCallId = stringField(source.toolCallId)
     const entityId =
       stringField(chunk.stepId) ??
@@ -62,7 +62,7 @@ export function normalizeStreamChunk(
   chunk: AdapterYieldChunk,
 ): Array<StreamChunk> {
   const specKeys = specKeysFor(chunk.type)
-  const source = chunk as Record<string, unknown>
+  const source = { ...chunk } as Record<string, unknown>
   const specChunk: Record<string, unknown> & {
     metadata?: MetadataRecord | null
   } = {}
@@ -137,19 +137,6 @@ export function normalizeStreamChunk(
     }
   }
 
-  if (
-    (chunk.type === EventType.RUN_FINISHED ||
-      chunk.type === EventType.RUN_ERROR) &&
-    isTanstackUsage(specChunk.usage)
-  ) {
-    const { usage, leftover } = toSpecTokenUsage(specChunk.usage, {
-      model: typeof chunk.model === 'string' ? chunk.model : undefined,
-    })
-    specChunk.usage = usage
-    if (leftover !== undefined) {
-      tanstack.usage = leftover
-    }
-  }
 
   const normalized =
     Object.keys(tanstack).length === 0
@@ -165,7 +152,7 @@ export function normalizeStreamChunk(
       type: EventType.TOOL_CALL_RESULT,
       toolCallId: chunk.toolCallId,
       content: Array.isArray(chunk.result)
-        ? JSON.stringify(chunk.result)
+        ? contentPartsToWire(chunk.result)
         : chunk.result,
       messageId:
         typeof parentMessageId === 'string' && parentMessageId !== ''
@@ -182,5 +169,15 @@ export function normalizeStreamChunk(
     }
   }
 
+  if ('subagentRunId' in chunk && chunk.subagentRunId !== undefined) {
+    for (const event of [...main.slice(1), ...extras]) {
+      if (
+        'subagentRunId' in event ||
+        specKeysFor(event.type).has('subagentRunId')
+      ) {
+        Object.assign(event, { subagentRunId: chunk.subagentRunId })
+      }
+    }
+  }
   return [...main, ...extras]
 }

@@ -1,6 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { chatParamsFromRequestBody } from '../src/utilities/chat-params'
+import { describe, it, expect, vi } from 'vitest'
 import type { MessagesSnapshotEvent } from '@ag-ui/core'
-import { convertMessagesToModelMessages } from '../src/activities/chat/messages'
+import {
+  aguiSnapshotMessageToUIMessage,
+  convertMessagesToModelMessages,
+} from '../src/activities/chat/messages'
 import { uiMessagesToWire, type WireMessage } from '../src/utilities/ag-ui-wire'
 import type { ModelMessage, UIMessage } from '../src/types'
 
@@ -10,10 +14,9 @@ const systemWithoutContent: WireMessage = { id: 'system', role: 'system' }
 const userWithoutContent: WireMessage = { id: 'user', role: 'user' }
 const activityMessage: WireMessage = {
   id: 'activity',
-  // @ts-expect-error uiMessagesToWire never emits activity messages
   role: 'activity',
   activityType: 'status',
-  content: '',
+  content: {},
 }
 void systemWithoutContent
 void userWithoutContent
@@ -281,7 +284,9 @@ describe('uiMessagesToWire', () => {
       id: 'tool-call-image',
       role: 'tool',
       toolCallId: 'call-image',
-      content: JSON.stringify(content),
+      content: content.map((part) =>
+        part.type === 'text' ? { type: 'text', text: part.content } : part,
+      ),
       metadata: { tanstack: { toolResult: { content } } },
     })
   })
@@ -330,7 +335,9 @@ describe('uiMessagesToWire', () => {
       role: 'tool',
       name: 'createImage',
       toolCallId: 'call-image',
-      content: JSON.stringify(content),
+      content: content.map((part) =>
+        part.type === 'text' ? { type: 'text', text: part.content } : part,
+      ),
       metadata: {
         ...metadata,
         tanstack: {
@@ -1172,4 +1179,69 @@ describe('uiMessagesToWire', () => {
         .map((message) => message.metadata?.tanstack?.toolResult?.createdAt),
     ).toEqual([first.toISOString(), second.toISOString()])
   })
+})
+
+it('drops opaque provider file handles without treating them as URLs', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  try {
+    const params = await chatParamsFromRequestBody({
+      threadId: 'thread-1',
+      runId: 'run-1',
+      tools: [],
+      context: [],
+      messages: [
+        {
+          id: 'result-1',
+          role: 'tool',
+          toolCallId: 'tool-1',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'file', value: 'file-123', provider: 'openai' },
+            },
+          ],
+        },
+      ],
+    })
+    expect(convertMessagesToModelMessages(params.messages)[0]).toMatchObject({
+      role: 'tool',
+      toolCallId: 'tool-1',
+      content: '',
+    })
+    expect(warn).toHaveBeenCalledOnce()
+  } finally {
+    warn.mockRestore()
+  }
+})
+
+it('restores tool snapshot text after wire metadata restores local content parts', () => {
+  const messages = uiMessagesToWire([
+    {
+      role: 'tool',
+      id: 'result-1',
+      toolCallId: 'tool-1',
+      content: [
+        { type: 'text', content: 'Found' },
+        {
+          type: 'image',
+          source: { type: 'url', value: 'https://example.com/item.png' },
+        },
+      ],
+    },
+  ])
+  const snapshot = aguiSnapshotMessageToUIMessage(messages[0]!)
+  expect(snapshot.parts).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        type: 'tool-result',
+        content: [
+          { type: 'text', content: 'Found' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/item.png' },
+          },
+        ],
+      }),
+    ]),
+  )
 })

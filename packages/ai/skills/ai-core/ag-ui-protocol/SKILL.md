@@ -10,7 +10,7 @@ type: sub-skill
 library: tanstack-ai
 library_version: '0.42.0'
 sources:
-  - 'TanStack/ai:docs/protocol/chunk-definitions.md'
+  - 'TanStack/ai:docs/chat/stream-events.md'
   - 'TanStack/ai:docs/protocol/sse-protocol.md'
   - 'TanStack/ai:docs/protocol/http-stream-protocol.md'
   - 'TanStack/ai:docs/protocol/custom-events.md'
@@ -73,11 +73,11 @@ export async function POST(req: Request) {
 }
 ```
 
-`chatParamsFromRequestBody` validates the body against `RunAgentInputSchema` from `@ag-ui/core`. `mergeAgentTools` merges the server's tool registry with client-declared tools (server wins on collision; client-only tools become no-execute stubs that flow through the runtime's `ClientToolRequest` path).
+`chatParamsFromRequestBody` checks the AG-UI request shape without a schema runtime. `mergeAgentTools` merges the server's tool registry with client-declared tools (server wins on collision; client-only tools become no-execute stubs that flow through the runtime's `ClientToolRequest` path).
 
 `params.messages` is a mixed array of TanStack `UIMessage` anchors (with `parts`) and AG-UI fan-out duplicates (`{role:'tool',...}`, `{role:'reasoning',...}`). The existing `convertMessagesToModelMessages` (called inside `chat()`) handles dedup automatically.
 
-**Wire shape (POST body):** AG-UI `RunAgentInput` — `{threadId, runId, parentRunId?, state, messages, tools, context, forwardedProps}`. The `messages` array carries TanStack `UIMessage` anchors with their canonical `parts` plus AG-UI mirror fields (`content`, `toolCalls`) inline; tool results and thinking parts are additionally emitted as fan-out `{role:'tool',...}` and `{role:'reasoning',...}` entries.
+**Wire shape (POST body):** AG-UI `RunAgentInput` — `{threadId, runId, parentRunId?, state, messages, tools, context, forwardedProps}`. The `messages` array carries AG-UI fields (`content`, `toolCalls`, `metadata`) without TanStack `parts`; tool results and thinking parts are additionally emitted as fan-out `{role:'tool',...}` and `{role:'reasoning',...}` entries.
 
 **`forwardedProps` security:** Don't spread it directly into `chat()` — clients could override `adapter`, `model`, `tools`, etc. Always allowlist specific fields.
 
@@ -184,26 +184,25 @@ adapters from `@tanstack/ai-react` (or the framework-specific package).
 
 ### 3. AG-UI Event Types Reference
 
-All events extend `BaseAGUIEvent` which carries `type`, `timestamp`, optional
-`model`, and optional `rawEvent`.
+Event types come from `@ag-ui/core@1.0.0`. Both package entries export its
+`EventType` enum. `StreamChunk` includes all 31 event types. Use the source
+interfaces for required fields; do not recreate stricter copies.
 
-| Event Type             | Description                                                                                                                 |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `RUN_STARTED`          | First event in a stream. Carries `runId` and optional `threadId`.                                                           |
-| `TEXT_MESSAGE_START`   | New text message begins. Carries `messageId` and `role`.                                                                    |
-| `TEXT_MESSAGE_CONTENT` | Incremental text token. Carries `messageId` and `delta` (the new text).                                                     |
-| `TEXT_MESSAGE_END`     | Text message complete. Carries `messageId`.                                                                                 |
-| `TOOL_CALL_START`      | Tool invocation begins. Carries `toolCallId`, `toolName`, and `index`.                                                      |
-| `TOOL_CALL_ARGS`       | Incremental tool arguments JSON. Carries `toolCallId` and `delta`.                                                          |
-| `TOOL_CALL_END`        | Tool call arguments complete. Carries `toolCallId` and `toolName`.                                                          |
-| `STEP_STARTED`         | Thinking/reasoning step begins. Carries `stepId` and optional `stepType`.                                                   |
-| `STEP_FINISHED`        | Thinking step complete. Carries `stepId`, `delta`, and optional `content`.                                                  |
-| `MESSAGES_SNAPSHOT`    | Full conversation transcript snapshot. Carries `messages: Array<UIMessage>`.                                                |
-| `STATE_SNAPSHOT`       | Full application state snapshot. Carries `state: Record<string, unknown>`.                                                  |
-| `STATE_DELTA`          | Incremental state update. Carries `delta: Record<string, unknown>`.                                                         |
-| `CUSTOM`               | Extension point. Carries `name` (string) and optional `value` (unknown).                                                    |
-| `RUN_FINISHED`         | Stream complete. Carries `runId` and `finishReason` (`'stop'` / `'length'` / `'content_filter'` / `'tool_calls'` / `null`). |
-| `RUN_ERROR`            | Error during stream. Carries `message`, optional `code` and `runId`; a nested `error: { message, code? }` copy is kept too. |
+- Run events require their spec ids. `RUN_STARTED` accepts `protocolVersion`.
+- Text, tool, reasoning, state, step, activity, custom, and raw events accept
+  `subagentRunId`. Run lifecycle events and `MESSAGES_SNAPSHOT` do not.
+- Subagent lifecycle events carry `subagentRunId`; started events also require
+  `name`, and error events require `message`. Parent references are optional.
+- `TOOL_CALL_RESULT.content` accepts a string or ordered content parts. Wire
+  text parts use `text`; TanStack message parts use `content`.
+- `RUN_FINISHED.outcome` accepts success, interrupt, or cancelled. Spec usage
+  includes `cacheWriteInputTokens`.
+
+Keep spec fields at the top level. Put TanStack extras in `metadata.tanstack`.
+`toWireChunk` performs this conversion. Do not import `@ag-ui/core/schemas`
+into production code: only that optional entry loads Zod.
+
+These event types do not provide a subagent runtime or client handles.
 
 **Typical event sequence for a text-only response:**
 
@@ -325,13 +324,11 @@ before processing text) will hang or break on models that don't emit those event
 
 Source: docs/protocol/chunk-definitions.md
 
-## Tension
+## Wire messages
 
-RESOLVED: TanStack AI is fully AG-UI compliant on both axes (server→client events
-AND client→server `RunAgentInput`). The wire format carries TanStack `UIMessage`
-anchors with their parts intact alongside AG-UI fan-out messages, so strict AG-UI
-servers see role-based messages while TanStack-aware servers read parts directly
-without transformation. See `docs/migration/ag-ui-compliance.md` for details.
+Wire messages use `content`, `toolCalls`, and `metadata`. They do not carry
+TanStack `parts`. Tool results and reasoning travel as separate messages.
+See `docs/migration/ag-ui-compliance.md` for the conversion contract.
 
 ## Cross-References
 

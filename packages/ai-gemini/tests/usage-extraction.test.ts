@@ -83,9 +83,9 @@ describe('Gemini usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage).toMatchObject({
-      promptTokens: 100,
-      completionTokens: 50,
+    expect(doneChunk?.usage?.[0]).toMatchObject({
+      inputTokens: 100,
+      outputTokens: 50,
       totalTokens: 150,
     })
   })
@@ -122,8 +122,8 @@ describe('Gemini usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.promptTokensDetails).toMatchObject({
-      cachedTokens: 25,
+    expect(doneChunk?.usage?.[0]).toMatchObject({
+      cachedInputTokens: 25,
     })
   })
 
@@ -159,7 +159,10 @@ describe('Gemini usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.completionTokensDetails).toMatchObject({
+    expect(doneChunk?.usage?.[0]).toMatchObject({
+      inputTokens: 100,
+      outputTokens: 80,
+      totalTokens: 180,
       reasoningTokens: 30,
     })
   })
@@ -199,7 +202,7 @@ describe('Gemini usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.promptTokensDetails).toMatchObject({
+    expect(doneChunk?.metadata?.tanstack?.usage?.promptTokensDetails).toMatchObject({
       textTokens: 100,
       imageTokens: 50,
     })
@@ -240,7 +243,7 @@ describe('Gemini usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.completionTokensDetails).toMatchObject({
+    expect(doneChunk?.metadata?.tanstack?.usage?.completionTokensDetails).toMatchObject({
       textTokens: 50,
       audioTokens: 30,
     })
@@ -278,7 +281,7 @@ describe('Gemini usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.providerUsageDetails).toMatchObject({
+    expect(doneChunk?.metadata?.tanstack?.usage?.providerUsageDetails).toMatchObject({
       trafficType: 'ON_DEMAND',
     })
   })
@@ -315,7 +318,7 @@ describe('Gemini usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.providerUsageDetails).toMatchObject({
+    expect(doneChunk?.metadata?.tanstack?.usage?.providerUsageDetails).toMatchObject({
       toolUsePromptTokenCount: 20,
     })
   })

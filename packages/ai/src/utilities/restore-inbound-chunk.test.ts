@@ -3,7 +3,7 @@ import { EventType } from '../types'
 import type { RunFinishedEvent, StreamChunk } from '../types'
 import {
   restoreInboundChunk,
-  restorePublicUsage,
+  restorePublicAliases,
 } from './restore-inbound-chunk'
 
 function runFinished(
@@ -17,8 +17,8 @@ function runFinished(
   }
 }
 
-describe('restorePublicUsage', () => {
-  it('rebuilds TokenUsage promptTokens from spec usage[] and leftover', () => {
+describe('restorePublicAliases', () => {
+  it('preserves every spec usage entry and leaves cost in metadata', () => {
     const chunk = runFinished({
       usage: [
         {
@@ -27,6 +27,7 @@ describe('restorePublicUsage', () => {
           totalTokens: 15,
           cachedInputTokens: 3,
         },
+        { provider: 'other', model: 'other-model', inputTokens: 2, outputTokens: 1, totalTokens: 3 },
       ],
       metadata: {
         tanstack: {
@@ -39,15 +40,13 @@ describe('restorePublicUsage', () => {
       },
     })
 
-    restorePublicUsage(chunk)
+    restorePublicAliases(chunk)
 
-    expect(chunk.usage).toEqual({
-      promptTokens: 10,
-      completionTokens: 5,
-      totalTokens: 15,
-      cost: 0.02,
-      promptTokensDetails: { cachedTokens: 3, audioTokens: 1 },
-    })
+    expect(chunk.usage).toEqual([
+      { inputTokens: 10, outputTokens: 5, totalTokens: 15, cachedInputTokens: 3 },
+      { provider: 'other', model: 'other-model', inputTokens: 2, outputTokens: 1, totalTokens: 3 },
+    ])
+    expect(chunk.metadata?.tanstack?.usage?.cost).toBe(0.02)
     expect(chunk).not.toHaveProperty('model')
   })
 
@@ -58,7 +57,7 @@ describe('restorePublicUsage', () => {
       toolCallName: 'get_weather',
     }
 
-    restorePublicUsage(chunk)
+    restorePublicAliases(chunk)
 
     if (chunk.type !== EventType.TOOL_CALL_START) {
       throw new Error('expected TOOL_CALL_START')
@@ -73,7 +72,7 @@ describe('restorePublicUsage', () => {
       metadata: { tanstack: { input: { q: 'sf' } } },
     }
 
-    restorePublicUsage(chunk)
+    restorePublicAliases(chunk)
 
     if (chunk.type !== EventType.TOOL_CALL_END) {
       throw new Error('expected TOOL_CALL_END')
@@ -99,12 +98,10 @@ describe('restoreInboundChunk', () => {
 
     expect(restored.finishReason).toBe('stop')
     expect(restored.model).toBe('gpt-5.5')
-    expect(restored.usage).toEqual({
-      promptTokens: 10,
-      completionTokens: 5,
-      totalTokens: 15,
-      cost: 0.02,
-    })
+    if (restored.type !== EventType.RUN_FINISHED) throw new Error('expected RUN_FINISHED')
+    expect(restored.usage).toEqual([
+      { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    ])
   })
 
   it('does not overwrite extras already on the chunk', () => {

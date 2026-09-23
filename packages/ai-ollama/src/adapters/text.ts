@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import {
   toRunErrorPayload,
@@ -220,7 +221,8 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true
         yield {
-          type: EventType.RUN_STARTED,
+          protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
           runId,
           threadId,
           model: chunk.model,
@@ -337,7 +339,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
           finishReason: toolCallsEmitted.size > 0 ? 'tool_calls' : 'stop',
           // usage is optional under exactOptionalPropertyTypes; omit the key
           // entirely when Ollama reported no token counts.
-          ...(finishUsage && { usage: finishUsage }),
+          ...(finishUsage && { ...toUsageEventFields(finishUsage, { provider: 'ollama', model: chunk.model }) }),
         }
         continue
       }

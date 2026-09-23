@@ -1,3 +1,5 @@
+import { EventSchema } from '@ag-ui/core/schemas'
+import { EventType as ClientEventType } from '../client'
 import { describe, expect, it } from 'vitest'
 import { EventType } from '../types'
 import { specKeysFor, isSpecTopLevelKey } from './spec-event-keys'
@@ -30,5 +32,20 @@ describe('specKeysFor', () => {
     expect(isSpecTopLevelKey(EventType.STATE_SNAPSHOT, 'state')).toBe(false)
     expect(isSpecTopLevelKey(EventType.CUSTOM, 'threadId')).toBe(false)
     expect(specKeysFor(EventType.RUN_ERROR).has('threadId')).toBe(false)
+  })
+})
+
+describe('AG-UI 1.0 contract', () => {
+  it('exposes the upstream enum on the client entry', () => {
+    expect(ClientEventType).toBe(EventType)
+  })
+
+  it('preserves exactly the spec fields for every event', () => {
+    for (const schema of EventSchema.options) {
+      const type = schema.shape.type.value
+      expect([...specKeysFor(type)].sort(), type).toEqual(
+        Object.keys(schema.shape).sort(),
+      )
+    }
   })
 })

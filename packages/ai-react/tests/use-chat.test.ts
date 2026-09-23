@@ -1,3 +1,4 @@
+import type { AdapterYieldChunk as StreamChunk } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 import { ChatClient } from '@tanstack/ai-client'
 import { act, render, renderHook, waitFor } from '@testing-library/react'
@@ -18,7 +19,7 @@ import type {
   SubscribeConnectionAdapter,
 } from '@tanstack/ai-client'
 import type { UIMessage, UseChatOptions } from '../src/types'
-import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { ModelMessage } from '@tanstack/ai'
 
 describe('useChat', () => {
   afterEach(() => {

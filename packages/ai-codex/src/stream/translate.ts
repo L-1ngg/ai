@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { EventType, buildBaseUsage } from '@tanstack/ai'
 import {
   parseJsonFromAssistantText,
@@ -189,7 +190,8 @@ export async function* translateThreadEvents(
     if (runStarted) return
     runStarted = true
     yield {
-      type: EventType.RUN_STARTED,
+      protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
       runId,
       threadId,
       model,
@@ -439,7 +441,7 @@ export async function* translateThreadEvents(
           model,
           timestamp: now(),
           finishReason: 'stop',
-          ...(usage !== undefined && { usage }),
+          ...(usage !== undefined && { ...toUsageEventFields(usage, { provider: 'codex', model: model }) }),
         }
       } else if (event.type === 'turn.failed' || event.type === 'error') {
         yield* synthesizeUnresolvedResults()

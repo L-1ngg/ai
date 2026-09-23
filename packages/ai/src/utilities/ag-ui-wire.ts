@@ -1,6 +1,7 @@
 import type {
   AssistantMessage,
-  InputContent,
+  ActivityMessage,
+  ContentPart as AGUIContentPart,
   ReasoningMessage,
   SystemMessage,
   ToolCall,
@@ -63,6 +64,7 @@ function rebuiltToolMetadata(
 }
 
 export type WireMessage =
+  | ActivityMessage
   | WireSystemMessage
   | WireUserMessage
   | WireAssistantMessage
@@ -120,7 +122,7 @@ export function uiMessagesToWire(
         content:
           typeof msg.content === 'string'
             ? msg.content
-            : JSON.stringify(msg.content),
+            : contentPartsToWire(msg.content ?? []),
         ...(msg.error !== undefined && { error: msg.error }),
         ...(metadata !== undefined && { metadata }),
       })
@@ -168,12 +170,22 @@ export function uiMessagesToWire(
       continue
     }
 
+    const activity = parts.find((part) => part.type === 'activity')
+    if (activity) {
+      wire.push({ id: uiMessage.id, role: 'activity', activityType: activity.activityType, content: activity.content,
+        ...(uiMessage.subagentRunId !== undefined ? { subagentRunId: uiMessage.subagentRunId } : {}),
+        ...(uiMessage.metadata !== undefined ? { metadata: uiMessage.metadata } : {}),
+      })
+      continue
+    }
+
     // assistant: emit reasoning fan-outs first, then anchor, then tool fan-outs
     for (const part of parts) {
       if (part.type === 'thinking') {
         const reasoning: WireReasoningMessage = {
           role: 'reasoning',
-          id: uniqueWireId(deriveReasoningId(uiMessage.id, part), usedWireIds),
+          ...(uiMessage.subagentRunId !== undefined ? { subagentRunId: uiMessage.subagentRunId } : {}),
+          id: part.id ?? uniqueWireId(deriveReasoningId(uiMessage.id, part), usedWireIds),
           content: part.content,
         }
         if (part.signature) {
@@ -185,7 +197,7 @@ export function uiMessagesToWire(
 
     const text = collectText(parts)
     const toolCalls = collectToolCalls(parts)
-    wire.push(
+    if (!parts.every((part) => (part.type === 'thinking' && part.id === uiMessage.id) || part.type === 'tool-result')) wire.push(
       toAnchor(
         uiMessage,
         'assistant',
@@ -219,12 +231,13 @@ export function uiMessagesToWire(
         wire.push({
           role: 'tool',
           id,
+          ...(uiMessage.subagentRunId !== undefined ? { subagentRunId: uiMessage.subagentRunId } : {}),
           toolCallId: part.toolCallId,
           ...(part.name !== undefined && { name: part.name }),
-          content:
+          content: part.wireContent ?? (
             typeof part.content === 'string'
               ? part.content
-              : JSON.stringify(part.content),
+              : contentPartsToWire(part.content)),
           ...(part.error !== undefined && { error: part.error }),
           ...(metadata !== undefined && { metadata }),
         })
@@ -248,7 +261,7 @@ export function uiMessagesToWire(
                   : 'User denied this action',
               })
         const content =
-          typeof result === 'string' ? result : JSON.stringify(result)
+          typeof result === 'string' ? result : contentPartsToWire(result)
         wire.push({
           role: 'tool',
           id: uniqueToolWireId(deriveToolMessageId(part.id), usedWireIds),
@@ -278,7 +291,7 @@ function toAnchor(
 function toAnchor(
   msg: UIMessage,
   role: 'user',
-  extras: { content: string | Array<InputContent> },
+  extras: { content: string | Array<AGUIContentPart> },
   parts: ReadonlyArray<MessagePart>,
   includeSnapshotStructuredOutput: boolean,
 ): WireUserMessage
@@ -296,7 +309,7 @@ function toAnchor(
   msg: UIMessage,
   role: UIMessage['role'],
   extras: {
-    content?: string | Array<InputContent>
+    content?: string | Array<AGUIContentPart>
     toolCalls?: Array<ToolCall>
   },
   parts: ReadonlyArray<MessagePart>,
@@ -305,6 +318,7 @@ function toAnchor(
   const metadata = messageMetadata(msg, parts, includeSnapshotStructuredOutput)
   const base = {
     id: msg.id,
+    ...(msg.subagentRunId !== undefined ? { subagentRunId: msg.subagentRunId } : {}),
     ...(msg.name !== undefined && { name: msg.name }),
     ...(metadata !== undefined && { metadata }),
   }
@@ -424,9 +438,19 @@ function collectText(parts: ReadonlyArray<MessagePart>): string {
   return out.join('')
 }
 
+export function contentPartsToWire(
+  parts: ReadonlyArray<ContentPart>,
+): Array<AGUIContentPart> {
+  return parts.map((part) => {
+    if (part.type !== 'text') return part
+    const { content, ...rest } = part
+    return { ...rest, text: content }
+  })
+}
+
 function collectUserContent(
   parts: ReadonlyArray<MessagePart>,
-): string | Array<InputContent> {
+): string | Array<AGUIContentPart> {
   const hasMultimodal = parts.some(
     (p) =>
       p.type === 'image' ||
@@ -434,13 +458,14 @@ function collectUserContent(
       p.type === 'video' ||
       p.type === 'document',
   )
-  if (!hasMultimodal) {
+  if (!hasMultimodal && parts.length <= 1 && !parts.some((part) => 'metadata' in part || 'id' in part)) {
     return collectText(parts)
   }
-  const out: Array<InputContent> = []
+  const out: Array<AGUIContentPart> = []
   for (const p of parts) {
     if (p.type === 'text') {
-      out.push({ type: 'text', text: p.content })
+      const { content, ...rest } = p
+      out.push({ ...rest, text: content })
     } else if (
       p.type === 'image' ||
       p.type === 'audio' ||
@@ -477,6 +502,7 @@ function collectToolCalls(
         id: p.id,
         type: 'function',
         function: { name: p.name, arguments: p.arguments },
+        ...(isRecord(p.metadata) ? { metadata: p.metadata } : {}),
         ...(encryptedValue !== undefined ? { encryptedValue } : {}),
       })
     }

@@ -494,11 +494,7 @@ describe('chat() middleware', () => {
               timestamp: Date.now(),
               finishReason: 'stop',
               model: 'gpt-5.5',
-              usage: {
-                promptTokens: 1,
-                completionTokens: 2,
-                totalTokens: 3,
-              },
+              usage: [{ inputTokens: 1, outputTokens: 2, totalTokens: 3 }],
             },
           ],
         ],

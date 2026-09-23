@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { EventType, buildBaseUsage } from '@tanstack/ai'
 import {
   parseJsonFromAssistantText,
@@ -180,7 +181,8 @@ export async function* translateThreadEvents(
     if (runStarted) return
     runStarted = true
     yield {
-      type: EventType.RUN_STARTED,
+      protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
       runId,
       threadId,
       model,
@@ -199,7 +201,7 @@ export async function* translateThreadEvents(
       timestamp: now(),
       finishReason: 'stop',
       ...(toUsage(usage)
-        ? { usage: toUsage(usage) as NonNullable<ReturnType<typeof toUsage>> }
+        ? { ...toUsageEventFields(toUsage(usage) as NonNullable<ReturnType<typeof toUsage>>, { provider: 'grok-build' }) }
         : {}),
     }
   }

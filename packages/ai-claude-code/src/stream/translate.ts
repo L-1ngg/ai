@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { EventType, buildBaseUsage } from '@tanstack/ai'
 import {
   parseJsonFromAssistantText,
@@ -156,7 +157,8 @@ export async function* translateSdkStream(
     if (runStarted) return
     runStarted = true
     yield {
-      type: EventType.RUN_STARTED,
+      protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
       runId,
       threadId,
       model,
@@ -422,7 +424,7 @@ export async function* translateSdkStream(
         model,
         timestamp: now(),
         finishReason: 'stop',
-        ...(usage !== undefined && { usage }),
+        ...(usage !== undefined && { ...toUsageEventFields(usage, { provider: 'claude-code', model: model }) }),
       }
     } else if (message.subtype === 'error_max_turns') {
       yield {
@@ -432,7 +434,7 @@ export async function* translateSdkStream(
         model,
         timestamp: now(),
         finishReason: 'length',
-        ...(usage !== undefined && { usage }),
+        ...(usage !== undefined && { ...toUsageEventFields(usage, { provider: 'claude-code', model: model }) }),
       }
     } else {
       const errorMessage =

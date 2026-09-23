@@ -459,7 +459,9 @@ export function updateThinkingPart(
       (p) => p.type === 'thinking' && p.stepId === stepId,
     )
 
+    const previous = parts[thinkingPartIndex]
     const thinkingPart: ThinkingPart = {
+      ...(previous?.type === 'thinking' ? previous : {}),
       type: 'thinking',
       content,
       stepId,

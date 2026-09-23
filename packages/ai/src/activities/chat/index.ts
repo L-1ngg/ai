@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '../../utilities/ag-ui-usage'
 /**
  * Text Activity
  *
@@ -40,7 +41,7 @@ import {
 } from '../../utilities/merge-metadata'
 import { withDurabilityBatchHint } from '../../utilities/durability-batch'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
-import { restorePublicUsage } from '../../utilities/restore-inbound-chunk'
+import { restorePublicAliases } from '../../utilities/restore-inbound-chunk'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
 import { normalizeToolResult } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
@@ -1636,7 +1637,7 @@ class TextEngine<
         for (const spec of normalizeStreamChunk(
           outputChunk as AdapterYieldChunk,
         )) {
-          restorePublicUsage(spec)
+          restorePublicAliases(spec)
           if (
             suppressAgentLifecycle &&
             (spec.type === EventType.RUN_STARTED ||
@@ -1855,7 +1856,7 @@ class TextEngine<
     chunk: RunFinishedEvent | AdapterYieldChunk,
   ): Promise<void> {
     const rebuilt = rebuildTokenUsage(
-      chunk.usage,
+      'usage' in chunk ? chunk.usage : undefined,
       tanstackMetadata(chunk)?.usage,
     )
     if (rebuilt) {
@@ -2365,7 +2366,8 @@ class TextEngine<
   ): AsyncGenerator<StreamChunk, void, void> {
     if (this.hasPublicRunStarted) return
     yield* this.pipeThroughMiddleware({
-      type: EventType.RUN_STARTED,
+      protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
       runId: finishEvent.runId,
       threadId: finishEvent.threadId,
       timestamp: Date.now(),
@@ -2761,6 +2763,13 @@ class TextEngine<
     > = [],
     genericInterruptIds?: ReadonlyArray<string>,
   ): StreamChunk {
+    if (approvals.length === 0 && genericRequests.length === 0) {
+      return {
+        ...finishEvent,
+        timestamp: Date.now(),
+        outcome: { type: 'success', pendingToolCallIds: clientRequests.map((request) => request.toolCallId) },
+      }
+    }
     return {
       ...finishEvent,
       timestamp: Date.now(),
@@ -2768,7 +2777,7 @@ class TextEngine<
         type: 'interrupt',
         interrupts: this.buildActionableInterrupts(
           approvals,
-          clientRequests,
+          [],
           genericRequests,
           genericInterruptIds,
         ),
@@ -4448,7 +4457,7 @@ class TextEngine<
   ): Generator<StreamChunk, void, void> {
     for (const output of outputs) {
       for (const spec of normalizeStreamChunk(output as AdapterYieldChunk)) {
-        restorePublicUsage(spec)
+        restorePublicAliases(spec)
         if (spec.type === EventType.RUN_STARTED) {
           if (this.hasPublicRunStarted) continue
           this.hasPublicRunStarted = true
@@ -5117,7 +5126,8 @@ async function* fallbackStructuredOutputStream(
   const startedAt = Date.now()
 
   yield {
-    type: EventType.RUN_STARTED,
+    protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
     runId,
     threadId,
     model,
@@ -5185,7 +5195,7 @@ async function* fallbackStructuredOutputStream(
     // it on the fallback path, mirroring the native streaming path. The
     // conditional spread avoids emitting `usage: undefined` for adapters that
     // don't report it. See #758.
-    ...(result.usage ? { usage: result.usage } : {}),
+    ...(result.usage ? { ...toUsageEventFields(result.usage, { provider: adapter.name, model }) } : {}),
   }
 }
 

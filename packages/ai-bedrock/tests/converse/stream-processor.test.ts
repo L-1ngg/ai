@@ -156,26 +156,19 @@ describe('processConverseStream', () => {
       )
       const finished = events.filter((e) => e.type === EventType.RUN_FINISHED)
       expect(finished).toHaveLength(1)
-      const evt = finished[0] as {
-        finishReason: string
-        usage?: {
-          promptTokens: number
-          completionTokens: number
-          totalTokens: number
-        }
-      }
+      const evt = finished[0]!
       expect(evt.finishReason).toBe(expected)
       // Usage arrives in the trailing metadata event (after messageStop) yet is
       // folded into the single terminal RUN_FINISHED.
-      expect(evt.usage).toEqual({
-        promptTokens: 7,
-        completionTokens: 11,
+      expect(evt.usage?.[0]).toMatchObject({
+        inputTokens: 7,
+        outputTokens: 11,
         totalTokens: 18,
       })
     }
   })
 
-  it('forwards cache read/write counts as promptTokensDetails', async () => {
+  it('includes cache read/write counts in AG-UI input usage', async () => {
     const events = await collect(
       { contentBlockDelta: { delta: { text: 'hi' }, contentBlockIndex: 0 } },
       { messageStop: { stopReason: 'end_turn' } },
@@ -194,12 +187,13 @@ describe('processConverseStream', () => {
       },
     )
     const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
-    expect((finished as { usage?: unknown }).usage).toEqual({
-      promptTokens: 3,
-      completionTokens: 4,
+    expect(finished?.usage?.[0]).toMatchObject({
+      inputTokens: 8412,
+      outputTokens: 4,
       totalTokens: 8416,
       // Zero is a real value here. The checkpoint was served, not missing.
-      promptTokensDetails: { cachedTokens: 0, cacheWriteTokens: 8409 },
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 8409,
     })
   })
 

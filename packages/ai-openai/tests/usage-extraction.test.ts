@@ -67,9 +67,9 @@ describe('OpenAI usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage).toEqual({
-      promptTokens: 100,
-      completionTokens: 50,
+    expect(doneChunk?.usage?.[0]).toMatchObject({
+      inputTokens: 100,
+      outputTokens: 50,
       totalTokens: 150,
     })
   })
@@ -124,8 +124,8 @@ describe('OpenAI usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.promptTokensDetails).toEqual({
-      cachedTokens: 25,
+    expect(doneChunk?.usage?.[0]).toMatchObject({
+      cachedInputTokens: 25,
     })
   })
 
@@ -179,7 +179,7 @@ describe('OpenAI usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.completionTokensDetails).toEqual({
+    expect(doneChunk?.usage?.[0]).toMatchObject({
       reasoningTokens: 30,
     })
   })
@@ -281,6 +281,6 @@ describe('OpenAI usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.promptTokensDetails).toBeUndefined()
+    expect(doneChunk?.metadata?.tanstack?.usage?.promptTokensDetails).toBeUndefined()
   })
 })

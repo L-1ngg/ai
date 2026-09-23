@@ -1,3 +1,5 @@
+import { copyChunkRunId, getProtocolScope } from './connection-adapters'
+import { AGUIEventStream } from '@tanstack/ai/client'
 import {
   StreamProcessor,
   convertSchemaToJsonSchema,
@@ -117,6 +119,7 @@ type ChatClientUpdateOptionsWithoutContext<
   queue?: QueueOption
   onResponse?: (response?: Response) => void | Promise<void>
   onChunk?: (chunk: StreamChunk) => void
+  onStateChange?: (state: unknown) => void
   onFinish?: (message: UIMessage) => void
   onError?: (error: Error) => void
   onSubscriptionChange?: (isSubscribed: boolean) => void
@@ -172,7 +175,7 @@ function connectionDrainsOnSend(connection: ConnectionAdapter): boolean {
 
 function isIntermediateToolTurn(chunk: StreamChunk): boolean {
   if (chunk.type !== 'RUN_FINISHED') return false
-  if (chunk.outcome?.type === 'interrupt') return false
+  if (chunk.outcome?.type === 'interrupt' || (chunk.outcome?.type === 'success' && chunk.outcome.pendingToolCallIds?.length)) return false
   const extra = chunk as StreamChunk & { finishReason?: unknown }
   if (extra.finishReason !== undefined) {
     return extra.finishReason === 'tool_calls'
@@ -480,6 +483,7 @@ export class ChatClient<
     current: {
       onResponse: (response?: Response) => void | Promise<void>
       onChunk: (chunk: StreamChunk) => void
+      onStateChange: (state: unknown) => void
       onFinish: (message: UIMessage) => void
       onError: (error: Error) => void
       onMessagesChange: (messages: Array<UIMessage>) => void
@@ -581,6 +585,7 @@ export class ChatClient<
       current: {
         onResponse: options.onResponse || (() => {}),
         onChunk: options.onChunk || (() => {}),
+        onStateChange: options.onStateChange || (() => {}),
         onFinish: options.onFinish || (() => {}),
         onError: options.onError || (() => {}),
         onMessagesChange: options.onMessagesChange || (() => {}),
@@ -669,6 +674,7 @@ export class ChatClient<
         : {}),
       ...(initialMessages ? { initialMessages } : {}),
       events: {
+        onStateChange: (state) => this.callbacksRef.current.onStateChange(state),
         onMessagesChange: (messages: Array<UIMessage>) => {
           this.persistor?.notifyMessagesChanged(messages)
           this.callbacksRef.current.onMessagesChange(messages)
@@ -786,6 +792,7 @@ export class ChatClient<
             this.activeClientTools ?? this.clientToolsRef.current
           const clientTool = clientTools.get(args.toolName)
           const executeFunc = clientTool?.execute
+          if (this.pendingToolExecutions.has(args.toolCallId)) return
           if (executeFunc) {
             const continuationGeneration = this.continuationGeneration
             // Capture the run context at execution-start so a tool whose
@@ -838,6 +845,8 @@ export class ChatClient<
 
             // Track the pending execution
             this.pendingToolExecutions.set(args.toolCallId, executionPromise)
+          } else {
+            this.processor.addToolResult(args.toolCallId, '', `Client tool '${args.toolName}' is unavailable`)
           }
         },
         onApprovalRequest: (args: {
@@ -1938,7 +1947,37 @@ export class ChatClient<
     }
   }
 
+  getAgentState(): unknown { return this.processor.getAgentState() }
+  getSubagents(): ReturnType<StreamProcessor['getSubagents']> { return this.processor.getSubagents() }
+
+  private readonly protocolStreams = new Map<string, AGUIEventStream>()
+  private readonly scopedProtocolStreams = new WeakMap<object, AGUIEventStream>()
+  private currentProtocolStream = new AGUIEventStream()
+
   private async processIncomingChunk(
+    chunk: StreamChunk,
+    options?: { defer?: boolean },
+  ): Promise<void> {
+    if (this.clearedStreamTracker.shouldIgnoreChunk(chunk)) {
+      await this.applyIncomingChunk(chunk, options)
+      return
+    }
+    const scope = getProtocolScope(chunk)
+    const runId = getChunkRunId(chunk)
+    let protocol = scope ? this.scopedProtocolStreams.get(scope) : runId === undefined ? this.currentProtocolStream : this.protocolStreams.get(runId)
+    if (!protocol) {
+      protocol = new AGUIEventStream()
+      if (scope) this.scopedProtocolStreams.set(scope, protocol)
+      else if (runId !== undefined) this.protocolStreams.set(runId, protocol)
+    }
+    this.currentProtocolStream = protocol
+    for (const event of protocol.push(chunk)) {
+      copyChunkRunId(chunk, event)
+      await this.applyIncomingChunk(event, options)
+    }
+  }
+
+  private async applyIncomingChunk(
     chunk: StreamChunk,
     options?: { defer?: boolean },
   ): Promise<void> {
@@ -3324,6 +3363,7 @@ export class ChatClient<
     if (options.onResponse !== undefined) {
       this.callbacksRef.current.onResponse = options.onResponse
     }
+    if (options.onStateChange !== undefined) this.callbacksRef.current.onStateChange = options.onStateChange
     if (options.onChunk !== undefined) {
       this.callbacksRef.current.onChunk = options.onChunk
     }

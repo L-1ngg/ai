@@ -1,7 +1,7 @@
 import {
   EventType,
+  validateAGUIEvent,
   getChunkRunId as getNormalizedChunkRunId,
-  restoreInboundChunk,
   tanstackMetadata,
   uiMessagesToWire,
   withTanstackMetadata,
@@ -30,6 +30,13 @@ import { normalizeMessagesDates } from './message-date-normalizer'
  * otherwise-runless chunks to their originating request.
  */
 const chunkRunIds = new WeakMap<StreamChunk, string>()
+const protocolScopes = new WeakMap<StreamChunk, object>()
+export function getProtocolScope(chunk: StreamChunk): object | undefined { return protocolScopes.get(chunk) }
+
+export function copyChunkRunId(source: StreamChunk, target: StreamChunk): void {
+  const runId = chunkRunIds.get(source)
+  if (runId !== undefined) chunkRunIds.set(target, runId)
+}
 
 /**
  * Resolve a chunk's run id, preferring the value on the chunk itself
@@ -389,8 +396,8 @@ function isNdjsonEnvelope(
 }
 
 /** Rebuild pre-wire extras after SSE/NDJSON ingest. */
-function restoreInboundUsage(chunk: StreamChunk): StreamChunk {
-  return restoreInboundChunk(chunk)
+function parseInboundEvent(chunk: unknown): StreamChunk | undefined {
+  return validateAGUIEvent(chunk)
 }
 
 function sseChunkModel(chunk: StreamChunk): string | undefined {
@@ -466,7 +473,8 @@ async function* linesToSSEEvents(
       }
       return
     }
-    const chunk = restoreInboundUsage(JSON.parse(data) as StreamChunk)
+    const chunk = parseInboundEvent(JSON.parse(data))
+    if (!chunk) { pendingId = undefined; continue }
     if ('threadId' in chunk && typeof chunk.threadId === 'string') {
       lastThreadId = chunk.threadId
     }
@@ -492,11 +500,8 @@ async function* linesToNdjsonEvents(
 ): AsyncGenerator<StreamEvent> {
   for await (const line of lines) {
     const parsed = JSON.parse(line) as unknown
-    if (isNdjsonEnvelope(parsed)) {
-      yield { chunk: restoreInboundUsage(parsed.chunk), id: parsed.id }
-    } else {
-      yield { chunk: restoreInboundUsage(parsed as StreamChunk) }
-    }
+    const chunk = parseInboundEvent(isNdjsonEnvelope(parsed) ? parsed.chunk : parsed)
+    if (chunk) yield { chunk, ...(isNdjsonEnvelope(parsed) ? { id: parsed.id } : {}) }
   }
 }
 
@@ -770,6 +775,7 @@ async function* resumableStream(
   reconnectOptions?: ReconnectOptions,
 ): AsyncGenerator<StreamChunk> {
   const tracker = createReconnectTracker(reconnectOptions)
+  const protocolScope = {}
 
   for (;;) {
     if (abortSignal?.aborted) return
@@ -790,6 +796,7 @@ async function* resumableStream(
         if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
           sawTerminal = true
         }
+        protocolScopes.set(chunk, protocolScope)
         yield chunk
         // Do NOT stop on a terminal mid-source: an agent loop emits one
         // RUN_STARTED/RUN_FINISHED pair PER turn, so a tool-calling run carries
@@ -1179,6 +1186,7 @@ export function normalizeConnectionAdapter(
       })()
     },
     async send(messages, data, abortSignal, runContext) {
+      const protocolScope = {}
       let hasTerminalEvent = false
       let upstreamThreadId: string | undefined
       let upstreamRunId: string | undefined
@@ -1199,6 +1207,7 @@ export function normalizeConnectionAdapter(
           if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
             hasTerminalEvent = true
           }
+          protocolScopes.set(chunk, protocolScope)
           push(chunk, runContext?.runId)
         }
 
@@ -1333,6 +1342,7 @@ function buildRunAgentInputBody(
   }
 
   return {
+    protocolVersion: '1.0',
     threadId: runContext?.threadId ?? generateRunId('thread'),
     runId: runContext?.runId ?? generateRunId('run'),
     ...(runContext?.parentRunId !== undefined && {
@@ -2301,9 +2311,10 @@ export function webSocket(
       }
       if (isPingFrame(parsed)) return
       const envelopeId = isNdjsonEnvelope(parsed) ? parsed.id : undefined
-      const chunk = restoreInboundUsage(
-        isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
-      )
+      let chunk: StreamChunk | undefined
+      try { chunk = parseInboundEvent(isNdjsonEnvelope(parsed) ? parsed.chunk : parsed) }
+      catch (error) { failAll(error instanceof Error ? error : new Error(String(error))); return }
+      if (!chunk) return
 
       // Thread durable chunks through the active run session's tracker (if
       // any) so a later reconnect knows the last offset and can skip a
@@ -2320,6 +2331,7 @@ export function webSocket(
           session.sawTerminal = true
         }
       }
+      protocolScopes.set(chunk, session ?? ws)
       for (const l of listeners) l.push(chunk)
     }
     ws.onclose = () => {
@@ -2482,11 +2494,10 @@ export function webSocket(
           return
         }
         if (isPingFrame(parsed)) return
-        pipe.push(
-          restoreInboundUsage(
-            isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
-          ),
-        )
+        try {
+          const chunk = parseInboundEvent(isNdjsonEnvelope(parsed) ? parsed.chunk : parsed)
+          if (chunk) pipe.push(chunk)
+        } catch (error) { pipe.fail(error instanceof Error ? error : new Error(String(error))) }
       }
       ws.onclose = (event?: CloseEvent) => {
         // 1000 = the server finished replaying the log and closed cleanly.

@@ -23,6 +23,7 @@ import type {
   StreamChunk,
   StructuredOutputPart,
   UIResourcePart,
+  ActivityPart,
   VideoPart,
 } from '@tanstack/ai/client'
 import type { ByokClient } from './byok'
@@ -624,6 +625,7 @@ export type MessagePart<
   | ThinkingPart
   | StructuredOutputPart<TData>
   | UIResourcePart
+  | ActivityPart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
@@ -644,6 +646,7 @@ export interface UIMessage<
   id: string
   role: 'system' | 'user' | 'assistant'
   name?: string
+  subagentRunId?: string
   parts: Array<MessagePart<TTools, TData>>
   createdAt?: Date
   /**
@@ -921,6 +924,9 @@ export interface ChatClientBaseOptions<
    * Callback when a stream chunk is received
    */
   onChunk?: (chunk: StreamChunk) => void
+
+  /** Called after an AG-UI state snapshot or delta is applied. */
+  onStateChange?: (state: unknown) => void
 
   /**
    * Callback when the response is finished

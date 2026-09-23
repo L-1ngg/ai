@@ -101,9 +101,9 @@ describe('Anthropic usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage).toMatchObject({
-      promptTokens: 100,
-      completionTokens: 50,
+    expect(doneChunk?.usage?.[0]).toMatchObject({
+      inputTokens: 100,
+      outputTokens: 50,
       totalTokens: 150,
     })
   })
@@ -163,9 +163,12 @@ describe('Anthropic usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.promptTokensDetails).toEqual({
-      cacheWriteTokens: 50,
-      cachedTokens: 25,
+    expect(doneChunk?.usage?.[0]).toMatchObject({
+      inputTokens: 175,
+      outputTokens: 50,
+      totalTokens: 225,
+      cacheWriteInputTokens: 50,
+      cachedInputTokens: 25,
     })
   })
 
@@ -224,7 +227,7 @@ describe('Anthropic usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.providerUsageDetails).toMatchObject({
+    expect(doneChunk?.metadata?.tanstack?.usage?.providerUsageDetails).toMatchObject({
       serverToolUse: {
         webSearchRequests: 3,
         webFetchRequests: 2,
@@ -286,8 +289,8 @@ describe('Anthropic usage extraction', () => {
     // No cache tokens and no server tool use: the detail objects must be
     // omitted entirely rather than emitted as empty `{}` (matches every other
     // adapter's guarded behavior).
-    expect(doneChunk?.usage?.promptTokensDetails).toBeUndefined()
-    expect(doneChunk?.usage?.providerUsageDetails).toBeUndefined()
+    expect(doneChunk?.metadata?.tanstack?.usage?.promptTokensDetails).toBeUndefined()
+    expect(doneChunk?.metadata?.tanstack?.usage?.providerUsageDetails).toBeUndefined()
   })
 
   it('defaults missing output_tokens to 0 instead of NaN', async () => {
@@ -341,8 +344,8 @@ describe('Anthropic usage extraction', () => {
 
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
-    expect(doneChunk?.usage?.completionTokens).toBe(0)
-    expect(doneChunk?.usage?.totalTokens).toBe(100)
-    expect(Number.isNaN(doneChunk?.usage?.totalTokens)).toBe(false)
+    expect(doneChunk?.usage?.[0]?.outputTokens).toBe(0)
+    expect(doneChunk?.usage?.[0]?.totalTokens).toBe(100)
+    expect(Number.isNaN(doneChunk?.usage?.[0]?.totalTokens)).toBe(false)
   })
 })

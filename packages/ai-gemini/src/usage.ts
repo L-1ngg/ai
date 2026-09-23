@@ -123,14 +123,17 @@ export function buildGeminiUsage(
 ): TokenUsage<GeminiProviderUsageDetails> | undefined {
   if (!usageMetadata) return undefined
 
-  const promptTokens = usageMetadata.promptTokenCount ?? 0
-  const completionTokens = usageMetadata.candidatesTokenCount ?? 0
+  const promptTokens =
+    (usageMetadata.promptTokenCount ?? 0) +
+    (usageMetadata.toolUsePromptTokenCount ?? 0)
+  const completionTokens =
+    (usageMetadata.candidatesTokenCount ?? 0) +
+    (usageMetadata.thoughtsTokenCount ?? 0)
 
   const result = buildBaseUsage<GeminiProviderUsageDetails>({
     promptTokens: promptTokens,
     completionTokens: completionTokens,
-    totalTokens:
-      usageMetadata.totalTokenCount ?? promptTokens + completionTokens,
+    totalTokens: promptTokens + completionTokens,
   })
 
   // Add prompt token details

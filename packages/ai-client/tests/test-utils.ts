@@ -4,7 +4,10 @@ import type {
   ConnectConnectionAdapter,
   SubscribeConnectionAdapter,
 } from '../src/connection-adapters'
-import type { ModelMessage, StreamChunk } from '@tanstack/ai/client'
+import type {
+  ModelMessage,
+  AdapterYieldChunk as StreamChunk,
+} from '@tanstack/ai/client'
 import type { ChatClientPersistence, UIMessage } from '../src/types'
 
 function runFinishedChunk(options: {

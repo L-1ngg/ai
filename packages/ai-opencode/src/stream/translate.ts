@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { EventType, buildBaseUsage } from '@tanstack/ai'
 import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type {
@@ -133,7 +134,8 @@ export async function* translateOpencodeStream(
     if (runStarted) return
     runStarted = true
     yield {
-      type: EventType.RUN_STARTED,
+      protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
       runId,
       threadId,
       model,
@@ -384,7 +386,7 @@ export async function* translateOpencodeStream(
       model,
       timestamp: now(),
       finishReason,
-      ...(usage !== undefined && { usage }),
+      ...(usage !== undefined && { ...toUsageEventFields(usage, { provider: 'opencode', model: model }) }),
     }
   }
 

@@ -14,7 +14,7 @@ import {
 } from '../src/adapters/text'
 import { createLLMGatewaySummarize } from '../src/adapters/summarize'
 import { withLLMGatewayDefaults } from '../src/utils/client'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk as StreamChunk } from '@tanstack/ai'
 import type { LLMGatewayTextProviderOptions } from '../src/index'
 
 // Test helper: a silent logger for test chatStream calls.

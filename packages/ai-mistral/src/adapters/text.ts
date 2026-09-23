@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { undoNullWidening } from '@tanstack/ai-utils'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
@@ -211,7 +212,8 @@ export class MistralTextAdapter<
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
         yield asChunk({
-          type: 'RUN_STARTED',
+          protocolVersion: '1.0',
+type: 'RUN_STARTED',
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: options.model,
@@ -345,7 +347,8 @@ export class MistralTextAdapter<
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
           yield asChunk({
-            type: 'RUN_STARTED',
+            protocolVersion: '1.0',
+type: 'RUN_STARTED',
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunkModel,
@@ -585,13 +588,13 @@ export class MistralTextAdapter<
             threadId: aguiState.threadId,
             model: chunkModel,
             timestamp,
-            usage: usage
+            ...toUsageEventFields(usage
               ? {
                   promptTokens: usage.prompt_tokens || 0,
                   completionTokens: usage.completion_tokens || 0,
                   totalTokens: usage.total_tokens || 0,
                 }
-              : undefined,
+              : undefined, { provider: 'mistral', model: chunkModel }),
             finishReason: computedFinishReason,
           })
         }
@@ -647,7 +650,7 @@ export class MistralTextAdapter<
           threadId: aguiState.threadId,
           model: lastChunkModel,
           timestamp,
-          usage: undefined,
+          ...toUsageEventFields(undefined, { provider: 'mistral', model: lastChunkModel }),
           finishReason: hasEmittedToolCall ? 'tool_calls' : 'stop',
         })
       }

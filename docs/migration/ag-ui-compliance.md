@@ -4,9 +4,20 @@ title: Migrating to AG-UI Client-to-Server Compliance
 
 > **TL;DR:** Upgrade `@tanstack/ai` and `@tanstack/ai-client` together. `useChat` messages, thinking, tools, and approvals keep working. The HTTP wire is a breaking 0.x change: extras live in `metadata.tanstack`, and messages have no `parts`. Wire messages use `content`, `toolCalls`, and fan-out `role: "tool"` / `role: "reasoning"` rows. The legacy `body` client option and `data` wire field still work as a deprecation bridge.
 
+## AG-UI 1.0 types and wire fields
+
+Upgrade `@tanstack/ai` to use `@ag-ui/core@1.0.0` event types. The main package entry does not load Zod.
+
+- The public event union includes every AG-UI 1.0 event, including subagent lifecycle events.
+- Spec attribution fields stay at the top level. See [Event metadata](../protocol/metadata).
+- Tool results carry multimodal content arrays directly. Text parts use `text`; TanStack message parts use `content`.
+- `chatParamsFromRequestBody` accepts tool content arrays and preserves an optional `protocolVersion`.
+
+TanStack message converters cannot resolve provider file handles. They drop `file` source parts with a warning and keep supported parts.
+
 ## What changed
 
-`@tanstack/ai-client` now POSTs an AG-UI 0.0.52 `RunAgentInput` request body. The previous fields (`messages`, `data`) are emitted alongside the new AG-UI fields so existing servers and clients keep working without code changes.
+`@tanstack/ai-client` now POSTs an AG-UI `RunAgentInput` request body. The previous fields (`messages`, `data`) are emitted alongside the new AG-UI fields so existing servers and clients keep working without code changes.
 
 ### Old wire shape
 

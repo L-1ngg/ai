@@ -39,9 +39,9 @@ describe('usage cost type surface', () => {
     >()
   })
 
-  it('RunFinishedEvent.usage is TokenUsage or spec usage[]', () => {
+  it('RunFinishedEvent.usage inherits spec usage[]', () => {
     expectTypeOf<NonNullable<RunFinishedEvent['usage']>>().toEqualTypeOf<
-      Array<SpecTokenUsage> | TokenUsage
+      Array<SpecTokenUsage>
     >()
   })
 

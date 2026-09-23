@@ -461,7 +461,7 @@ function contentChunk(messageId: string, line: number): StreamChunk {
     // message a run saves is assembled from, so emitting the delta here made
     // every saved transcript one chunk long. Derived from `line` alone, so a
     // replay reproduces it byte for byte and alignment still holds.
-    content: accumulatedContent(line),
+    metadata: { tanstack: { content: accumulatedContent(line) } },
     timestamp: Date.now(),
   }
 }

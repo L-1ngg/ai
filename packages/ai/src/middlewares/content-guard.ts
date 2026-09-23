@@ -1,3 +1,4 @@
+import type { AdapterYieldChunk } from '../utilities/adapter-yield-chunk'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
@@ -146,7 +147,10 @@ function createDeltaStrategy(
       // `exactOptionalPropertyTypes` we can't assign `content: undefined`
       // against `content?: string`. The replacement event carries only the
       // filtered delta.
-      const { content: _strippedContent, ...rest } = chunk
+      const { content: _strippedContent, ...rest } = chunk as Extract<
+        AdapterYieldChunk,
+        { type: 'TEXT_MESSAGE_CONTENT' }
+      >
       void _strippedContent
       return {
         ...rest,

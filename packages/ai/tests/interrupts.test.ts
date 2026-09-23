@@ -184,7 +184,9 @@ describe('AG-UI interrupt protocol types', () => {
 
     expect(options.resume).toBe(resume)
     expectTypeOf<RunFinishedOutcome>().toMatchTypeOf<
-      { type: 'success' } | { type: 'interrupt'; interrupts: Array<Interrupt> }
+      | { type: 'success'; pendingToolCallIds?: Array<string> }
+      | { type: 'interrupt'; interrupts: Array<Interrupt> }
+      | { type: 'cancelled' }
     >()
   })
 })

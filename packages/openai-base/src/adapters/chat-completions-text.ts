@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
@@ -123,7 +124,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     if (!aguiState.hasEmittedRunStarted) {
       aguiState.hasEmittedRunStarted = true
       yield {
-        type: EventType.RUN_STARTED,
+        protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
         runId: aguiState.runId,
         threadId: aguiState.threadId,
         model: options.model,
@@ -437,7 +439,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
           yield {
-            type: EventType.RUN_STARTED,
+            protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunk.model || chatOptions.model,
@@ -586,14 +589,15 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         timestamp: Date.now(),
         finishReason: 'stop',
         ...(lastUsage && {
-          usage: buildChatCompletionsUsage(lastUsage),
+          ...toUsageEventFields(buildChatCompletionsUsage(lastUsage), { provider: this.name, model: lastModel || chatOptions.model }),
         }),
       }
     } catch (error: unknown) {
       if (!aguiState.hasEmittedRunStarted) {
         aguiState.hasEmittedRunStarted = true
         yield {
-          type: EventType.RUN_STARTED,
+          protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: chatOptions.model,
@@ -784,7 +788,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         if (!aguiState.hasEmittedRunStarted) {
           aguiState.hasEmittedRunStarted = true
           yield {
-            type: EventType.RUN_STARTED,
+            protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunk.model || options.model,
@@ -1163,7 +1168,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           model: lastModel || options.model,
           timestamp: Date.now(),
           ...(lastUsage && {
-            usage: buildChatCompletionsUsage(lastUsage),
+            ...toUsageEventFields(buildChatCompletionsUsage(lastUsage), { provider: this.name, model: lastModel || options.model }),
           }),
           finishReason,
         }

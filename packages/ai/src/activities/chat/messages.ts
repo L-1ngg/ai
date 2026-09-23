@@ -201,7 +201,7 @@ export function convertMessagesToModelMessages(
     }
 
     if (
-      role === 'user' &&
+      (role === 'user' || role === 'tool') &&
       Array.isArray((msg as { content?: unknown }).content)
     ) {
       const content = (msg as { content: Array<{ type: string }> }).content
@@ -210,7 +210,10 @@ export function convertMessagesToModelMessages(
       if (
         !content.some(
           (part) =>
-            part.type === 'text' && 'text' in part && !('content' in part),
+            (part.type === 'text' && 'text' in part && !('content' in part)) ||
+            ('source' in part &&
+              isRecord(part.source) &&
+              part.source.type === 'file'),
         )
       ) {
         modelMessages.push(modelMessage)
@@ -221,8 +224,10 @@ export function convertMessagesToModelMessages(
       )
       const contentParts = parts.filter(isContentPart)
       modelMessages.push({
-        role: 'user',
-        content: collapseContentParts(contentParts),
+        ...modelMessage,
+        role,
+        content:
+          collapseContentParts(contentParts) ?? (role === 'tool' ? '' : null),
         ...((msg as { id?: string }).id !== undefined && {
           id: (msg as { id: string }).id,
         }),
@@ -947,7 +952,9 @@ export function aguiSnapshotMessageToUIMessage(
         modelMessageToUIMessage(
           {
             role: 'tool',
-            content: message.content,
+            content: isContentPartArray(message.content)
+              ? message.content
+              : aguiContentToContentParts(message.content),
             toolCallId: message.toolCallId,
             ...('name' in message && typeof message.name === 'string'
               ? { name: message.name }
@@ -994,12 +1001,10 @@ export function aguiSnapshotMessageToUIMessage(
       })
     }
     case 'activity':
-    default:
-      // `activity` (and any future role) has no text/parts equivalent today.
       return applySnapshotMetadata(message, {
         id,
         role: 'assistant',
-        parts: [],
+        parts: [{ type: 'activity', activityType: message.activityType, content: message.content }],
       })
   }
 }
@@ -1013,6 +1018,7 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
       ? source.name
       : undefined
   let next = name !== undefined ? { ...ui, name } : ui
+  if ('subagentRunId' in source && typeof source.subagentRunId === 'string') next = { ...next, subagentRunId: source.subagentRunId }
 
   let metadata: NonNullable<UIMessage['metadata']> | undefined
   if ('metadata' in source) {
@@ -1065,31 +1071,45 @@ function snapshotStructuredOutput(
   }
 }
 
+/** Convert wire content parts, warning when provider handles cannot be represented. */
+export function aguiContentToContentParts(
+  content: Extract<AGUIMessage, { role: 'user' }>['content'],
+  warnOnFile = true,
+): string | Array<ContentPart> {
+  if (typeof content === 'string') return content
+  const parts: Array<ContentPart> = []
+  for (const part of content) {
+    if (part.type === 'text') {
+      const { text, ...rest } = part
+      parts.push({ ...rest, content: text })
+    } else if (part.source.type === 'file') {
+      if (warnOnFile) console.warn(
+        'AG-UI file content was dropped: TanStack message converters do not support provider file handles.',
+      )
+    } else {
+      parts.push({ ...part, source: part.source })
+    }
+  }
+  return parts
+}
+
 /**
  * Convert AG-UI user message content into `UIMessage` parts.
  *
  * AG-UI user content is either a plain string or a multimodal array whose text
  * entries use `{ type: 'text', text }` (vs. TanStack's `{ type: 'text', content }`).
  * Text entries are rewritten to the TanStack shape; image/audio/video/document
- * entries already match `ContentPart` and pass through. `binary` entries have no
- * TanStack equivalent and are dropped.
+ * entries already match `ContentPart` and pass through.
  */
 function aguiUserContentToParts(
   content: Extract<AGUIMessage, { role: 'user' }>['content'],
 ): Array<MessagePart> {
-  if (typeof content === 'string') {
-    return content ? [{ type: 'text', content }] : []
-  }
-
-  const parts: Array<MessagePart> = []
-  for (const part of content) {
-    if (part.type === 'text') {
-      parts.push({ type: 'text', content: part.text })
-    } else if (part.type !== 'binary') {
-      parts.push(part)
-    }
-  }
-  return parts
+  const converted = aguiContentToContentParts(content)
+  return typeof converted === 'string'
+    ? converted
+      ? [{ type: 'text', content: converted }]
+      : []
+    : converted
 }
 
 /**

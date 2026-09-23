@@ -1,15 +1,8 @@
+import type { TokenUsage as SpecTokenUsage } from '@ag-ui/core'
 import type { TokenUsage } from '../types'
 
 /** AG-UI spec `usage[]` item (provider/model labels + token counts only). */
-export interface SpecTokenUsage {
-  provider?: string
-  model?: string
-  inputTokens?: number
-  outputTokens?: number
-  totalTokens?: number
-  reasoningTokens?: number
-  cachedInputTokens?: number
-}
+export type { TokenUsage as SpecTokenUsage } from '@ag-ui/core'
 
 export interface ToSpecTokenUsageOptions {
   provider?: string
@@ -68,13 +61,21 @@ export function toSpecTokenUsage(
   if (cachedInputTokens !== undefined) {
     spec.cachedInputTokens = cachedInputTokens
   }
+  if (promptTokensDetails?.cacheWriteTokens !== undefined) {
+    spec.cacheWriteInputTokens = promptTokensDetails.cacheWriteTokens
+  }
   const reasoningTokens = completionTokensDetails?.reasoningTokens
   if (reasoningTokens !== undefined) {
     spec.reasoningTokens = reasoningTokens
   }
 
   const leftoverPrompt = promptTokensDetails
-    ? definedDetails(withoutKey(promptTokensDetails, 'cachedTokens'))
+    ? definedDetails(
+        withoutKey(
+          withoutKey(promptTokensDetails, 'cachedTokens'),
+          'cacheWriteTokens',
+        ),
+      )
     : undefined
   const leftoverCompletion = completionTokensDetails
     ? definedDetails(withoutKey(completionTokensDetails, 'reasoningTokens'))
@@ -111,8 +112,13 @@ export function fromSpecTokenUsage(
   usage: ReadonlyArray<SpecTokenUsage> | undefined,
   leftover?: TokenUsageLeftover,
 ): TokenUsage | undefined {
-  const spec = usage?.[0]
-  if (spec == null && leftover == null) {
+  const spec = usage?.reduce<SpecTokenUsage>((total, entry) => {
+    for (const key of ['inputTokens', 'outputTokens', 'totalTokens', 'cachedInputTokens', 'cacheWriteInputTokens', 'reasoningTokens'] as const) {
+      if (entry[key] !== undefined) total[key] = (total[key] ?? 0) + entry[key]
+    }
+    return total
+  }, {})
+  if ((usage === undefined || usage.length === 0) && leftover == null) {
     return undefined
   }
 
@@ -125,6 +131,9 @@ export function fromSpecTokenUsage(
   const promptTokensDetails = definedDetails({
     ...(spec?.cachedInputTokens !== undefined
       ? { cachedTokens: spec.cachedInputTokens }
+      : {}),
+    ...(spec?.cacheWriteInputTokens !== undefined
+      ? { cacheWriteTokens: spec.cacheWriteInputTokens }
       : {}),
     ...leftoverPromptDetails,
   })
@@ -144,5 +153,18 @@ export function fromSpecTokenUsage(
     ...(completionTokensDetails !== undefined
       ? { completionTokensDetails }
       : {}),
+  }
+}
+
+/** Convert provider accounting to the fields of an AG-UI terminal event. */
+export function toUsageEventFields(usage: TokenUsage | undefined, options?: ToSpecTokenUsageOptions): {
+  usage?: Array<SpecTokenUsage>
+  metadata?: { tanstack: { usage: TokenUsageLeftover } }
+} {
+  if (usage === undefined) return {}
+  const converted = toSpecTokenUsage(usage, options)
+  return {
+    usage: converted.usage,
+    ...(converted.leftover !== undefined ? { metadata: { tanstack: { usage: converted.leftover } } } : {}),
   }
 }

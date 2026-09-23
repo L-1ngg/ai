@@ -104,7 +104,7 @@ export const Route = createFileRoute('/_npm-github-chat/api/codemode')({
                 model: adapter.model,
                 timestamp: Date.now(),
                 name: 'code_mode:llm_call',
-                data: {
+                value: {
                   count: llmCallCount,
                   contextBytes,
                   totalContextBytes,
@@ -140,7 +140,7 @@ export const Route = createFileRoute('/_npm-github-chat/api/codemode')({
                 model: adapter.model,
                 timestamp: requestStartTimeMs,
                 name: 'code_mode:chat_start',
-                data: { startTimeMs: requestStartTimeMs },
+                value: { startTimeMs: requestStartTimeMs },
               } as StreamChunk
               for await (const chunk of stream) {
                 if (chunk.type === 'RUN_FINISHED') {
@@ -150,7 +150,7 @@ export const Route = createFileRoute('/_npm-github-chat/api/codemode')({
                     model: adapter.model,
                     timestamp: endTimeMs,
                     name: 'code_mode:chat_end',
-                    data: {
+                    value: {
                       endTimeMs,
                       durationMs: endTimeMs - requestStartTimeMs,
                     },

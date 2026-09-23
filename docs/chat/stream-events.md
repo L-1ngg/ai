@@ -20,7 +20,7 @@ Branch on `chunk.type`. Two ids frame every stream: `threadId` and `runId`.
 
 ## Event types
 
-Public `StreamChunk` follows [AG-UI](https://docs.ag-ui.com/introduction). TanStack extras live under `metadata.tanstack`.
+Public `StreamChunk` uses the event types from `@ag-ui/core@1.0.0`. TanStack extras live under `metadata.tanstack`.
 
 Do now:
 
@@ -56,6 +56,20 @@ for await (const chunk of stream) {
   }
 }
 ```
+
+## AG-UI 1.0 event types
+
+Use `EventType` from `@tanstack/ai` or `@tanstack/ai/client`. Both export the upstream enum.
+
+- `SUBAGENT_STARTED` identifies an invocation with `subagentRunId` and `name`. Parent references and `description` are optional.
+- `SUBAGENT_FINISHED` carries `subagentRunId`, optional `result`, and optional `outcome` (`success` or `suspended`).
+- `SUBAGENT_ERROR` carries `subagentRunId`, `message`, and optional `code`.
+- Chunk, activity, and raw events also belong to `StreamChunk`. Their fields keep the upstream optionality.
+- `RUN_FINISHED.outcome` also accepts `cancelled`. A success outcome can include `pendingToolCallIds`.
+
+These types describe protocol events. They do not start subagents or provide subagent client handles.
+
+`TOOL_CALL_RESULT.content` accepts a string or an array of AG-UI content parts. Text parts use `text` on the wire.
 
 ## Threads and runs
 

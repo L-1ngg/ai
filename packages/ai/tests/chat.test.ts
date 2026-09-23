@@ -4026,11 +4026,7 @@ describe('chat()', () => {
               timestamp: Date.now(),
               finishReason: 'stop',
               model: 'test-model',
-              usage: {
-                promptTokens: 10,
-                completionTokens: 5,
-                totalTokens: 15,
-              },
+              usage: [{ inputTokens: 10, outputTokens: 5, totalTokens: 15 }],
             },
           ],
         ],

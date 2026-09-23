@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { FinishReason } from '@google/genai'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
@@ -318,7 +319,8 @@ export class GeminiTextAdapter<
       const text = interaction.output_text ?? ''
 
       yield {
-        type: EventType.RUN_STARTED,
+        protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
         runId,
         threadId,
         model,
@@ -601,7 +603,8 @@ export class GeminiTextAdapter<
       if (!hasEmittedRunStarted) {
         hasEmittedRunStarted = true
         yield {
-          type: EventType.RUN_STARTED,
+          protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
           runId,
           threadId,
           model,
@@ -905,7 +908,7 @@ export class GeminiTextAdapter<
           // exactOptionalPropertyTypes; only include it when usageMetadata is
           // present rather than assigning an explicit `undefined`.
           ...(chunk.usageMetadata && {
-            usage: buildGeminiUsage(chunk.usageMetadata),
+            ...toUsageEventFields(buildGeminiUsage(chunk.usageMetadata), { provider: 'gemini', model: model }),
           }),
         }
       }

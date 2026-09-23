@@ -14,7 +14,8 @@ import { ev } from './test-utils'
 import type { WebSocketLike } from '../src/stream-to-websocket'
 import type { StreamDurability } from '../src/stream-durability'
 import { EventType } from '../src/types'
-import type { RunFinishedEvent, StreamChunk } from '../src/types'
+import type { StreamChunk } from '../src/types'
+import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 
 describe('ws frame codec', () => {
   it('encodes a durable frame as an { id, chunk } envelope', () => {
@@ -30,17 +31,13 @@ describe('ws frame codec', () => {
     expect(JSON.parse(encodeWsFrame(chunk, undefined))).toEqual(chunk)
   })
 
-  it('converts TokenUsage to spec usage[] on the wire', () => {
-    const chunk: RunFinishedEvent = {
+  it('preserves spec usage[] and cost metadata on the wire', () => {
+    const chunk: AdapterYieldChunk = {
       type: EventType.RUN_FINISHED,
       threadId: 't1',
       runId: 'r1',
-      usage: {
-        promptTokens: 10,
-        completionTokens: 5,
-        totalTokens: 15,
-        cost: 0.02,
-      },
+      usage: [{ inputTokens: 10, outputTokens: 5, totalTokens: 15 }],
+      metadata: { tanstack: { usage: { cost: 0.02 } } },
     }
     const encoded = JSON.parse(encodeWsFrame(chunk, undefined))
     expect(encoded.usage).toEqual([

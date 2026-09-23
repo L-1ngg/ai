@@ -5,11 +5,9 @@ import type { ContentPart, StreamChunk, ToolOutputState } from '../types'
  * Adapter / engine yield before normalize. Public StreamChunk is spec-only.
  * This type still allows the old extra fields.
  */
-export type AdapterYieldChunk = StreamChunk & {
+type AdapterExtras = {
   model?: string
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  // `any` so TokenUsage adapter yields stay assignable after public usage[]
-  usage?: any
   content?: string
   args?: string
   toolName?: string
@@ -28,3 +26,10 @@ export type AdapterYieldChunk = StreamChunk & {
   threadId?: string
   runId?: string
 }
+
+// Preserve spec fields when an adapter extra uses the same name.
+type WithAdapterExtras<T> = T extends StreamChunk
+  ? T & Omit<AdapterExtras, keyof T>
+  : never
+
+export type AdapterYieldChunk = WithAdapterExtras<StreamChunk>

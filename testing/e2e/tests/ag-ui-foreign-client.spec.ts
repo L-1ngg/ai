@@ -63,3 +63,48 @@ test.describe('AG-UI foreign client compatibility', () => {
     expect(response.ok()).toBe(true)
   })
 })
+
+test('AG-UI 1.0 accepts multimodal tool history', async ({
+  request,
+  testId,
+  aimockPort,
+}) => {
+  const response = await request.post('/api/chat', {
+    data: {
+      threadId: 'thread-tool-parts',
+      runId: 'run-tool-parts',
+      protocolVersion: '1.0',
+      state: {},
+      messages: [
+        { id: 'u1', role: 'user', content: '[chat] recommend a guitar' },
+        {
+          id: 'a1',
+          role: 'assistant',
+          toolCalls: [
+            {
+              id: 't1',
+              type: 'function',
+              function: { name: 'catalog', arguments: '{}' },
+            },
+          ],
+        },
+        {
+          id: 'r1',
+          role: 'tool',
+          toolCallId: 't1',
+          content: [{ type: 'text', text: 'Fender Stratocaster' }],
+        },
+      ],
+      tools: [],
+      context: [],
+      forwardedProps: {
+        provider: 'openai',
+        feature: 'chat',
+        testId,
+        aimockPort,
+      },
+    },
+  })
+  expect(response.ok(), await response.text()).toBe(true)
+  expect(await response.text()).toContain('RUN_FINISHED')
+})

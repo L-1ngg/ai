@@ -47,7 +47,8 @@ export async function* streamGenerationResult<TResult>(
   const threadId = options?.threadId ?? createId('thread')
 
   yield {
-    type: EventType.RUN_STARTED,
+    protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
     runId,
     threadId,
     timestamp: Date.now(),

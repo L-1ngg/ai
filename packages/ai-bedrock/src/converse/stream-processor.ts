@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { EventType } from '@tanstack/ai'
 import { buildConverseUsage } from './usage'
 import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
@@ -98,7 +99,8 @@ export async function* processConverseStream(
     if (hasEmittedRunStarted) return
     hasEmittedRunStarted = true
     yield {
-      type: EventType.RUN_STARTED,
+      protocolVersion: '1.0',
+type: EventType.RUN_STARTED,
       runId,
       threadId,
       parentRunId,
@@ -299,6 +301,6 @@ export async function* processConverseStream(
     threadId,
     timestamp: Date.now(),
     finishReason: finishReason ?? 'stop',
-    ...(usage && { usage }),
+    ...(usage && { ...toUsageEventFields(usage, { provider: 'bedrock' }) }),
   }
 }

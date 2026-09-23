@@ -34,7 +34,10 @@ export function buildAnthropicUsage(
 ): TokenUsage<AnthropicProviderUsageDetails> | undefined {
   if (!usage) return undefined
 
-  const inputTokens = usage.input_tokens ?? 0
+  const inputTokens =
+    (usage.input_tokens ?? 0) +
+    (usage.cache_creation_input_tokens ?? 0) +
+    (usage.cache_read_input_tokens ?? 0)
   // `|| 0` (rather than `?? 0`) matches the sibling builders and stays defensive
   // against a runtime-absent count without tripping no-unnecessary-condition
   // (the SDK types output_tokens as a required number).

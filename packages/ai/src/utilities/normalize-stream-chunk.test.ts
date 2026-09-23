@@ -36,21 +36,15 @@ function normalizeOne(chunk: AdapterYieldChunk) {
 }
 
 describe('normalizeStreamChunk', () => {
-  it('maps RUN_FINISHED TokenUsage onto spec usage[] and leftover metadata', () => {
+  it('preserves RUN_FINISHED usage[] and provider metadata', () => {
     const chunk = {
       type: EventType.RUN_FINISHED,
       threadId: 't1',
       runId: 'r1',
       model: 'gpt-5.5',
       finishReason: 'stop',
-      usage: {
-        promptTokens: 10,
-        completionTokens: 5,
-        totalTokens: 15,
-        cost: 0.02,
-        promptTokensDetails: { cachedTokens: 3, audioTokens: 1 },
-        completionTokensDetails: { reasoningTokens: 2 },
-      },
+      usage: [{ model: 'gpt-5.5', inputTokens: 10, outputTokens: 5, totalTokens: 15, cachedInputTokens: 3, reasoningTokens: 2 }],
+      metadata: { tanstack: { usage: { cost: 0.02, promptTokensDetails: { audioTokens: 1 } } } },
     } as AdapterYieldChunk
 
     const out = normalizeOne(chunk)
@@ -343,7 +337,7 @@ describe('normalizeStreamChunk', () => {
     expect(out).not.toHaveProperty('toolCallName')
   })
 
-  it('stringifies an array TOOL_CALL_END result onto RESULT content', () => {
+  it('converts an array TOOL_CALL_END result to wire content parts', () => {
     const parts = [{ type: 'text', content: 'hello' }]
     const out = normalizeAll({
       type: EventType.TOOL_CALL_END,
@@ -355,7 +349,7 @@ describe('normalizeStreamChunk', () => {
     expect(out[1]).toEqual({
       type: EventType.TOOL_CALL_RESULT,
       toolCallId: 'tc1',
-      content: JSON.stringify(parts),
+      content: [{ type: 'text', text: 'hello' }],
       messageId: 'tc1',
     })
   })

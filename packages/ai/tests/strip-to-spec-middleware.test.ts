@@ -1,6 +1,8 @@
+import { normalizeStreamChunk } from '../src/utilities/normalize-stream-chunk'
 import { describe, expect, it } from 'vitest'
 import { stripToSpec, toWireChunk } from '../src/strip-to-spec-middleware'
 import { EventType } from '../src/types'
+import type { StreamChunk } from '../src/types'
 import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 import { isSpecTopLevelKey } from '../src/utilities/spec-event-keys'
 
@@ -70,13 +72,8 @@ describe('stripToSpec', () => {
       type: EventType.RUN_FINISHED,
       runId: 'run-1',
       threadId: 'thread-1',
-      usage: {
-        promptTokens: 10,
-        completionTokens: 5,
-        totalTokens: 15,
-        cost: 0.02,
-        promptTokensDetails: { cachedTokens: 3, audioTokens: 1 },
-      },
+      usage: [{ inputTokens: 10, outputTokens: 5, totalTokens: 15, cachedInputTokens: 3 }],
+      metadata: { tanstack: { usage: { cost: 0.02, promptTokensDetails: { audioTokens: 1 } } } },
     })
     if (result.type !== EventType.RUN_FINISHED) {
       throw new Error('expected RUN_FINISHED')
@@ -121,4 +118,78 @@ describe('toWireChunk', () => {
       },
     })
   })
+})
+
+describe('AG-UI 1.0 wire events', () => {
+  it.each([
+    {
+      type: EventType.SUBAGENT_STARTED,
+      subagentRunId: 'child-1',
+      name: 'research',
+      description: 'Find sources',
+      parentSubagentRunId: 'parent-1',
+      parentToolCallId: 'tool-1',
+      parentMessageId: 'message-1',
+    },
+    {
+      type: EventType.SUBAGENT_FINISHED,
+      subagentRunId: 'child-1',
+      result: { found: 2 },
+      outcome: { type: 'suspended', interruptIds: ['approval-1'] },
+    },
+    {
+      type: EventType.SUBAGENT_ERROR,
+      subagentRunId: 'child-1',
+      message: 'Unavailable',
+      code: 'TIMEOUT',
+    },
+    {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      subagentRunId: 'child-1',
+      messageId: 'message-1',
+      delta: 'Found it',
+    },
+    {
+      type: EventType.RUN_STARTED,
+      threadId: 'thread-1',
+      runId: 'run-1',
+      protocolVersion: '1.0',
+    },
+    {
+      type: EventType.RUN_FINISHED,
+      threadId: 'thread-1',
+      runId: 'run-1',
+      outcome: { type: 'cancelled' },
+    },
+    {
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: 'message-1',
+      toolCallId: 'tool-1',
+      content: [
+        { type: 'text', text: 'Image' },
+        {
+          type: 'image',
+          source: { type: 'file', value: 'file-1', provider: 'openai' },
+        },
+      ],
+    },
+  ] satisfies Array<StreamChunk>)(
+    'keeps $type fields at the top level',
+    (chunk) => {
+      expect(toWireChunk(chunk)).toEqual(chunk)
+    },
+  )
+})
+
+it('preserves attribution on synthesized tool results and signatures', () => {
+  const events = normalizeStreamChunk({
+    type: EventType.TOOL_CALL_END,
+    toolCallId: 'tool-1',
+    subagentRunId: 'child-1',
+    result: 'done',
+    signature: 'opaque',
+  })
+  expect(events).toHaveLength(3)
+  for (const event of events)
+    expect(event).toHaveProperty('subagentRunId', 'child-1')
 })

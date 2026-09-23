@@ -201,7 +201,7 @@ describe('BedrockConverseTextAdapter', () => {
       outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
     })
     expect(res.usage).toEqual({
-      promptTokens: 3,
+      promptTokens: 8412,
       completionTokens: 4,
       totalTokens: 8416,
       promptTokensDetails: { cachedTokens: 8409, cacheWriteTokens: 0 },
@@ -287,17 +287,9 @@ describe('BedrockConverseTextAdapter', () => {
     expect(finished).toHaveLength(1)
     // Usage arrives on the trailing metadata event, after messageStop, yet is
     // folded into the single terminal RUN_FINISHED.
-    expect(
-      (
-        finished[0] as {
-          usage?: {
-            promptTokens: number
-            completionTokens: number
-            totalTokens: number
-          }
-        }
-      ).usage,
-    ).toEqual({ promptTokens: 7, completionTokens: 11, totalTokens: 18 })
+    expect(finished[0]?.usage?.[0]).toMatchObject({
+      inputTokens: 7, outputTokens: 11, totalTokens: 18,
+    })
   })
 
   it('forwards cache counts from the structuredOutputStream metadata usage', async () => {
@@ -338,11 +330,12 @@ describe('BedrockConverseTextAdapter', () => {
       events.push(c)
     }
     const finished = events.find((e) => e.type === EventType.RUN_FINISHED)
-    expect((finished as { usage?: unknown }).usage).toEqual({
-      promptTokens: 3,
-      completionTokens: 4,
+    expect(finished?.usage?.[0]).toMatchObject({
+      inputTokens: 8412,
+      outputTokens: 4,
       totalTokens: 8416,
-      promptTokensDetails: { cachedTokens: 8409, cacheWriteTokens: 0 },
+      cachedInputTokens: 8409,
+      cacheWriteInputTokens: 0,
     })
   })
 
