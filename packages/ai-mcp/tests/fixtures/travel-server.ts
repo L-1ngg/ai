@@ -3,7 +3,7 @@ import {
   createMCPServer,
   promptDefinition,
   resourceDefinition,
-} from '@tanstack/ai-mcp/server'
+} from '../../src/server'
 import { z } from 'zod'
 
 const getWeather = toolDefinition({
@@ -38,14 +38,10 @@ const tripBrief = promptDefinition({
   },
 ])
 
-export const server = createMCPServer({
+export const travelServer = createMCPServer({
   name: 'travel',
   version: '1.0.0',
   tools: [getWeather],
   resources: [cityGuide],
   prompts: [tripBrief],
 })
-
-export function handleMcp(request: Request) {
-  return server.fetch(request)
-}

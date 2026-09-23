@@ -85,6 +85,26 @@ type MCPServerOptions = {
   waitUntil?: (promise: Promise<unknown>) => void
 }
 
+/**
+ * One MCP server and the definitions it serves.
+ *
+ * `tools`, `resources`, and `prompts` keep the types from the arguments.
+ * Export this object from one package and import it in another.
+ * `createMCPClient({ server })` then uses those types.
+ */
+export type MCPServer<
+  TTools extends ReadonlyArray<AnyServerTool> = ReadonlyArray<AnyServerTool>,
+  TResources extends ReadonlyArray<McpResource> = ReadonlyArray<McpResource>,
+  TPrompts extends ReadonlyArray<McpPrompt> = ReadonlyArray<McpPrompt>,
+> = {
+  readonly name: string
+  readonly version: string
+  readonly tools: TTools
+  readonly resources: TResources
+  readonly prompts: TPrompts
+  fetch: (request: Request) => Promise<Response>
+}
+
 type SessionRecord = {
   protocolVersion: typeof spec2025
 }
@@ -102,7 +122,9 @@ type SessionRecord = {
  * `options.sample` is the model adapter for `ctx.sample` on spec 2026.
  * `options.waitUntil` receives the task promise so a worker can stay alive.
  *
- * The result has `fetch(request)`.
+ * The result has `fetch(request)`, `tools`, `resources`, and `prompts`.
+ * Those three lists keep the types you passed in.
+ * Export the result from one package and pass it to `createMCPClient({ server })` in another.
  * `fetch` serves tools, resources, and prompts.
  * It speaks spec `2026-07-28` and full spec 2025 sessions.
  * It does not serve `/.well-known/oauth-protected-resource`.
@@ -127,7 +149,17 @@ type SessionRecord = {
  * return server.fetch(request)
  * ```
  */
-export function createMCPServer(options: MCPServerOptions) {
+export function createMCPServer<
+  const TTools extends ReadonlyArray<AnyServerTool> = [],
+  const TResources extends ReadonlyArray<McpResource> = [],
+  const TPrompts extends ReadonlyArray<McpPrompt> = [],
+>(
+  options: Omit<MCPServerOptions, 'tools' | 'resources' | 'prompts'> & {
+    tools?: TTools
+    resources?: TResources
+    prompts?: TPrompts
+  },
+) {
   const taskStore = options.taskStore ?? inMemoryTaskStore()
   const sessions = protocolSessions(options.sessionStore)
   const transports = new Map<string, WebStandardStreamableHTTPServerTransport>()
@@ -151,6 +183,11 @@ export function createMCPServer(options: MCPServerOptions) {
   )
 
   return {
+    name: options.name,
+    version: options.version,
+    tools,
+    resources,
+    prompts,
     /**
      * Serves one MCP HTTP request.
      *

@@ -2,7 +2,7 @@
 title: Build an MCP Server
 id: mcp-server
 order: 5
-description: "Serve a tool, a resource, and a prompt from a TanStack Start app, then call that server from the page."
+description: "Serve a tool, a resource, and a prompt from a TanStack Start app. The client keeps those types."
 keywords:
   - tanstack ai
   - tutorial
@@ -18,6 +18,8 @@ keywords:
 You have a tool, a file, and a prompt. A host cannot call them yet.
 
 This tutorial serves all three from one TanStack Start app. A page in that app calls the server and shows the three results.
+
+The server object keeps the types. Another file, or another package, can import that object. `createMCPClient({ server })` then checks the tool name, the resource URI, and the prompt arguments.
 
 This tutorial uses React and Start. The short guide is [Serve Tools over HTTP](../mcp/server).
 
@@ -49,7 +51,7 @@ The page calls the server and shows the forecast, the guide, and the brief.
 
 Create `src/mcp-server.ts`.
 
-The tool returns the weather for one city. A host calls that tool when it needs the forecast.
+The tool returns the weather for one city. `outputSchema` makes that result a string for the client.
 
 The resource is a short city guide. A host reads that file by URI.
 
@@ -70,6 +72,7 @@ const getWeather = toolDefinition({
   inputSchema: z.object({
     city: z.string(),
   }),
+  outputSchema: z.string(),
 }).server(async ({ city }) => {
   return `Sunny in ${city}`
 })
@@ -95,7 +98,7 @@ const tripBrief = promptDefinition({
   },
 ])
 
-const server = createMCPServer({
+export const server = createMCPServer({
   name: 'travel',
   version: '1.0.0',
   tools: [getWeather],
@@ -108,7 +111,9 @@ export function handleMcp(request: Request) {
 }
 ```
 
-Create the server once. `handleMcp` calls `fetch` for each request.
+Create the server once. Export `server`. `handleMcp` calls `fetch` for each request.
+
+`server` carries the tool list, the resource list, and the prompt list. An import in another package sees the same types.
 
 ## 3. Mount the route
 
@@ -135,12 +140,21 @@ export const Route = createFileRoute('/api/mcp')({
 
 Create `src/lib/call-server.ts`.
 
-The client uses `handleMcp` as its fetch. The page does not need a model key.
+Pass `server` to `createMCPClient`. The page does not need a model key.
+
+The call is type-safe:
+
+- `get_weather` is the only tool name.
+- `city` is a string. The result is a string.
+- `file:///city-guide.md` is the only resource URI.
+- `trip_brief` is the only prompt name. `city` is a string.
+
+A wrong name is a type error. A number for `city` is a type error.
 
 ```ts ignore
 import { createServerFn } from '@tanstack/react-start'
 import { createMCPClient } from '@tanstack/ai-mcp'
-import { handleMcp } from '../mcp-server'
+import { server } from '../mcp-server'
 
 export type DeskResult = {
   forecast: string
@@ -148,56 +162,17 @@ export type DeskResult = {
   brief: string
 }
 
-function textFrom(value: unknown) {
-  if (typeof value === 'string') return value
-  return ''
-}
-
-function messageText(message: unknown) {
-  if (typeof message !== 'object' || message === null) return ''
-  if (!('content' in message)) return ''
-  const content = message.content
-  if (typeof content === 'string') return content
-  if (
-    typeof content === 'object' &&
-    content !== null &&
-    'text' in content &&
-    typeof content.text === 'string'
-  ) {
-    return content.text
-  }
-  return ''
-}
-
 export const callDesk = createServerFn({ method: 'POST' }).handler(
   async (): Promise<DeskResult> => {
-    const client = await createMCPClient({
-      transport: {
-        type: 'http',
-        url: 'http://127.0.0.1/mcp',
-        fetch: (input, init) => handleMcp(new Request(input, init)),
-      },
-    })
-
-    try {
-      const tools = await client.tools()
-      const weather = tools.find((tool) => tool.name === 'get_weather')
-      const execute = weather?.execute
-      const forecast =
-        execute === undefined ? '' : textFrom(await execute({ city: 'Paris' }))
-      const guideResult = await client.readResource('file:///city-guide.md')
-      const guideBlock = guideResult.contents[0]
-      const guide =
-        guideBlock !== undefined &&
-        'text' in guideBlock &&
-        typeof guideBlock.text === 'string'
-          ? guideBlock.text
-          : ''
-      const prompt = await client.getPrompt('trip_brief', { city: 'Paris' })
-      const brief = messageText(prompt.messages[0])
-      return { forecast, guide, brief }
-    } finally {
-      await client.close()
+    const client = await createMCPClient({ server })
+    const forecast = await client.callTool('get_weather', { city: 'Paris' })
+    const guide = await client.readResource('file:///city-guide.md')
+    const prompt = await client.getPrompt('trip_brief', { city: 'Paris' })
+    const message = prompt[0]
+    return {
+      forecast,
+      guide: guide.text,
+      brief: message === undefined ? '' : message.content,
     }
   },
 )

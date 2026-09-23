@@ -26,12 +26,14 @@ type PromptArgsSchema<TArgs> = {
  * }).read(async () => ({ text: '# Hello' }))
  * ```
  */
-export function resourceDefinition(config: {
-  name: string
-  mimeType: string
-  uri?: string
-  uriTemplate?: string
-}) {
+export function resourceDefinition<
+  const TConfig extends {
+    name: string
+    mimeType: string
+    uri?: string
+    uriTemplate?: string
+  },
+>(config: TConfig) {
   const hasUri = config.uri !== undefined
   const hasUriTemplate = config.uriTemplate !== undefined
   if (!hasUri && !hasUriTemplate) {
@@ -40,18 +42,11 @@ export function resourceDefinition(config: {
     )
   }
 
-  const definition = {
-    name: config.name,
-    mimeType: config.mimeType,
-    uri: config.uri,
-    uriTemplate: config.uriTemplate,
-  }
-
   return {
-    ...definition,
+    ...config,
     read<TContents>(readContents: () => TContents | Promise<TContents>) {
       return {
-        ...definition,
+        ...config,
         read: readContents,
       }
     },
@@ -77,8 +72,8 @@ export function resourceDefinition(config: {
  * }).render(async (args) => [{ role: 'user', content: args.topic }])
  * ```
  */
-export function promptDefinition<TArgs>(config: {
-  name: string
+export function promptDefinition<const TName extends string, TArgs>(config: {
+  name: TName
   description: string
   argsSchema: PromptArgsSchema<TArgs>
 }) {

@@ -15,6 +15,8 @@ keywords:
 
 You have TanStack server tools. A host cannot call those tools over HTTP.
 
+Pass that server object to `createMCPClient({ server })`. The client checks the tool names, the resource URIs, and the prompt arguments.
+
 For a tool, a resource, and a prompt in one app, open [Build an MCP Server](../tutorials/mcp-server).
 
 `createMCPServer` serves those tools over MCP. Return `server.fetch(request)` from your route.

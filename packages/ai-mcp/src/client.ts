@@ -14,7 +14,10 @@ import {
   toolMcpMetadata,
   toServerTools,
 } from './tools'
+import { directMCPClient } from './direct-client'
 import { isTransportInstance, resolveTransport } from './transport'
+import type { DirectClientOptions, DirectMCPClient } from './direct-client'
+import type { MCPServer } from './server/create-server'
 import type { TransportConfig } from './transport'
 import type {
   AnyToolDefinition,
@@ -387,9 +390,44 @@ class MCPClientImpl<
   }
 }
 
+/**
+ * Connects to an MCP server.
+ *
+ * Pass `transport` for a server at a URL, on SSE, or on stdio.
+ * Pass `server` for a TanStack `createMCPServer` result in this program.
+ * `server` keeps the tool names, resource URIs, and prompt arguments.
+ * Export that server from one package and import it in another.
+ *
+ * @param options - A transport, or a TanStack MCP server
+ *
+ * @example
+ * ```ts
+ * const remote = await createMCPClient({
+ *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+ * })
+ *
+ * const local = await createMCPClient({ server })
+ * await local.callTool('get_weather', { city: 'Paris' })
+ * ```
+ */
 export async function createMCPClient<
+  TDescriptor extends ServerDescriptor = AutomaticDescriptor,
+>(options: MCPClientOptions): Promise<MCPClient<TDescriptor>>
+export async function createMCPClient<TServer extends MCPServer>(
+  options: DirectClientOptions<TServer>,
+): Promise<DirectMCPClient<TServer>>
+export async function createMCPClient(
+  options: MCPClientOptions | DirectClientOptions<MCPServer>,
+): Promise<MCPClient | DirectMCPClient<MCPServer>> {
+  if ('server' in options) {
+    return directMCPClient(options.server)
+  }
+  return connectTransport(options)
+}
+
+async function connectTransport<
   TServer extends ServerDescriptor = AutomaticDescriptor,
->(options: MCPClientOptions): Promise<MCPClient<TServer>> {
+>(options: MCPClientOptions) {
   const transport = await resolveTransport(options.transport)
   const impl = new MCPClientImpl<TServer>(
     options.prefix,
