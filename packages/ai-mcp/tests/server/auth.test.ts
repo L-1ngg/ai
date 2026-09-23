@@ -333,6 +333,47 @@ describe('requireBearerAuth', () => {
     }
   })
 
+  it('waits 30 seconds after a failed JWKS fetch before it fetches again', async () => {
+    const key = await signingKey('RS256', 'rsa-1')
+    const token = await signJwt(key, { sub: 'user', exp: futureExp() })
+    let fetches = 0
+    const auth = {
+      jwksUrl: JWKS_URL,
+      resource: RESOURCE,
+      fetch: async () => {
+        fetches += 1
+        return new Response(null, { status: 503 })
+      },
+    }
+    expect((await bearerResult(`Bearer ${token}`, auth))?.status).toBe(401)
+    expect((await bearerResult(`Bearer ${token}`, auth))?.status).toBe(401)
+    expect(fetches).toBe(1)
+  })
+
+  it('shares one JWKS fetch between requests that miss at the same time', async () => {
+    const key = await signingKey('RS256', 'rsa-1')
+    const token = await signJwt(key, { sub: 'user', exp: futureExp() })
+    let fetches = 0
+    const auth = {
+      jwksUrl: JWKS_URL,
+      resource: RESOURCE,
+      fetch: async () => {
+        fetches += 1
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        return new Response(JSON.stringify({ keys: [key.jwk] }), {
+          status: 200,
+        })
+      },
+    }
+    const results = await Promise.all([
+      bearerResult(`Bearer ${token}`, auth),
+      bearerResult(`Bearer ${token}`, auth),
+      bearerResult(`Bearer ${token}`, auth),
+    ])
+    expect(results).toEqual([undefined, undefined, undefined])
+    expect(fetches).toBe(1)
+  })
+
   it('keeps the RSA and EC keys when the JWKS also has an OKP key', async () => {
     const key = await signingKey('RS256', 'rsa-1')
     const token = await signJwt(key, { sub: 'user', exp: futureExp() })

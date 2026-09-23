@@ -253,8 +253,8 @@ export const Route = createFileRoute('/')({
 
 ## 5. Run the app
 
-1. Run `pnpm --filter mcp-server dev`.
-2. Open http://localhost:3100.
+1. In the app folder, run `pnpm dev`.
+2. Open the URL that the dev server prints. The default is http://localhost:3000.
 3. Click Call the server.
 
 The page shows `Sunny in Paris`, the city guide, and the trip brief.

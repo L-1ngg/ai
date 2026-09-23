@@ -132,20 +132,32 @@ export function serveMCPStdio(server: {
       'mcp-session-id': sessionId,
       'mcp-protocol-version': legacyProtocol,
     })
-    const response = await server.fetch(
-      new Request(mcpUrl, {
-        method: 'GET',
-        headers,
-        signal: controller.signal,
-      }),
-    )
-    if (!response.ok || response.body === null) {
+    // A failed or ended stream resets the flag, so the next message opens
+    // a new one. The failure must not replace the answer being forwarded.
+    const stopStream = () => {
       legacyStream = false
       aborts.delete(controller)
+    }
+    let response: Response
+    try {
+      response = await server.fetch(
+        new Request(mcpUrl, {
+          method: 'GET',
+          headers,
+          signal: controller.signal,
+        }),
+      )
+    } catch (error) {
+      stopStream()
+      if (!closed) console.error(errorText(error))
+      return
+    }
+    if (!response.ok || response.body === null) {
+      stopStream()
       console.error(`MCP stdio legacy stream failed: ${response.status}`)
       return
     }
-    void pumpLegacyStream(response.body, controller)
+    void pumpLegacyStream(response.body, controller).finally(stopStream)
   }
 
   async function pumpLegacyStream(

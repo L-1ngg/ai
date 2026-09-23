@@ -30,6 +30,8 @@ if (process.env[childEnv] === '1') {
   startChildServer()
 } else if (process.env[childEnv] === 'input') {
   startInputServer()
+} else if (process.env[childEnv] === 'flaky-stream') {
+  startFlakyStreamServer()
 } else {
   describe('serveMCPStdio', () => {
     it('lists and calls the tool for a spec 2025 stdio client', async () => {
@@ -48,6 +50,31 @@ if (process.env[childEnv] === '1') {
       const result = await askOverStdio()
       expect(result).toEqual([{ type: 'text', text: 'Paris' }])
     }, 60000)
+
+    it('keeps the answer and opens the spec 2025 stream again after a failed open', async () => {
+      const result = await echoOverStdio('2025', 'flaky-stream')
+      expect(result.content).toEqual([{ type: 'text', text: 'hi' }])
+      expect(result.stderr).toContain('stream open 2')
+    }, 60000)
+  })
+}
+
+// The first GET stream throws. The next message must open a new one.
+function startFlakyStreamServer() {
+  const server = createMCPServer({
+    name: 'weather',
+    version: '1.0.0',
+    tools: [echoTool()],
+  })
+  let opens = 0
+  serveMCPStdio({
+    fetch(request) {
+      if (request.method !== 'GET') return server.fetch(request)
+      opens += 1
+      console.error(`stream open ${opens}`)
+      if (opens === 1) return Promise.reject(new Error('stream open failed'))
+      return server.fetch(request)
+    },
   })
 }
 
@@ -93,7 +120,10 @@ function clientFor(era: '2025' | '2026') {
   )
 }
 
-async function echoOverStdio(era: '2025' | '2026') {
+async function echoOverStdio(
+  era: '2025' | '2026',
+  mode: '1' | 'flaky-stream' = '1',
+) {
   const testFile = fileURLToPath(import.meta.url)
   const packageRoot = fileURLToPath(new URL('../..', import.meta.url))
   const stderrChunks: Array<string> = []
@@ -101,7 +131,7 @@ async function echoOverStdio(era: '2025' | '2026') {
     command: process.execPath,
     args: ['--import', 'jiti/register', testFile],
     cwd: packageRoot,
-    env: { [childEnv]: '1' },
+    env: { [childEnv]: mode },
     stderr: 'pipe',
   })
   transport.stderr?.on('data', (chunk) => {
@@ -118,6 +148,7 @@ async function echoOverStdio(era: '2025' | '2026') {
     return {
       names: listed.tools.map((tool) => tool.name),
       content: echoed.content,
+      stderr: stderrChunks.join(''),
     }
   } catch (error) {
     const detail =

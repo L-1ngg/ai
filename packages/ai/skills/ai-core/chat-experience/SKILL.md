@@ -546,8 +546,22 @@ try {
 }
 ```
 
-`chat({ resume })` does not continue this interrupt.
-Read `request` in the UI.
+To continue, answer the interrupt:
+
+1. In `useChat`, the item `kind` is `generic`.
+2. For a `form`, call `resolveInterrupt` with an object that matches `request.requestedSchema`. A `createMCPServer` server asks for `{ value: string }`.
+3. For `sampling`, call `resolveInterrupt` with the reply text.
+4. Call `cancel()` to decline.
+5. The route passes `parentRunId` and `resume` to `chat()`. The tool runs again with the answer.
+
+```tsx ignore
+// `interrupt` is one item from `useChat().interrupts`.
+if (interrupt.reason === 'mcp_input' && interrupt.kind === 'generic') {
+  interrupt.resolveInterrupt({ value: 'Paris' })
+}
+```
+
+This works on spec `2026-07-28`. On spec 2025, the server asks the client in the middle of the tool call. `chat()` cannot pause that call, so the tool call fails.
 
 ### 7. Queueing Messages Sent While Streaming
 

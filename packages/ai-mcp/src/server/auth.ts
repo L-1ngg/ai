@@ -236,19 +236,26 @@ function timeClaimsAllow(payload: JwtPayload) {
 
 const jwksTtlMs = 5 * 60 * 1000
 const jwksFetchTimeoutMs = 3_000
-// An unknown kid refetches a fresh key set at most this often.
-// The kid is read before the signature check, so any caller can send one.
-const unknownKidRefetchMs = 30 * 1000
+// A cache miss fetches the key set at most this often, and a failed fetch
+// counts too. The kid is read before the signature check, so any caller
+// can cause a miss.
+// ponytail: after a failed first fetch, tokens fail for up to 30 seconds.
+const jwksRefetchMs = 30 * 1000
 
 type CachedJwks = {
   keys: ReadonlyArray<ServerJwk>
   expiresAt: number
-  fetchedAt: number
 }
 
 // Each fetch function has its own cache entry.
 // A test double does not reuse keys from another test.
 const jwksCache = new Map<string, CachedJwks>()
+const jwksAttemptAt = new Map<string, number>()
+// Misses at the same time share one fetch.
+const jwksInflight = new Map<
+  string,
+  Promise<ReadonlyArray<ServerJwk> | undefined>
+>()
 const fetchIds = new WeakMap<JwksFetch, number>()
 let nextFetchId = 1
 
@@ -274,12 +281,27 @@ async function fetchJwks(auth: JwksAuth, kid: string | undefined) {
   const now = Date.now()
   const fresh = cached !== undefined && cached.expiresAt > now
   if (fresh && cacheHasKid(cached.keys, kid)) return cached.keys
+
+  const running = jwksInflight.get(cacheKey)
+  if (running !== undefined) return running
   // A rotated key can appear before the cache expires. Look again, but not
-  // on every request.
-  if (fresh && now - cached.fetchedAt < unknownKidRefetchMs) {
-    return cached.keys
+  // on every request. The last keys still answer during the wait.
+  const attemptAt = jwksAttemptAt.get(cacheKey)
+  if (attemptAt !== undefined && now - attemptAt < jwksRefetchMs) {
+    return cached?.keys
   }
 
+  jwksAttemptAt.set(cacheKey, now)
+  const pending = loadJwks(auth, cacheKey)
+  jwksInflight.set(cacheKey, pending)
+  try {
+    return await pending
+  } finally {
+    jwksInflight.delete(cacheKey)
+  }
+}
+
+async function loadJwks(auth: JwksAuth, cacheKey: string) {
   const fetchImpl = auth.fetch ?? fetch
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), jwksFetchTimeoutMs)
@@ -291,12 +313,7 @@ async function fetchJwks(auth: JwksAuth, kid: string | undefined) {
     const body: unknown = await response.json()
     const keys = supportedKeys(body)
     if (keys === undefined) return undefined
-    const fetchedAt = Date.now()
-    jwksCache.set(cacheKey, {
-      keys,
-      expiresAt: fetchedAt + jwksTtlMs,
-      fetchedAt,
-    })
+    jwksCache.set(cacheKey, { keys, expiresAt: Date.now() + jwksTtlMs })
     return keys
   } catch {
     return undefined
