@@ -20,6 +20,20 @@ import type {
 } from '@tanstack/ai-event-client'
 import type {
   ActivityMessage as AGUIActivityMessage,
+  BaseMessage as AGUIBaseMessage,
+  Message as AGUIMessage,
+  ContentPart as AGUIContentPart,
+  DataSource as AGUIDataSource,
+  UrlSource as AGUIUrlSource,
+  TextPart as AGUITextPart,
+  ImagePart as AGUIImagePart,
+  AudioPart as AGUIAudioPart,
+  VideoPart as AGUIVideoPart,
+  DocumentPart as AGUIDocumentPart,
+  ReasoningMessage as AGUIReasoningMessage,
+  ToolCall as AGUIToolCall,
+  FunctionCall as AGUIFunctionCall,
+  ToolMessage as AGUIToolMessage,
   ActivitySnapshotEvent as AGUIActivitySnapshotEvent,
   ActivityDeltaEvent as AGUIActivityDeltaEvent,
   RawEvent as AGUIRawEvent,
@@ -170,13 +184,10 @@ export type InferSchemaType<T> =
       ? TInput
       : unknown
 
-export interface ToolCall<TMetadata = unknown> {
-  id: string
-  type: 'function'
-  function: {
-    name: string
-    arguments: string // JSON string
-  }
+export interface ToolCall<TMetadata = unknown> extends Pick<
+  AGUIToolCall,
+  'id' | 'type' | 'function'
+> {
   /** Provider-specific metadata to carry through the tool call lifecycle.
    * Typed per-adapter via `TToolCallMetadata`. For example,
    * `@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`. */
@@ -215,46 +226,19 @@ export interface ProviderExecutedToolMetadata {
  * - 'video': Video content (base64 or URL)
  * - 'document': Document content like PDFs (base64 or URL)
  */
-export type Modality = 'text' | 'image' | 'audio' | 'video' | 'document'
+export type Modality = AGUIContentPart['type']
 
 /**
  * Source specification for inline data content (base64).
  * Requires a mimeType to ensure providers receive proper content type information.
  */
-export interface ContentPartDataSource {
-  /**
-   * Indicates this is inline data content.
-   */
-  type: 'data'
-  /**
-   * The base64-encoded content value.
-   */
-  value: string
-  /**
-   * The MIME type of the content (e.g., 'image/png', 'audio/wav').
-   * Required for data sources to ensure proper handling by providers.
-   */
-  mimeType: string
-}
+export interface ContentPartDataSource extends AGUIDataSource {}
 
 /**
  * Source specification for URL-based content.
  * mimeType is optional as it can often be inferred from the URL or response headers.
  */
-export interface ContentPartUrlSource {
-  /**
-   * Indicates this is URL-referenced content.
-   */
-  type: 'url'
-  /**
-   * HTTP(S) URL or data URI pointing to the content.
-   */
-  value: string
-  /**
-   * Optional MIME type hint for cases where providers can't infer it from the URL.
-   */
-  mimeType?: string
-}
+export interface ContentPartUrlSource extends AGUIUrlSource {}
 
 /**
  * Source specification for multimodal content.
@@ -268,8 +252,10 @@ export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
  * Image content part for multimodal messages.
  * @template TMetadata - Provider-specific metadata type (e.g., OpenAI's detail level)
  */
-export interface ImagePart<TMetadata = unknown> {
-  type: 'image'
+export interface ImagePart<TMetadata = unknown> extends Pick<
+  AGUIImagePart,
+  'type'
+> {
   /** Source of the image content */
   source: ContentPartSource
   /** Provider-specific metadata (e.g., OpenAI's detail: 'auto' | 'low' | 'high') */
@@ -280,8 +266,10 @@ export interface ImagePart<TMetadata = unknown> {
  * Audio content part for multimodal messages.
  * @template TMetadata - Provider-specific metadata type
  */
-export interface AudioPart<TMetadata = unknown> {
-  type: 'audio'
+export interface AudioPart<TMetadata = unknown> extends Pick<
+  AGUIAudioPart,
+  'type'
+> {
   /** Source of the audio content */
   source: ContentPartSource
   /** Provider-specific metadata (e.g., format, sample rate) */
@@ -292,8 +280,10 @@ export interface AudioPart<TMetadata = unknown> {
  * Video content part for multimodal messages.
  * @template TMetadata - Provider-specific metadata type
  */
-export interface VideoPart<TMetadata = unknown> {
-  type: 'video'
+export interface VideoPart<TMetadata = unknown> extends Pick<
+  AGUIVideoPart,
+  'type'
+> {
   /** Source of the video content */
   source: ContentPartSource
   /** Provider-specific metadata (e.g., duration, resolution) */
@@ -304,8 +294,10 @@ export interface VideoPart<TMetadata = unknown> {
  * Document content part for multimodal messages (e.g., PDFs).
  * @template TMetadata - Provider-specific metadata type (e.g., Anthropic's media_type)
  */
-export interface DocumentPart<TMetadata = unknown> {
-  type: 'document'
+export interface DocumentPart<TMetadata = unknown> extends Pick<
+  AGUIDocumentPart,
+  'type'
+> {
   /** Source of the document content */
   source: ContentPartSource
   /** Provider-specific metadata (e.g., media_type for PDFs) */
@@ -408,17 +400,14 @@ export interface ModelMessage<
 /**
  * Message parts - building blocks of UIMessage
  */
-export interface TextPart<TMetadata = unknown> {
-  type: 'text'
-  content: string
+export interface TextPart<TMetadata = unknown> extends Pick<AGUITextPart, 'type'> {
+  content: AGUITextPart['text']
   metadata?: TMetadata
 }
 
-export interface ToolCallPart<TMetadata = unknown> {
+export interface ToolCallPart<TMetadata = unknown>
+  extends Pick<AGUIToolCall, 'id'>, AGUIFunctionCall {
   type: 'tool-call'
-  id: string
-  name: string
-  arguments: string // JSON string (may be incomplete)
   /**
    * Parsed tool input. Set from the parsed arguments once they are complete
    * (`state: 'input-complete'` and later). `undefined` while the raw
@@ -444,28 +433,25 @@ export interface ToolCallPart<TMetadata = unknown> {
   metadata?: TMetadata
 }
 
-export interface ToolResultPart {
+export interface ToolResultPart
+  extends Pick<AGUIToolMessage, 'toolCallId' | 'error'>,
+    Partial<Pick<AGUIToolMessage, 'id'>> {
   type: 'tool-result'
   /** Lossless AG-UI content, including opaque provider file handles. */
-  wireContent?: import('@ag-ui/core').ToolMessage['content']
-  id?: string
+  wireContent?: AGUIToolMessage['content']
   name?: string
-  toolCallId: string
   content: string | Array<ContentPart>
   state: ToolResultState
-  error?: string // Error message if state is "error"
   metadata?: Record<string, unknown>
   createdAt?: Date
 }
 
-export interface ThinkingPart {
+export interface ThinkingPart
+  extends Pick<AGUIReasoningMessage, 'content'>,
+    Partial<Pick<AGUIReasoningMessage, 'id' | 'metadata'>> {
   type: 'thinking'
-  /** Original AG-UI reasoning message identifier. */
-  id?: string
-  metadata?: Record<string, unknown>
-  content: string
   stepId?: string
-  signature?: string
+  signature?: AGUIReasoningMessage['encryptedValue']
 }
 
 /**
@@ -529,11 +515,7 @@ export interface ActivityPart extends Pick<
 }
 
 export type MessagePart<TData = unknown> =
-  | TextPart
-  | ImagePart
-  | AudioPart
-  | VideoPart
-  | DocumentPart
+  | ContentPart
   | ToolCallPart
   | ToolResultPart
   | ThinkingPart
@@ -593,20 +575,13 @@ export interface TanStackRunMetadata {
  * narrows `parts.find(p => p.type === 'structured-output').data` on the
  * consumer side without manual casts.
  */
-export interface UIMessage<TData = unknown> {
-  id: string
-  /** The subagent invocation that owns this message. */
-  subagentRunId?: string
-  role: 'system' | 'user' | 'assistant'
+export interface UIMessage<TData = unknown> extends Pick<
+  AGUIBaseMessage,
+  'id' | 'name' | 'metadata' | 'subagentRunId'
+> {
+  role: Extract<AGUIMessage['role'], 'system' | 'user' | 'assistant'>
   parts: Array<MessagePart<TData>>
   createdAt?: Date
-  /** Optional AG-UI sender name. Converters preserve it across wire and persist. */
-  name?: string
-  /**
-   * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
-   * User keys stay at the top.
-   */
-  metadata?: Record<string, any>
 }
 
 export type InputModalitiesTypes = {

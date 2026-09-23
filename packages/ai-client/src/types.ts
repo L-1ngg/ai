@@ -2,12 +2,9 @@ import type {
   AnyClientTool,
   ApprovalCapabilityOf,
   ApprovalSchemaOf,
-  AudioPart,
   BatchInterruptError,
   ChunkStrategy,
   ContentPart,
-  DocumentPart,
-  ImagePart,
   InferSchemaType,
   InterruptDefinition,
   InferToolInput,
@@ -22,9 +19,12 @@ import type {
   SchemaInput,
   StreamChunk,
   StructuredOutputPart,
-  UIResourcePart,
-  ActivityPart,
-  VideoPart,
+  MessagePart as CoreMessagePart,
+  TextPart as CoreTextPart,
+  ThinkingPart as CoreThinkingPart,
+  ToolCallPart as CoreToolCallPart,
+  ToolResultPart as CoreToolResultPart,
+  UIMessage as CoreUIMessage,
 } from '@tanstack/ai/client'
 import type { ByokClient } from './byok'
 import type { ConnectionAdapter } from './connection-adapters'
@@ -343,22 +343,12 @@ export type ChatTransport =
 /**
  * Tool call states - track the lifecycle of a tool call
  */
-export type ToolCallState =
-  | 'awaiting-input' // Received start but no arguments yet
-  | 'input-streaming' // Partial arguments received
-  | 'input-complete' // All arguments received
-  | 'approval-requested' // Waiting for user approval
-  | 'approval-responded' // User has approved/denied
-  | 'complete' // Result is complete
-  | 'error' // Tool execution failed (terminal)
+export type ToolCallState = CoreToolCallPart['state']
 
 /**
  * Tool result states - track the lifecycle of a tool result
  */
-export type ToolResultState =
-  | 'streaming' // Placeholder for future streamed output
-  | 'complete' // Result is complete
-  | 'error' // Error occurred
+export type ToolResultState = CoreToolResultPart['state']
 
 /**
  * ChatClient state - track the lifecycle of a chat
@@ -510,10 +500,7 @@ export interface SendMessageOptions {
 /**
  * Message parts - building blocks of UIMessage
  */
-export interface TextPart {
-  type: 'text'
-  content: string
-}
+export interface TextPart extends CoreTextPart {}
 
 /**
  * Helper type that creates a tool-call part for a specific tool.
@@ -521,14 +508,10 @@ export interface TextPart {
  * creating a discriminated union where `name` is the discriminant.
  */
 type ToolCallPartForTool<T> = T extends AnyClientTool
-  ? {
-      type: 'tool-call'
-      id: string
+  ? Omit<CoreToolCallPart, 'name' | 'input' | 'output' | 'approval'> & {
       name: T['name']
-      arguments: string // JSON string (may be incomplete)
       /** Parsed tool input (typed from inputSchema) */
       input?: InferToolInput<T>
-      state: ToolCallState
       /** Tool execution output (for client tools or after approval) */
       output?: InferToolOutput<T>
     } & (NonNullable<T['needsApproval']> extends true
@@ -555,20 +538,7 @@ type ToolCallPartForTool<T> = T extends AnyClientTool
 /**
  * Fallback tool-call part type when tools are not typed
  */
-type UntypedToolCallPart = {
-  type: 'tool-call'
-  id: string
-  name: string
-  arguments: string
-  input?: any
-  state: ToolCallState
-  approval?: {
-    id: string
-    needsApproval: boolean
-    approved?: boolean
-  }
-  output?: any
-}
+type UntypedToolCallPart = Omit<CoreToolCallPart, 'input'> & { input?: any }
 
 /**
  * Tool call part that creates a proper discriminated union.
@@ -594,38 +564,16 @@ export type ToolCallPart<TTools extends ReadonlyArray<AnyClientTool> = any> =
           : UntypedToolCallPart
         : UntypedToolCallPart
 
-export interface ToolResultPart {
-  type: 'tool-result'
-  id?: string
-  name?: string
-  toolCallId: string
-  content: string | Array<ContentPart>
-  state: ToolResultState
-  error?: string // Error message if state is "error"
-  metadata?: Record<string, unknown>
-  createdAt?: Date
-}
+export interface ToolResultPart extends CoreToolResultPart {}
 
-export interface ThinkingPart {
-  type: 'thinking'
-  content: string
-}
+export interface ThinkingPart extends CoreThinkingPart {}
 
 export type MessagePart<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
 > =
-  | TextPart
-  | ImagePart
-  | AudioPart
-  | VideoPart
-  | DocumentPart
+  | Exclude<CoreMessagePart<TData>, { type: 'tool-call' }>
   | ToolCallPart<TTools>
-  | ToolResultPart
-  | ThinkingPart
-  | StructuredOutputPart<TData>
-  | UIResourcePart
-  | ActivityPart
 
 /**
  * UIMessage - Domain-specific message format optimized for building chat UIs
@@ -642,18 +590,8 @@ export type MessagePart<
 export interface UIMessage<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
-> {
-  id: string
-  role: 'system' | 'user' | 'assistant'
-  name?: string
-  subagentRunId?: string
+> extends Omit<CoreUIMessage<TData>, 'parts'> {
   parts: Array<MessagePart<TTools, TData>>
-  createdAt?: Date
-  /**
-   * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
-   * User keys stay at the top.
-   */
-  metadata?: Record<string, any>
 }
 
 /**
