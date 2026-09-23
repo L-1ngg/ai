@@ -70,6 +70,8 @@ import { Route as ApiMistralStrictToolNullWireRouteImport } from './routes/api.m
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
 import { Route as ApiMessageHistoryPagingRouteImport } from './routes/api.message-history-paging'
+import { Route as ApiMcpTypedTestRouteImport } from './routes/api.mcp-typed-test'
+import { Route as ApiMcpTypedServerRouteImport } from './routes/api.mcp-typed-server'
 import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
 import { Route as ApiMcpTaskErrorsRouteImport } from './routes/api.mcp-task-errors'
 import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-test'
@@ -431,6 +433,16 @@ const ApiMessageHistoryPagingRoute = ApiMessageHistoryPagingRouteImport.update({
   path: '/api/message-history-paging',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMcpTypedTestRoute = ApiMcpTypedTestRouteImport.update({
+  id: '/api/mcp-typed-test',
+  path: '/api/mcp-typed-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpTypedServerRoute = ApiMcpTypedServerRouteImport.update({
+  id: '/api/mcp-typed-server',
+  path: '/api/mcp-typed-server',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpTestRoute = ApiMcpTestRouteImport.update({
   id: '/api/mcp-test',
   path: '/api/mcp-test',
@@ -705,6 +717,8 @@ export interface FileRoutesByFullPath {
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/mcp-typed-server': typeof ApiMcpTypedServerRoute
+  '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
@@ -809,6 +823,8 @@ export interface FileRoutesByTo {
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/mcp-typed-server': typeof ApiMcpTypedServerRoute
+  '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
@@ -914,6 +930,8 @@ export interface FileRoutesById {
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-task-errors': typeof ApiMcpTaskErrorsRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/mcp-typed-server': typeof ApiMcpTypedServerRoute
+  '/api/mcp-typed-test': typeof ApiMcpTypedTestRoute
   '/api/message-history-paging': typeof ApiMessageHistoryPagingRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
@@ -1020,6 +1038,8 @@ export interface FileRouteTypes {
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
     | '/api/mcp-test'
+    | '/api/mcp-typed-server'
+    | '/api/mcp-typed-test'
     | '/api/message-history-paging'
     | '/api/message-ids'
     | '/api/middleware-test'
@@ -1124,6 +1144,8 @@ export interface FileRouteTypes {
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
     | '/api/mcp-test'
+    | '/api/mcp-typed-server'
+    | '/api/mcp-typed-test'
     | '/api/message-history-paging'
     | '/api/message-ids'
     | '/api/middleware-test'
@@ -1228,6 +1250,8 @@ export interface FileRouteTypes {
     | '/api/mcp-status-test'
     | '/api/mcp-task-errors'
     | '/api/mcp-test'
+    | '/api/mcp-typed-server'
+    | '/api/mcp-typed-test'
     | '/api/message-history-paging'
     | '/api/message-ids'
     | '/api/middleware-test'
@@ -1333,6 +1357,8 @@ export interface RootRouteChildren {
   ApiMcpStatusTestRoute: typeof ApiMcpStatusTestRoute
   ApiMcpTaskErrorsRoute: typeof ApiMcpTaskErrorsRoute
   ApiMcpTestRoute: typeof ApiMcpTestRoute
+  ApiMcpTypedServerRoute: typeof ApiMcpTypedServerRoute
+  ApiMcpTypedTestRoute: typeof ApiMcpTypedTestRoute
   ApiMessageHistoryPagingRoute: typeof ApiMessageHistoryPagingRoute
   ApiMessageIdsRoute: typeof ApiMessageIdsRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
@@ -1799,6 +1825,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMessageHistoryPagingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mcp-typed-test': {
+      id: '/api/mcp-typed-test'
+      path: '/api/mcp-typed-test'
+      fullPath: '/api/mcp-typed-test'
+      preLoaderRoute: typeof ApiMcpTypedTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp-typed-server': {
+      id: '/api/mcp-typed-server'
+      path: '/api/mcp-typed-server'
+      fullPath: '/api/mcp-typed-server'
+      preLoaderRoute: typeof ApiMcpTypedServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp-test': {
       id: '/api/mcp-test'
       path: '/api/mcp-test'
@@ -2210,6 +2250,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpStatusTestRoute: ApiMcpStatusTestRoute,
   ApiMcpTaskErrorsRoute: ApiMcpTaskErrorsRoute,
   ApiMcpTestRoute: ApiMcpTestRoute,
+  ApiMcpTypedServerRoute: ApiMcpTypedServerRoute,
+  ApiMcpTypedTestRoute: ApiMcpTypedTestRoute,
   ApiMessageHistoryPagingRoute: ApiMessageHistoryPagingRoute,
   ApiMessageIdsRoute: ApiMessageIdsRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
