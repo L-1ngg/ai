@@ -400,7 +400,10 @@ export interface ModelMessage<
 /**
  * Message parts - building blocks of UIMessage
  */
-export interface TextPart<TMetadata = unknown> extends Pick<AGUITextPart, 'type'> {
+export interface TextPart<TMetadata = unknown> extends Pick<
+  AGUITextPart,
+  'type'
+> {
   content: AGUITextPart['text']
   metadata?: TMetadata
 }
@@ -434,7 +437,8 @@ export interface ToolCallPart<TMetadata = unknown>
 }
 
 export interface ToolResultPart
-  extends Pick<AGUIToolMessage, 'toolCallId' | 'error'>,
+  extends
+    Pick<AGUIToolMessage, 'toolCallId' | 'error'>,
     Partial<Pick<AGUIToolMessage, 'id'>> {
   type: 'tool-result'
   /** Lossless AG-UI content, including opaque provider file handles. */
@@ -447,7 +451,8 @@ export interface ToolResultPart
 }
 
 export interface ThinkingPart
-  extends Pick<AGUIReasoningMessage, 'content'>,
+  extends
+    Pick<AGUIReasoningMessage, 'content'>,
     Partial<Pick<AGUIReasoningMessage, 'id' | 'metadata'>> {
   type: 'thinking'
   stepId?: string
