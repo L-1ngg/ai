@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # pnpm-lock.yaml at the repo root covers every workspace package.
+  # Two groups: one pull request for production deps, one for development deps.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    groups:
+      production-dependencies:
+        dependency-type: production
+        patterns:
+          - "*"
+      development-dependencies:
+        dependency-type: development
+        patterns:
+          - "*"
