@@ -10,6 +10,7 @@ Choose an example based on your use case:
 - **Want an image from a prompt?** → [Generate Image](#generate-image)
 - **Want a table that fills as JSON streams?** → [Streaming Structured Table](#streaming-structured-table)
 - **Want typed ticket routing?** → [Evaluate](#evaluate)
+- **Want your own MCP server?** → [MCP server](#mcp-server)
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a live world stream?** → [World generation (ts-react-media)](#world-generation-ts-react-media)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
@@ -87,6 +88,24 @@ pnpm --filter evaluate dev
 Open http://localhost:3100. Add a key in `.env`. Pick a provider. Click Submit.
 
 📖 [Full Documentation](react/evaluate/README.md)
+
+---
+
+### MCP server
+
+A slim TanStack Start app. One tool, one resource, and one prompt. The page calls that server.
+
+**Path:** `examples/react/mcp-server`
+
+**Getting Started:**
+
+```bash
+pnpm --filter mcp-server dev
+```
+
+Open http://localhost:3100. Click Call the server.
+
+📖 [Full Documentation](react/mcp-server/README.md)
 
 ---
 
