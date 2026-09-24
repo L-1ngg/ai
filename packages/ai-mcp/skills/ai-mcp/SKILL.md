@@ -175,6 +175,31 @@ If a tool calls `ctx.sample` on spec 2026, pass `sample` to `createMCPServer`.
 On spec 2026, `ctx.sample` calls the `sample` function.
 On spec 2025, `ctx.sample` asks the MCP client.
 
+### Call a `createMCPServer` server with its types
+
+For a deployed server, pass `typeof server` and a transport.
+Import the server with `import type`, so its code stays out of the app.
+The client speaks MCP, so the server `auth` option runs.
+`callTool` accepts only the server tool names and their input types.
+`readResource` accepts only the server resource URIs.
+`callTool` returns the raw MCP result.
+
+```typescript
+import { createMCPClient } from '@tanstack/ai-mcp'
+import type { server } from './mcp-server'
+
+const remote = await createMCPClient<typeof server>({
+  transport: { type: 'http', url: 'https://mcp.example.com/api/mcp' },
+})
+await remote.callTool('get_weather', { city: 'Paris' })
+```
+
+`createMCPClient({ server })` is a different client.
+It calls the tool functions in the same process and returns the tool output.
+It opens no connection, and the server `auth` option does not run.
+It has no `tools()`, so do not pass it to `chat()`.
+Use it only when the app and the server run in one process.
+
 ## `createMCPClient` — single server
 
 ```typescript

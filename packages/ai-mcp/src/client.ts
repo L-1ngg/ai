@@ -16,7 +16,11 @@ import {
 } from './tools'
 import { directMCPClient } from './direct-client'
 import { isTransportInstance, resolveTransport } from './transport'
-import type { DirectClientOptions, DirectMCPClient } from './direct-client'
+import type {
+  DescriptorFromServer,
+  DirectClientOptions,
+  DirectMCPClient,
+} from './direct-client'
 import type { MCPServer } from './server/create-server'
 import type { TransportConfig } from './transport'
 import type {
@@ -68,7 +72,12 @@ export interface MCPClient<
     ): Promise<MappedServerTools<TDefs>>
   }
   resources: () => Promise<Array<Resource>>
-  readResource: (uri: string) => Promise<ReadResourceResult>
+  /**
+   * Reads one resource. With a typed server, `uri` is one of its resource URIs.
+   */
+  readResource: (
+    uri: TServer['resources'][keyof TServer['resources']]['uri'],
+  ) => Promise<ReadResourceResult>
   resourceTemplates: () => Promise<Array<ResourceTemplateType>>
   prompts: () => Promise<Array<Prompt>>
   getPrompt: (
@@ -81,10 +90,13 @@ export interface MCPClient<
    * the server declares the tasks capability for tools/call. Pass
    * `options.signal` to abort — an in-flight task is best-effort cancelled on
    * the server.
+   *
+   * With a typed server, `name` is one of its tool names and `args` has
+   * that tool's input type. The result stays the raw MCP result.
    */
-  callTool: (
-    name: string,
-    args?: Record<string, unknown>,
+  callTool: <TName extends keyof TServer['tools'] & string>(
+    name: TName,
+    args?: TServer['tools'][TName]['input'],
     options?: { signal?: AbortSignal },
   ) => Promise<Awaited<ReturnType<Client['callTool']>>>
   /**
@@ -352,7 +364,7 @@ class MCPClientImpl<
 
   async callTool(
     name: string,
-    args?: Record<string, unknown>,
+    args?: unknown,
     options?: { signal?: AbortSignal },
   ): Promise<Awaited<ReturnType<Client['callTool']>>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
@@ -379,7 +391,7 @@ class MCPClientImpl<
     return callMcpTool(
       this.#client,
       name,
-      args ?? {},
+      isArgs(args) ? args : {},
       taskRequired,
       options?.signal,
     )
@@ -402,21 +414,31 @@ class MCPClientImpl<
   }
 }
 
+function isArgs(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /**
  * Connects to an MCP server.
  *
  * Pass `transport` for a server at a URL, on SSE, or on stdio.
- * Pass `server` for a TanStack `createMCPServer` result in this program.
- * `server` keeps the tool names, resource URIs, and prompt arguments.
- * Export that server from one package and import it in another.
+ * The client speaks MCP over that transport, so server auth applies.
  *
- * @param options - A transport, or a TanStack MCP server
+ * To type a transport client from a TanStack server, pass `typeof server`
+ * as the type argument. Import the server with `import type`.
+ *
+ * Pass `server` to call a `createMCPServer` result in this process.
+ * That client calls the tool functions directly. It opens no connection,
+ * and the server `auth` option does not run.
+ *
+ * @param options - A transport, or a TanStack MCP server in this process
  *
  * @example
  * ```ts
- * const remote = await createMCPClient({
+ * const remote = await createMCPClient<typeof server>({
  *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
  * })
+ * await remote.callTool('get_weather', { city: 'Paris' })
  *
  * const local = await createMCPClient({ server })
  * await local.callTool('get_weather', { city: 'Paris' })
@@ -425,6 +447,9 @@ class MCPClientImpl<
 export async function createMCPClient<
   TDescriptor extends ServerDescriptor = AutomaticDescriptor,
 >(options: MCPClientOptions): Promise<MCPClient<TDescriptor>>
+export async function createMCPClient<TServer extends MCPServer>(
+  options: MCPClientOptions,
+): Promise<MCPClient<DescriptorFromServer<TServer>>>
 export async function createMCPClient<TServer extends MCPServer>(
   options: DirectClientOptions<TServer>,
 ): Promise<DirectMCPClient<TServer>>

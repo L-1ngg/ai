@@ -76,18 +76,21 @@ const initialize = {
 const toolsList = { jsonrpc: '2.0', id: 2, method: 'tools/list' }
 
 test.describe('mcp: createMCPServer with auth, output schema, and a task', () => {
-  test('the client discovers a string output schema', async ({ request }) => {
+  test('a client typed from the server discovers and calls its tools over HTTP', async ({
+    request,
+  }) => {
     const res = await request.get('/api/mcp-typed-test')
     const body = await res.text()
     expect(res.ok(), body).toBe(true)
-    const tools = JSON.parse(body) as Array<{
-      name: string
-      outputSchema: { type?: string } | null
-    }>
+    const result = JSON.parse(body) as {
+      tools: Array<{ name: string; outputSchema: { type?: string } | null }>
+      forecast: unknown
+    }
 
-    const forecast = tools.find((tool) => tool.name === 'forecast')
+    const forecast = result.tools.find((tool) => tool.name === 'forecast')
     expect(forecast?.outputSchema?.type).toBe('string')
-    expect(tools.map((tool) => tool.name)).toContain('build_report')
+    expect(result.tools.map((tool) => tool.name)).toContain('build_report')
+    expect(result.forecast).toBe('Sunny in Paris')
   })
 
   test('chat() runs the typed tool and the task tool with a bearer token', async ({

@@ -1,6 +1,6 @@
 # MCP server
 
-You want a host to call your tools, a file, and a prompt. This app serves all three over MCP. The page imports the server object, so the tool name, the resource URI, and the prompt arguments stay typed.
+You want a host to call your tools, a file, and a prompt. This app serves all three over MCP. The page imports the server object, so the tool name, the resource URI, and the prompt arguments stay typed. The page calls the server in the same process. A host calls it over HTTP at `/api/mcp`.
 
 ## Run it
 

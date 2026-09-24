@@ -7,12 +7,16 @@ import {
 } from '@tanstack/ai'
 import { createMCPClient } from '@tanstack/ai-mcp'
 import type { StreamChunk } from '@tanstack/ai'
-import type { MCPClient } from '@tanstack/ai-mcp'
+import type { DescriptorFromServer, MCPClient } from '@tanstack/ai-mcp'
 import { createTextAdapter } from '@/lib/providers'
+import type { typedServer } from '@/lib/mcp-typed-server'
 
+type TypedClient = MCPClient<DescriptorFromServer<typeof typedServer>>
+
+// The client types come from the server object. The calls go over HTTP.
 function connect(request: Request, token: string) {
   const origin = new URL(request.url).origin
-  return createMCPClient({
+  return createMCPClient<typeof typedServer>({
     transport: {
       type: 'http',
       url: `${origin}/api/mcp-typed-server`,
@@ -23,7 +27,7 @@ function connect(request: Request, token: string) {
 
 async function* closeMcpOnDrain(
   stream: AsyncIterable<StreamChunk>,
-  mcp: MCPClient,
+  mcp: TypedClient,
 ): AsyncGenerator<StreamChunk> {
   try {
     for await (const chunk of stream) {
@@ -38,6 +42,7 @@ async function* closeMcpOnDrain(
  * Uses the tools of `api.mcp-typed-server` with a bearer token.
  *
  * - GET returns the discovered tools, so a test can read `outputSchema`.
+ *   It also calls `forecast` with the typed `callTool`.
  * - POST runs chat() with those tools.
  */
 export const Route = createFileRoute('/api/mcp-typed-test')({
@@ -47,12 +52,14 @@ export const Route = createFileRoute('/api/mcp-typed-test')({
         const mcp = await connect(request, 'alice')
         try {
           const tools = await mcp.tools()
-          return Response.json(
-            tools.map((tool) => ({
+          const forecast = await mcp.callTool('forecast', { city: 'Paris' })
+          return Response.json({
+            tools: tools.map((tool) => ({
               name: tool.name,
               outputSchema: tool.outputSchema ?? null,
             })),
-          )
+            forecast: forecast.structuredContent ?? null,
+          })
         } finally {
           await mcp.close()
         }
@@ -65,7 +72,7 @@ export const Route = createFileRoute('/api/mcp-typed-test')({
           fp.aimockPort != null ? Number(fp.aimockPort) : undefined
         const token = typeof fp.token === 'string' ? fp.token : 'alice'
 
-        let mcp: MCPClient | undefined
+        let mcp: TypedClient | undefined
         try {
           mcp = await connect(request, token)
           const stream = chat({

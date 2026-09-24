@@ -19,7 +19,7 @@ You have a tool, a file, and a prompt. A host cannot call them yet.
 
 This tutorial serves all three from one TanStack Start app. A page in that app calls the server and shows the three results.
 
-The server object keeps the types. Another file, or another package, can import that object. `createMCPClient({ server })` then checks the tool name, the resource URI, and the prompt arguments.
+The server object keeps the types. `createMCPClient({ server })` checks the tool name, the resource URI, and the prompt arguments. That client calls the server in the same process. It opens no connection, and the server `auth` option does not run.
 
 This tutorial uses React and Start. The short guide is [Serve Tools over HTTP](../mcp/server).
 
@@ -113,7 +113,7 @@ export function handleMcp(request: Request) {
 
 Create the server once. Export `server`. `handleMcp` calls `fetch` for each request.
 
-`server` carries the tool list, the resource list, and the prompt list. An import in another package sees the same types.
+`server` carries the tool list, the resource list, and the prompt list. An app that calls the deployed server can use those types with `import type`. [Call the server with types](../mcp/server#call-the-server-with-types) shows how.
 
 ## 3. Mount the route
 

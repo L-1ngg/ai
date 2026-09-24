@@ -49,6 +49,48 @@ type PromptMessages<TPrompt> = TPrompt extends {
   ? Awaited<TResult>
   : never
 
+/**
+ * The client types of a `createMCPServer` server, for a client that
+ * connects over a transport.
+ *
+ * Pass `typeof server` to `createMCPClient` with a `transport`.
+ * Import the server with `import type`, so its code stays out of the client.
+ *
+ * @example
+ * ```ts
+ * import type { server } from './mcp-server'
+ *
+ * const client = await createMCPClient<typeof server>({
+ *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+ * })
+ * await client.callTool('get_weather', { city: 'Paris' })
+ * ```
+ */
+export type DescriptorFromServer<TServer extends MCPServer> = {
+  tools: {
+    [TTool in TServer['tools'][number] as TTool['name']]: {
+      input: InferToolInput<TTool>
+      output: InferToolOutput<TTool>
+    }
+  }
+  resources: {
+    [TResource in Extract<
+      TServer['resources'][number],
+      { uri: string }
+    > as TResource['uri']]: {
+      uri: TResource['uri']
+      data: ResourceContents<TResource>
+    }
+  }
+  prompts: {
+    [TPrompt in TServer['prompts'][number] as TPrompt['name']]: {
+      args: PromptArgs<TPrompt>
+      messages: PromptMessages<TPrompt>
+    }
+  }
+  capabilities: Record<string, unknown>
+}
+
 // The same context shape that a spec 2026 call on the server gets.
 function directToolContext(server: object, signal: AbortSignal | undefined) {
   return {

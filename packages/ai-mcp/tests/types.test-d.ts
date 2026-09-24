@@ -1,7 +1,10 @@
 import { expectTypeOf } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import { createMCPClient } from '../src/client'
 import type { MCPClient } from '../src/client'
+import type { DescriptorFromServer } from '../src/direct-client'
+import type { travelServer } from './fixtures/travel-server'
 import type { MCPClients } from '../src/pool'
 import type {
   MappedServerTools,
@@ -77,3 +80,36 @@ discovered[0]!.metadata.mcp.annotaions
 // An McpServerTool still drops into anything that wants a plain ServerTool
 // (e.g. `chat({ tools })`) — the metadata guarantee only narrows.
 expectTypeOf<McpServerTool>().toExtend<ServerTool>()
+
+// A transport client typed from a createMCPServer object. `typeof` needs no
+// runtime import of the server.
+async function typedRemote() {
+  const remote = await createMCPClient<typeof travelServer>({
+    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  })
+  expectTypeOf(remote).toEqualTypeOf<
+    MCPClient<DescriptorFromServer<typeof travelServer>>
+  >()
+  await remote.callTool('get_weather', { city: 'Paris' })
+  await remote.readResource('file:///city-guide.md')
+  const tools = await remote.tools()
+  expectTypeOf(tools).items.toMatchTypeOf<{ name: 'get_weather' }>()
+
+  // @ts-expect-error the tool name is not on this server
+  await remote.callTool('missing', { city: 'Paris' })
+  // @ts-expect-error city is a string
+  await remote.callTool('get_weather', { city: 1 })
+  // @ts-expect-error the URI is not on this server
+  await remote.readResource('file:///missing.md')
+}
+void typedRemote
+
+// Without a type argument, callTool and readResource accept any name.
+async function untypedRemote() {
+  const remote = await createMCPClient({
+    transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  })
+  await remote.callTool('anything', { any: 'args' })
+  await remote.readResource('file:///anything.md')
+}
+void untypedRemote

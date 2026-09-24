@@ -490,7 +490,8 @@
         {
           "label": "Serve Tools over HTTP",
           "to": "mcp/server",
-          "addedAt": "2026-09-22"
+          "addedAt": "2026-09-22",
+          "updatedAt": "2026-09-24"
         },
         {
           "label": "Serve Resources and Prompts",

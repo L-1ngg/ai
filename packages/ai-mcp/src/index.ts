@@ -1,6 +1,7 @@
 export { createMCPClient, createMCPClientFromTransport } from './client'
 export type { MCPServer } from './server/create-server'
 export type { MCPClient } from './client'
+export type { DescriptorFromServer } from './direct-client'
 export type {
   AnyToolDefinition,
   MappedServerTools,
