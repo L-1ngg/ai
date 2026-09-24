@@ -2507,7 +2507,65 @@ const GPT_6_ASTRA_PRO = {
     OpenAIMetadataOptions
 >
 
+const GPT_6_LUNA = {
+  name: 'gpt-6-luna',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [],
+  },
+  pricing: {
+    input: {
+      normal: 0.1,
+    },
+    output: {
+      normal: 0.5,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_6_SOL = {
+  name: 'gpt-6-sol',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+    },
+    output: {
+      normal: 10,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
 export const OPENAI_CHAT_MODELS = [
+  GPT_6_LUNA.name,
+  GPT_6_SOL.name,
   GPT_6_ASTRA.name,
   GPT_6_ASTRA_PRO.name,
   GPT_5_6_LUNA_PRO.name,
@@ -2960,6 +3018,18 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
+  [GPT_6_LUNA.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_6_SOL.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
 }
 
 /**
@@ -3018,6 +3088,8 @@ export type OpenAIChatModelToolCapabilitiesByName = {
   [GPT_CHAT_LATEST.name]: typeof GPT_CHAT_LATEST.supports.tools
   [GPT_6_ASTRA.name]: typeof GPT_6_ASTRA.supports.tools
   [GPT_6_ASTRA_PRO.name]: typeof GPT_6_ASTRA_PRO.supports.tools
+  [GPT_6_LUNA.name]: typeof GPT_6_LUNA.supports.tools
+  [GPT_6_SOL.name]: typeof GPT_6_SOL.supports.tools
 }
 
 /**
@@ -3088,4 +3160,6 @@ export type OpenAIModelInputModalitiesByName = {
   [GPT_5_6_TERRA_PRO.name]: typeof GPT_5_6_TERRA_PRO.supports.input
   [GPT_6_ASTRA.name]: typeof GPT_6_ASTRA.supports.input
   [GPT_6_ASTRA_PRO.name]: typeof GPT_6_ASTRA_PRO.supports.input
+  [GPT_6_LUNA.name]: typeof GPT_6_LUNA.supports.input
+  [GPT_6_SOL.name]: typeof GPT_6_SOL.supports.input
 }
