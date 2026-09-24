@@ -1,7 +1,9 @@
-import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
+import {
+  toUsageEventFields,
+  toRunErrorPayload,
+} from '@tanstack/ai/adapter-internals'
 import { EventType, convertSchemaToJsonSchema } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
-import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { resolveBedrockAuth } from '../utils/auth'
 import { toConverseMessages } from '../converse/message-converter'
 import { toToolConfig } from '../converse/tool-converter'

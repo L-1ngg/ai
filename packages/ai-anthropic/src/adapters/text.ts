@@ -1,6 +1,8 @@
-import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
+import {
+  toUsageEventFields,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { getAnthropicProviderToolKind } from '../tools/anthropic-provider-tool'

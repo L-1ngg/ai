@@ -1,6 +1,12 @@
-import { copyChunkRunId, getProtocolScope } from './connection-adapters'
-import { AGUIEventStream } from '@tanstack/ai/client'
 import {
+  copyChunkRunId,
+  getProtocolScope,
+  fetcherToConnectionAdapter,
+  getChunkRunId,
+  normalizeConnectionAdapter,
+} from './connection-adapters'
+import {
+  AGUIEventStream,
   StreamProcessor,
   convertSchemaToJsonSchema,
   generateMessageId,
@@ -22,11 +28,6 @@ import {
   resolveByokProviderId,
 } from './byok/resolve'
 import { createNoOpChatDevtoolsBridge } from './devtools-noop'
-import {
-  fetcherToConnectionAdapter,
-  getChunkRunId,
-  normalizeConnectionAdapter,
-} from './connection-adapters'
 import { ChatPersistor } from './client-persistor'
 import { ClearedStreamTracker } from './cleared-stream-tracker'
 import { normalizeMessagesDates } from './message-date-normalizer'

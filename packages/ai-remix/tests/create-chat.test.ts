@@ -65,7 +65,7 @@ function runFinished(runId = 'run-1'): StreamChunk {
 
 function createConnection(chunks: Array<StreamChunk>) {
   return {
-    async *connect() {
+    async *connect(): AsyncGenerator<StreamChunk> {
       yield {
         type: EventType.RUN_STARTED,
         runId: 'run-1',

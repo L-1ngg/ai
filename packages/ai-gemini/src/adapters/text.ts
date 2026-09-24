@@ -1,7 +1,9 @@
-import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
+import {
+  toUsageEventFields,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { FinishReason } from '@google/genai'
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import { buildGeminiUsage } from '../usage'

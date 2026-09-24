@@ -1,10 +1,10 @@
-import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  toUsageEventFields,
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
 import { makeStructuredOutputCompatibleWithMap } from '../utils/schema-converter'

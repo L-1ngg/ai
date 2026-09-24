@@ -614,23 +614,26 @@ export class StreamProcessor {
           ? undefined
           : this.messageStates.get(messageId)?.toolCalls.get(c.toolCallId)
       if (call) call.metadata = { ...call.metadata, ...c.metadata }
-      this.messages = this.messages.map((message) => ({
-        ...message,
-        parts: message.parts.map((part) =>
-          part.type === 'tool-call' && part.id === c.toolCallId
-            ? {
-                ...part,
-                metadata: {
-                  ...(part.metadata !== null &&
-                  typeof part.metadata === 'object'
-                    ? part.metadata
-                    : {}),
-                  ...c.metadata,
-                },
-              }
-            : part,
-        ),
-      }))
+      this.messages = this.messages.map((message) => {
+        if (!message.parts) return message
+        return {
+          ...message,
+          parts: message.parts.map((part) =>
+            part.type === 'tool-call' && part.id === c.toolCallId
+              ? {
+                  ...part,
+                  metadata: {
+                    ...(part.metadata !== null &&
+                    typeof part.metadata === 'object'
+                      ? part.metadata
+                      : {}),
+                    ...c.metadata,
+                  },
+                }
+              : part,
+          ),
+        }
+      })
     }
     // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
     switch (c.type) {

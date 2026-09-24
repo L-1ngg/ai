@@ -1,11 +1,11 @@
-import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
-import { OpenRouter } from '@openrouter/sdk'
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  toUsageEventFields,
   toRunErrorPayload,
   toRunErrorRawEvent,
 } from '@tanstack/ai/adapter-internals'
+import { OpenRouter } from '@openrouter/sdk'
+import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'

@@ -342,11 +342,13 @@ export type ChatTransport =
 
 /**
  * Tool call states - track the lifecycle of a tool call
+ * @public
  */
 export type ToolCallState = CoreToolCallPart['state']
 
 /**
  * Tool result states - track the lifecycle of a tool result
+ * @public
  */
 export type ToolResultState = CoreToolResultPart['state']
 

@@ -1843,12 +1843,12 @@ describe('Anthropic stream processing', () => {
     processor.finalizeStream()
 
     const afterTurn1 = processor.getMessages()
-    const assistant = afterTurn1.find((m) => m.role === 'assistant')
-    // The assistant message carries the server tool as a provider-executed
-    // tool-call part with the raw result on its metadata.
-    const serverPart = assistant?.parts.find(
-      (p) => p.type === 'tool-call' && p.id === 'srv_search',
-    )
+    // Reasoning and tool calls can occupy separate assistant messages.
+    // The server tool carries its raw result on the tool-call metadata.
+    const serverPart = afterTurn1
+      .filter((m) => m.role === 'assistant')
+      .flatMap((m) => m.parts)
+      .find((p) => p.type === 'tool-call' && p.id === 'srv_search')
     expect(serverPart).toBeDefined()
     expect((serverPart as { metadata?: unknown }).metadata).toMatchObject({
       providerExecuted: true,
@@ -1875,14 +1875,19 @@ describe('Anthropic stream processing', () => {
 
     expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(2)
     const [secondPayload] = mocks.betaMessagesCreate.mock.calls[1]!
-    const replayedAssistant = (
+    const replayedAssistants = (
       secondPayload.messages as Array<{
         role: string
         content: unknown
       }>
-    ).find((m) => m.role === 'assistant')
-    expect(Array.isArray(replayedAssistant?.content)).toBe(true)
-    const blocks = replayedAssistant!.content as Array<{ type: string }>
+    ).filter((m) => m.role === 'assistant')
+    expect(replayedAssistants.length).toBeGreaterThan(0)
+    for (const message of replayedAssistants) {
+      expect(Array.isArray(message.content)).toBe(true)
+    }
+    const blocks = replayedAssistants.flatMap(
+      (message) => message.content as Array<{ type: string }>,
+    )
     const serverToolUse = blocks.find((b) => b.type === 'server_tool_use')
     const resultBlock = blocks.find((b) => b.type === 'web_search_tool_result')
     expect(serverToolUse).toMatchObject({

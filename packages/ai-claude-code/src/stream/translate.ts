@@ -1,10 +1,10 @@
-import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
-import { EventType, buildBaseUsage } from '@tanstack/ai'
 import {
+  toUsageEventFields,
   parseJsonFromAssistantText,
   structuredOutputCompleteChunk,
   structuredOutputStartChunk,
 } from '@tanstack/ai/adapter-internals'
+import { EventType, buildBaseUsage } from '@tanstack/ai'
 import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type {
   AgentSdkMessage,

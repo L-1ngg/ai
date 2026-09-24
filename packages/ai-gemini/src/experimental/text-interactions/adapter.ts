@@ -1,4 +1,7 @@
-import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
+import {
+  toUsageEventFields,
+  assertUniqueToolNames,
+} from '@tanstack/ai/adapter-internals'
 import { EventType } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { parse as parsePartialJSON } from 'partial-json'
@@ -11,7 +14,6 @@ import {
   getGeminiProviderToolKind,
   getGeminiProviderToolMetadata,
 } from '../../tools/gemini-provider-tool'
-import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   GeminiChatModelProviderOptionsByName,
