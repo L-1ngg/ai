@@ -806,7 +806,7 @@ export class ChatClient<
             // back against the originating run, not whatever run is
             // current when the result emits.
             const runEventContext =
-              this.devtoolsBridge.getCurrentRunEventContext()
+              this.devtoolsBridge.getCurrentOrLastRunEventContext()
             // Create and track the execution promise
             const executionPromise = (async () => {
               try {
@@ -1970,6 +1970,8 @@ export class ChatClient<
     AGUIEventStream
   >()
   private currentProtocolStream = new AGUIEventStream()
+  private readonly messageProtocols = new Map<string, AGUIEventStream>()
+  private readonly toolProtocols = new Map<string, AGUIEventStream>()
 
   private async processIncomingChunk(
     chunk: StreamChunk,
@@ -1981,10 +1983,22 @@ export class ChatClient<
     }
     const scope = getProtocolScope(chunk)
     const runId = getChunkRunId(chunk)
+    const owner =
+      'toolCallId' in chunk &&
+      chunk.type !== 'TOOL_CALL_START' &&
+      chunk.type !== 'TOOL_CALL_CHUNK'
+        ? this.toolProtocols.get(chunk.toolCallId)
+        : 'messageId' in chunk &&
+            chunk.messageId !== undefined &&
+            chunk.type !== 'TEXT_MESSAGE_START' &&
+            chunk.type !== 'REASONING_MESSAGE_START' &&
+            chunk.type !== 'REASONING_START'
+          ? this.messageProtocols.get(chunk.messageId)
+          : undefined
     let protocol = scope
       ? this.scopedProtocolStreams.get(scope)
       : runId === undefined
-        ? this.currentProtocolStream
+        ? (owner ?? this.currentProtocolStream)
         : this.protocolStreams.get(runId)
     if (!protocol) {
       protocol = new AGUIEventStream()
@@ -1992,7 +2006,13 @@ export class ChatClient<
       else if (runId !== undefined) this.protocolStreams.set(runId, protocol)
     }
     this.currentProtocolStream = protocol
+    const generation = this.continuationGeneration
     for (const event of protocol.push(chunk)) {
+      if (generation !== this.continuationGeneration) break
+      if ('messageId' in event && event.messageId !== undefined)
+        this.messageProtocols.set(event.messageId, protocol)
+      if ('toolCallId' in event && event.toolCallId !== undefined)
+        this.toolProtocols.set(event.toolCallId, protocol)
       copyChunkRunId(chunk, event)
       await this.applyIncomingChunk(event, options)
     }

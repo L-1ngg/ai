@@ -62,9 +62,9 @@ function createReplayClient(options?: {
   })
   async function publishAndSettle(chunk: StreamChunk) {
     replay.publish(chunk)
-    await vi.waitFor(() => expect(seen).toContain(chunk))
+    await vi.waitFor(() => expect(seen).toContainEqual(chunk))
   }
-  return { client, clientOptions, publishAndSettle }
+  return { client, clientOptions, publishAndSettle, publish: replay.publish }
 }
 
 function interruptFor(runId: string): Interrupt {
@@ -120,33 +120,34 @@ function runFinishedSuccess(runId: string, threadId: string): StreamChunk {
 describe('ChatClient interrupt lineage on replay (#1368)', () => {
   it.each([
     {
-      name: 'does not rejoin a completed child after its late parent link',
+      name: 'does not rejoin a completed child with its parent link',
       chunks: [
-        runFinishedSuccess('run-B', 'thread-1'),
         runStarted('run-B', 'thread-1', 'run-A'),
+        runFinishedSuccess('run-B', 'thread-1'),
+        runStarted('run-A', 'thread-1'),
         runFinishedInterrupt('run-A', 'thread-1'),
       ],
       expectedPending: 0,
       expectedRun: undefined,
     },
     {
-      name: 'clears a persisted parent pause after its late link',
+      name: 'clears a persisted parent pause when its child completes',
       chunks: [
         runStarted('run-A', 'thread-1'),
         runFinishedInterrupt('run-A', 'thread-1'),
-        runFinishedSuccess('run-B', 'thread-1'),
         runStarted('run-B', 'thread-1', 'run-A'),
+        runFinishedSuccess('run-B', 'thread-1'),
       ],
       expectedPending: 0,
       expectedRun: undefined,
     },
     {
-      name: 'preserves an unrelated persisted pause after a late link',
+      name: 'preserves an unrelated persisted pause when a separate child completes',
       chunks: [
         runStarted('run-D', 'thread-1'),
         runFinishedInterrupt('run-D', 'thread-1'),
-        runFinishedSuccess('run-B', 'thread-1'),
         runStarted('run-B', 'thread-1', 'run-A'),
+        runFinishedSuccess('run-B', 'thread-1'),
       ],
       expectedPending: 1,
       expectedRun: 'run-D',
@@ -190,33 +191,36 @@ describe('ChatClient interrupt lineage on replay (#1368)', () => {
 
   it.each([
     {
-      name: 'suppresses a stale pause after a completed child gains its parent link',
+      name: 'suppresses a stale pause after its child completes',
       chunks: [
-        runFinishedSuccess('run-B', 'thread-1'),
         runStarted('run-B', 'thread-1', 'run-A'),
+        runFinishedSuccess('run-B', 'thread-1'),
+        runStarted('run-A', 'thread-1'),
         runFinishedInterrupt('run-A', 'thread-1'),
       ],
-      expected: [0, 0, 0],
+      expected: [0, 0, 0, 0],
     },
     {
-      name: 'clears a visible pause when a completed child gains its parent link',
+      name: 'clears a visible pause when its child completes',
       chunks: [
         runStarted('run-A', 'thread-1'),
         runFinishedInterrupt('run-A', 'thread-1'),
-        runFinishedSuccess('run-B', 'thread-1'),
         runStarted('run-B', 'thread-1', 'run-A'),
+        runFinishedSuccess('run-B', 'thread-1'),
       ],
       expected: [0, 1, 1, 0],
     },
     {
-      name: 'propagates completion through late transitive parent links',
+      name: 'propagates completion through transitive parent links',
       chunks: [
-        runFinishedSuccess('run-C', 'thread-1'),
         runStarted('run-C', 'thread-1', 'run-B'),
+        runFinishedSuccess('run-C', 'thread-1'),
+        runStarted('run-A', 'thread-1'),
         runFinishedInterrupt('run-A', 'thread-1'),
         runStarted('run-B', 'thread-1', 'run-A'),
+        runFinishedSuccess('run-B', 'thread-1'),
       ],
-      expected: [0, 0, 1, 0],
+      expected: [0, 0, 0, 1, 0, 0],
     },
   ])('$name', async ({ chunks, expected }) => {
     const { client, publishAndSettle } = createReplayClient()
@@ -234,25 +238,21 @@ describe('ChatClient interrupt lineage on replay (#1368)', () => {
     }
   })
 
-  it('does not treat a late RUN_STARTED for an already-finished child as live generation', async () => {
-    const { client, publishAndSettle } = createReplayClient()
+  it('rejects a terminal event before the run starts', async () => {
+    const { client, publish } = createReplayClient()
     client.subscribe()
     try {
-      await publishAndSettle(runFinishedSuccess('run-B', 'thread-1'))
-      await publishAndSettle(runStarted('run-B', 'thread-1', 'run-A'))
-      expect(client.getSessionGenerating()).toBe(false)
-
-      await publishAndSettle(runStarted('run-C', 'thread-1'))
-      expect(client.getSessionGenerating()).toBe(true)
-
-      await publishAndSettle(runFinishedSuccess('run-C', 'thread-1'))
+      publish(runFinishedSuccess('run-B', 'thread-1'))
+      await vi.waitFor(() =>
+        expect(client.getError()?.message).toContain('RUN_STARTED'),
+      )
       expect(client.getSessionGenerating()).toBe(false)
     } finally {
       client.unsubscribe()
     }
   })
 
-  it('clears a resolved interrupt once its continuation run finishes, surviving a re-emitted stale pause', async () => {
+  it('clears a resolved interrupt once its continuation run finishes', async () => {
     const { client, publishAndSettle } = createReplayClient()
     client.subscribe()
     const pending = () => client.getInterrupts().length
@@ -260,13 +260,6 @@ describe('ChatClient interrupt lineage on replay (#1368)', () => {
       await publishAndSettle(runStarted('run-A', 'thread-1'))
       expect(pending()).toBe(0)
 
-      await publishAndSettle(runFinishedInterrupt('run-A', 'thread-1'))
-      expect(pending()).toBe(1)
-
-      await publishAndSettle(runStarted('run-B', 'thread-1', 'run-A'))
-      expect(pending()).toBe(1)
-
-      // Replay re-emits the same stale pause for run A a second time.
       await publishAndSettle(runFinishedInterrupt('run-A', 'thread-1'))
       expect(pending()).toBe(1)
 
@@ -318,36 +311,15 @@ describe('ChatClient interrupt lineage on replay (#1368)', () => {
     }
   })
 
-  it('stays cleared across a second full replay of the same history (idempotent, out-of-order safe)', async () => {
-    const { client, publishAndSettle } = createReplayClient()
+  it('rejects a repeated terminal event within the same replay stream', async () => {
+    const { client, publishAndSettle, publish } = createReplayClient()
     client.subscribe()
-    const pending = () => client.getInterrupts().length
     try {
-      const sequence = () => [
-        runStarted('run-A', 'thread-1'),
-        runFinishedInterrupt('run-A', 'thread-1'),
-        runStarted('run-B', 'thread-1', 'run-A'),
-        runFinishedSuccess('run-B', 'thread-1'),
-      ]
-
-      for (const chunk of sequence()) {
-        await publishAndSettle(chunk)
-      }
-      expect(pending()).toBe(0)
-
-      // A reconnect replays the whole thread history again, fresh chunk
-      // instances included. By now `run-A` is known-answered from the first
-      // pass, so its stale pause must not come back even before `run-B`'s
-      // second finish is reprocessed.
-      const secondPass = sequence()
-      await publishAndSettle(secondPass[0]!)
-      expect(pending()).toBe(0)
-      await publishAndSettle(secondPass[1]!)
-      expect(pending()).toBe(0)
-      await publishAndSettle(secondPass[2]!)
-      expect(pending()).toBe(0)
-      await publishAndSettle(secondPass[3]!)
-      expect(pending()).toBe(0)
+      await publishAndSettle(runStarted('run-A', 'thread-1'))
+      await publishAndSettle(runFinishedSuccess('run-A', 'thread-1'))
+      publish(runFinishedSuccess('run-A', 'thread-1'))
+      await vi.waitFor(() => expect(client.getError()).toBeDefined())
+      expect(client.getInterrupts()).toEqual([])
     } finally {
       client.unsubscribe()
     }

@@ -158,11 +158,7 @@ function createSimulatorAdapter() {
           model: MODEL,
           timestamp: Date.now(),
           finishReason: 'stop',
-          usage: {
-            promptTokens: 10,
-            completionTokens: content.length,
-            totalTokens: 10 + content.length,
-          },
+          usage: [{ inputTokens: 10, outputTokens: content.length, totalTokens: 10 + content.length }],
         }
         return
       }
@@ -195,11 +191,7 @@ function createSimulatorAdapter() {
           model: MODEL,
           timestamp: Date.now(),
           finishReason: 'stop',
-          usage: {
-            promptTokens: 10,
-            completionTokens: echoContent.length,
-            totalTokens: 10 + echoContent.length,
-          },
+          usage: [{ inputTokens: 10, outputTokens: echoContent.length, totalTokens: 10 + echoContent.length }],
         }
       } else {
         // Generate tool calls
@@ -252,8 +244,7 @@ function createSimulatorAdapter() {
           model: MODEL,
           timestamp: Date.now(),
           finishReason: 'tool_calls',
-          usage: { promptTokens: 10, completionTokens: 50, totalTokens: 60 },
-        }
+          usage: [{ inputTokens: 10, outputTokens: 50, totalTokens: 60 }],
       }
     },
   }

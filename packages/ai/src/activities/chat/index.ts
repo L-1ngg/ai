@@ -1,4 +1,3 @@
-import { toUsageEventFields } from '../../utilities/ag-ui-usage'
 /**
  * Text Activity
  *
@@ -33,7 +32,10 @@ import {
   canonicalInterruptJson,
   digestInterruptJson,
 } from '../../interrupt-serialization'
-import { rebuildTokenUsage } from '../../utilities/ag-ui-usage'
+import {
+  rebuildTokenUsage,
+  toUsageEventFields,
+} from '../../utilities/ag-ui-usage'
 import { uiMessagesToWire } from '../../utilities/ag-ui-wire'
 import {
   tanstackMetadata,
@@ -1292,7 +1294,7 @@ class TextEngine<
         }
       }
 
-      // Call terminal hook (skip when waiting for client — stream is paused, not finished).
+      // Frontend tool handoff completes this run; human interrupts keep it paused.
       // Priority: finalizationError → onError; otherwise normal onFinish.
       // Skip on cancellation — the finally block routes aborts to onAbort.
       if (
@@ -2966,6 +2968,21 @@ class TextEngine<
         type: EventType.STATE_SNAPSHOT,
         timestamp: Date.now(),
         snapshot: this.params.state,
+      })
+    }
+    if (
+      terminal.type === EventType.RUN_FINISHED &&
+      terminal.outcome?.type === 'success'
+    ) {
+      this.terminalHookCalled = true
+      await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
+        finishReason: this.lastFinishReason,
+        duration: Date.now() - this.streamStartTime,
+        content: this.accumulatedContent,
+        usage: rebuildTokenUsage(
+          finishEvent.usage,
+          tanstackMetadata(finishEvent)?.usage,
+        ),
       })
     }
     for (const output of terminalOutputs) {

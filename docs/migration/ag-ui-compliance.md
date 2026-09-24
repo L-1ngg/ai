@@ -2,7 +2,7 @@
 title: Migrating to AG-UI Client-to-Server Compliance
 ---
 
-> **TL;DR:** Upgrade `@tanstack/ai` and `@tanstack/ai-client` together. `useChat` messages, thinking, tools, and approvals keep working. The HTTP wire is a breaking 0.x change: extras live in `metadata.tanstack`, and messages have no `parts`. Wire messages use `content`, `toolCalls`, and fan-out `role: "tool"` / `role: "reasoning"` rows. The legacy `body` client option and `data` wire field still work as a deprecation bridge.
+> Upgrade core, client, and provider adapters together. Update third-party adapters and custom servers before connecting the new client. The HTTP wire is a breaking 0.x change: extras live in `metadata.tanstack`, and messages have no `parts`. Wire messages use `content`, `toolCalls`, and fan-out `role: "tool"` / `role: "reasoning"` rows. The legacy `body` client option and `data` wire field still work as a deprecation bridge.
 
 ## AG-UI 1.0 types and wire fields
 
@@ -74,7 +74,7 @@ What that means:
 
 - **Wire events.** Spec fields stay at the top. Extra TanStack fields go in `metadata.tanstack`. Custom servers: see [Event metadata](../protocol/metadata).
 - **Wire messages.** Use `content`, `toolCalls`, and fan-out `role: "tool"` / `role: "reasoning"`. There is no `parts` field on the wire.
-- **`chat()` chunks.** In-process `chat()` still yields `toolName`, `TOOL_CALL_END.input`, and TanStack `TokenUsage` (`promptTokens`). The SSE/HTTP wire converts `usage` to the spec array (`inputTokens`).
+- **Event producers and consumers.** Every public event uses AG-UI `usage[]`, including adapter output, in-process `chat()`, and transport callbacks.
 - **Usage.** Middleware `onUsage` still receives TanStack `TokenUsage` (`promptTokens`, `completionTokens`).
 
 See [Stream Events](../chat/stream-events) for the `for await` branch, and [Middleware](../advanced/middleware) for `onUsage`.
@@ -333,9 +333,9 @@ const stream = chat({
 })
 ```
 
-## Client-side: nothing required, one rename recommended
+## Client-side migration
 
-`useChat` and the connection adapters (`fetchServerSentEvents`, `fetchHttpStream`) handle the new wire format internally. Existing `UIMessage` state is unchanged. The tools you pass to `useChat({ tools })` are now automatically advertised to the server in the request payload.
+`useChat` and the connection adapters (`fetchServerSentEvents`, `fetchHttpStream`) handle the new wire format internally. Reasoning messages now keep distinct IDs, so update renderers that assume thinking and text share one message. The tools you pass to `useChat({ tools })` are now automatically advertised to the server in the request payload.
 
 ### `body` → `forwardedProps` (recommended)
 
@@ -399,19 +399,47 @@ Pure AG-UI `RunAgentInput` payloads (no TanStack `parts` field) work end-to-end:
 
 - Tool messages pass through as `ModelMessage` entries with `role: 'tool'`.
 - `reasoning` messages attach to the next assistant as thinking. Spec `encryptedValue` becomes `ThinkingPart.signature`.
-- `activity` messages are dropped (no TanStack equivalent).
+- Activity stream events update activity parts in the client. Provider message conversion omits activity content.
 - `developer` messages are collapsed to `system` role.
 
-## `@ag-ui/core` bump
+## AG-UI 1.0 migration checklist
 
-`@tanstack/ai` now depends on `@ag-ui/core@0.1.1-canary.beta.0`. If your code imports types from `@tanstack/ai` that re-export AG-UI types, you may need minor type adjustments — see the changeset for specifics.
+1. Emit `usage` as an array. Use `inputTokens` and `outputTokens` in each entry. Keep provider-specific costs in `metadata.tanstack.usage`.
+2. Frame custom streams with `RUN_STARTED` and a terminal event. Close explicit message and tool streams before finishing.
+3. Return frontend tool results as tool messages in the next request. A successful handoff lists `outcome.pendingToolCallIds`.
+4. Update callbacks for chunk expansion and separate reasoning messages. See [Stream Events](../chat/stream-events).
+5. Handle stream errors. The client rejects malformed known fields and invalid event order before applying them.
+
+Frontend handoff runs call middleware `onFinish`. Persistence saves their transcript and completes the run. Approval and generic interrupt outcomes remain paused.
+
+Third-party adapters must emit the same public event contract. The transport does not accept a legacy token-usage object.
+
+```ts
+import { EventType } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai'
+
+const finished: StreamChunk = {
+  type: EventType.RUN_FINISHED,
+  threadId: 'thread-1',
+  runId: 'run-1',
+  usage: [{ inputTokens: 12, outputTokens: 4, totalTokens: 16 }],
+}
+
+if (finished.type === EventType.RUN_FINISHED) {
+  for (const usage of finished.usage ?? []) {
+    console.log(usage.inputTokens, usage.outputTokens)
+  }
+}
+```
+
+`@tanstack/ai` depends on `@ag-ui/core@1.0.0`. Shared event and message fields derive from its types. TanStack UI parts add local rendering and tool-execution state.
 
 ### zod is no longer installed for you
 
 `@ag-ui/core` used to list `zod` as a runtime dependency, so every
 `@tanstack/ai` install pulled zod in transitively. As of `0.1.x` it declares zod
 as an optional peer instead, and `@tanstack/ai` no longer uses zod anywhere —
-the package now ships with no schema-validation runtime at all.
+request and event validation use a local validator generated from the AG-UI schema.
 
 `chatParamsFromRequest` / `chatParamsFromRequestBody` were the only zod
 consumers: they validated the request body with AG-UI's `RunAgentInputSchema`.

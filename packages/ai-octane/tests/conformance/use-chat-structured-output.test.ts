@@ -44,7 +44,7 @@ function buildStructuredStream(
   const sliceSize = Math.max(4, Math.floor(fullJson.length / 4))
   for (let i = 0; i < fullJson.length; i += sliceSize) {
     chunks.push({
-      type: 'TEXT_MESSAGE_CONTENT',
+      type: 'TEXT_MESSAGE_CHUNK',
       messageId: `msg-${runId}`,
       delta: fullJson.slice(i, i + sliceSize),
       content: fullJson.slice(0, i + sliceSize),
@@ -188,6 +188,7 @@ describe('useChat({ outputSchema }) — runtime', () => {
         model: 'test',
         timestamp: Date.now(),
       } as StreamChunk,
+      { type: 'TEXT_MESSAGE_END', messageId: 'msg-x' } as StreamChunk,
       {
         type: 'CUSTOM',
         name: 'structured-output.complete',
@@ -395,6 +396,7 @@ describe('useChat({ outputSchema }) — runtime', () => {
               model: 'test',
               timestamp: Date.now(),
             } as StreamChunk,
+            { type: 'TEXT_MESSAGE_END', messageId: 'msg-a' } as StreamChunk,
             {
               type: 'CUSTOM',
               name: 'structured-output.complete',
@@ -565,7 +567,7 @@ describe('useChat() without outputSchema — runtime', () => {
           timestamp: Date.now(),
         } as StreamChunk,
         {
-          type: 'TEXT_MESSAGE_CONTENT',
+          type: 'TEXT_MESSAGE_CHUNK',
           messageId: 'm',
           delta: 'Hello',
           content: 'Hello',

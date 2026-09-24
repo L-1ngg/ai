@@ -47,7 +47,7 @@ function createHandle() {
 
 function textChunk(delta: string, messageId = 'assistant-1'): StreamChunk {
   return {
-    type: EventType.TEXT_MESSAGE_CONTENT,
+    type: EventType.TEXT_MESSAGE_CHUNK,
     messageId,
     timestamp: Date.now(),
     delta,
@@ -66,6 +66,11 @@ function runFinished(runId = 'run-1'): StreamChunk {
 function createConnection(chunks: Array<StreamChunk>) {
   return {
     async *connect() {
+      yield {
+        type: EventType.RUN_STARTED,
+        runId: 'run-1',
+        threadId: 'thread-1',
+      }
       for (const chunk of chunks) {
         yield chunk
       }

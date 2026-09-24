@@ -97,6 +97,7 @@ describe('joinRun client-tool continuation (issue #1058)', () => {
         delta: '{"query":"first"}',
         timestamp: 3,
       },
+      { type: EventType.TOOL_CALL_END, toolCallId: 'tool-call-1' },
       {
         type: EventType.RUN_FINISHED,
         runId: 'r1',
@@ -149,7 +150,7 @@ describe('joinRun client-tool continuation (issue #1058)', () => {
           timestamp: 10,
         }
         yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
+          type: EventType.TEXT_MESSAGE_CHUNK,
           messageId: 'm1',
           timestamp: 11,
           delta: 'done',

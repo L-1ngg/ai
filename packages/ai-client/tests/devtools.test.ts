@@ -142,11 +142,30 @@ describe('ChatClient devtools bridge', () => {
         }
         const chunks = chunkSets[connectCount] ?? []
         connectCount++
+        if (chunks[0]?.type !== EventType.RUN_STARTED) {
+          yield runStartedChunk({
+            threadId: runContext!.threadId!,
+            runId: runContext!.runId!,
+          })
+        }
         for (const chunk of chunks) {
           if (abortSignal?.aborted) {
             return
           }
-          yield chunk
+          yield chunk.type === EventType.RUN_STARTED ||
+          chunk.type === EventType.RUN_FINISHED
+            ? {
+                ...chunk,
+                threadId:
+                  chunk.threadId === 'server-thread'
+                    ? chunk.threadId
+                    : runContext!.threadId!,
+                runId:
+                  chunk.runId === 'server-run'
+                    ? chunk.runId
+                    : runContext!.runId!,
+              }
+            : chunk
         }
       },
     }
@@ -158,7 +177,7 @@ describe('ChatClient devtools bridge', () => {
     content: string
   }) {
     return {
-      type: EventType.TEXT_MESSAGE_CONTENT,
+      type: EventType.TEXT_MESSAGE_CHUNK,
       messageId: args.messageId,
       timestamp: Date.now(),
       delta: args.delta,
@@ -1189,7 +1208,7 @@ describe('ChatClient devtools bridge', () => {
             'msg-tool',
             'test',
             false,
-          ),
+          ).filter((chunk) => chunk.type !== EventType.RUN_STARTED),
         ],
       ],
       runContexts,
@@ -1874,7 +1893,7 @@ describe('ChatClient devtools bridge', () => {
     client.dispose()
   })
 
-  it('emits approval requests that arrive after run finish', async () => {
+  it('emits approval requests before run finish', async () => {
     const runContexts: Array<RunAgentInputContext> = []
     const chunks: Array<StreamChunk> = [
       ...createToolCallChunks(
@@ -1888,7 +1907,7 @@ describe('ChatClient devtools bridge', () => {
         'msg-approval',
         'test',
         false,
-      ),
+      ).filter((chunk) => chunk.type !== EventType.RUN_FINISHED),
       {
         type: EventType.CUSTOM,
         metadata: { tanstack: { model: 'test' } },

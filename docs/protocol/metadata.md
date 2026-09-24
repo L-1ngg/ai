@@ -37,7 +37,7 @@ Copy this `RUN_FINISHED` event first:
 }
 ```
 
-The client copies `metadata.tanstack` onto the chunk. After `chunk.type === "RUN_FINISHED"`, read `chunk.metadata?.tanstack?.finishReason`. In-process `usage` is TanStack `TokenUsage` (`promptTokens`). The wire uses the spec array (`inputTokens`).
+The client copies `metadata.tanstack` onto the chunk. After `chunk.type === "RUN_FINISHED"`, read `chunk.metadata?.tanstack?.finishReason`. Both in-process events and wire events use the AG-UI `usage` array (`inputTokens`).
 
 ## Do now
 
@@ -92,6 +92,14 @@ AG-UI `RUN_ERROR` has `message` and optional `code` at the top. Put correlation 
 }
 ```
 
+## Frame each stream
+
+Start each run with `RUN_STARTED`. Set `protocolVersion` to `"1.0"`. Close each explicit text, reasoning, and tool stream before `RUN_FINISHED`.
+
+When a run cannot start, `RUN_ERROR` can be its first event. Do not send more events after a terminal event. Start a new run for the next response.
+
+For frontend tools, send a success outcome with `pendingToolCallIds`. Send approval requests before the interrupt terminal. See [the migration guide](../migration/ag-ui-compliance) for client and adapter changes.
+
 ## Subagent attribution
 
 Keep `subagentRunId` at the top level on attributable events. This includes text, tool, reasoning, activity, state, step, custom, and raw events.
@@ -106,7 +114,7 @@ Keep `protocolVersion` at the top level of `RUN_STARTED`. The usage array also a
 
 Add these when you use the matching feature:
 
-- **Leftover usage.** Spec `usage[]` also accepts `cachedInputTokens` and `reasoningTokens`. Put `cost` and other leftover fields in `metadata.tanstack.usage`. The client rebuilds TanStack `TokenUsage` (`promptTokens`) from the array plus that leftover.
+- **Leftover usage.** Spec `usage[]` also accepts `cachedInputTokens` and `reasoningTokens`. Put `cost` and other leftover fields in `metadata.tanstack.usage`. Public event callbacks keep `usage` as an array. Middleware `onUsage` and persistence accounting use TanStack `TokenUsage`.
 - **Interrupt errors.** On `RUN_ERROR`, set `metadata.tanstack.interruptErrors` so `ChatClient` can match a failed interrupt submit.
 - **Tool output error.** On `TOOL_CALL_RESULT`, set `metadata.tanstack.state` to `"output-error"` when the tool result is an error payload.
 - **Message stamps.** On wire messages, `metadata.tanstack.createdAt` is an ISO-8601 string.

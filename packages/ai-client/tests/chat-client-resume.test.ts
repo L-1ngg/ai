@@ -104,7 +104,7 @@ function resolveGenericInterrupt(client: ChatClient): void {
 }
 
 const text = (delta: string): StreamChunk => ({
-  type: EventType.TEXT_MESSAGE_CONTENT,
+  type: EventType.TEXT_MESSAGE_CHUNK,
   messageId: 'm1',
   timestamp: Date.now(),
   delta,
@@ -286,6 +286,11 @@ describe('ChatClient resume', () => {
         },
       ],
       (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'run-1',
+          threadId: ctx?.threadId ?? 'thread-1',
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: ctx?.runId ?? 'run-1',
@@ -1122,6 +1127,7 @@ describe('ChatClient resume', () => {
             delta: '{"query":"first"}',
             timestamp: Date.now(),
           }
+          yield { type: EventType.TOOL_CALL_END, toolCallId: 'tool-call-1' }
           yield {
             type: EventType.RUN_FINISHED,
             runId,
@@ -1163,7 +1169,7 @@ describe('ChatClient resume', () => {
           timestamp: Date.now(),
         }
         yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
+          type: EventType.TEXT_MESSAGE_CHUNK,
           messageId: 'm1',
           timestamp: Date.now(),
           delta: 'done',
@@ -1260,6 +1266,7 @@ describe('ChatClient resume', () => {
           delta: JSON.stringify({ query: 'answer' }),
           timestamp: Date.now(),
         },
+        { type: EventType.TOOL_CALL_END, toolCallId: 'legacy-tool-call' },
         {
           type: EventType.CUSTOM,
           name: 'tool-input-available',
@@ -1366,6 +1373,7 @@ describe('ChatClient resume', () => {
             delta: JSON.stringify({ query }),
             timestamp: Date.now(),
           },
+          { type: EventType.TOOL_CALL_END, toolCallId },
           {
             type: EventType.RUN_FINISHED,
             runId,

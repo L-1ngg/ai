@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { describe, expect, it, vi } from 'vitest'
 import {
   DetachableRunCapability,
@@ -205,7 +206,7 @@ describe('chat onAbort status', () => {
             threadId: 't1',
             finishReason: 'tool_calls',
             timestamp: 1,
-            usage,
+            ...toUsageEventFields(usage),
           } satisfies AdapterYieldChunk
         })(),
       structuredOutput: async () => ({ data: {}, rawText: '{}' }),

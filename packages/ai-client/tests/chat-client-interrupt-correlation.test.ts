@@ -78,12 +78,12 @@ describe('ChatClient interrupt error correlation', () => {
     await vi.waitFor(() => expect(contexts).toHaveLength(1))
     publish({
       type: EventType.RUN_ERROR,
-      threadId: 'foreign-thread',
-      runId: 'foreign-child-run',
       timestamp: Date.now(),
       message: 'foreign run failed',
       metadata: {
         tanstack: {
+          threadId: 'foreign-thread',
+          runId: 'foreign-child-run',
           interruptErrors: [
             {
               scope: 'item',
@@ -116,7 +116,11 @@ describe('ChatClient interrupt error correlation', () => {
       expect(client.getInterruptState().resuming).toBe(false),
     )
     expect(onChunk).toHaveBeenCalledWith(
-      expect.objectContaining({ runId: 'foreign-child-run' }),
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          tanstack: expect.objectContaining({ runId: 'foreign-child-run' }),
+        }),
+      }),
     )
     expect(client.getError()?.message).toBe('foreign run failed')
     expect(client.getInterrupts()[0]?.errors).toEqual([])
@@ -130,12 +134,12 @@ describe('ChatClient interrupt error correlation', () => {
     if (!localRunId) throw new Error('Expected a local continuation run ID')
     publish({
       type: EventType.RUN_ERROR,
-      threadId: 'thread-1',
-      runId: localRunId,
       timestamp: Date.now(),
       message: 'local validation failed',
       metadata: {
         tanstack: {
+          threadId: 'thread-1',
+          runId: localRunId,
           interruptErrors: [
             {
               scope: 'item',

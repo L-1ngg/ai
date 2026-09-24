@@ -535,11 +535,9 @@ describe('chat() middleware', () => {
       expect(finished).not.toHaveProperty('model')
       expect(tanstackMetadata(finished)?.finishReason).toBe('stop')
       expect(tanstackMetadata(finished)?.model).toBe('gpt-5.5')
-      expect(finished.usage).toEqual({
-        promptTokens: 1,
-        completionTokens: 2,
-        totalTokens: 3,
-      })
+      expect(finished.usage).toMatchObject([
+        { inputTokens: 1, outputTokens: 2, totalTokens: 3 },
+      ])
     })
 
     it('onChunk does not see REASONING_ENCRYPTED_VALUE from STEP_FINISHED.signature', async () => {

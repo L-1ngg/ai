@@ -108,13 +108,15 @@ describe('translateThreadEvents', () => {
     const finished = chunks.at(-1) as unknown as {
       usage: Record<string, unknown>
     }
-    expect(finished.usage).toMatchObject({
-      promptTokens: 100,
-      completionTokens: 20,
-      totalTokens: 120,
-      promptTokensDetails: { cachedTokens: 40 },
-      completionTokensDetails: { reasoningTokens: 5 },
-    })
+    expect(finished.usage).toMatchObject([
+      {
+        inputTokens: 100,
+        outputTokens: 20,
+        totalTokens: 120,
+        cachedInputTokens: 40,
+        reasoningTokens: 5,
+      },
+    ])
   })
 
   it('notifies onSessionId and forwards raw events to onThreadEvent', async () => {

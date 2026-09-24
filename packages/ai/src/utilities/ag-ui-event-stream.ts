@@ -116,7 +116,7 @@ export class AGUIEventStream {
         this.fail(
           `Ambiguous ${event.type}: attribute the continuation to its subagent`,
         )
-      if (holders.length === 1) laneOwner = holders[0]![0]
+      if (holders.length === 1) laneOwner = holders[0]?.[0]
     }
     let lane = this.lanes.get(laneOwner)
     const result: Array<AGUIEvent> = []
@@ -127,7 +127,7 @@ export class AGUIEventStream {
       result.push(...this.close(laneOwner))
       lane = undefined
     }
-    const input = event as unknown as Record<string, unknown>
+    const input: Record<string, unknown> = { ...event }
     if (!lane) {
       if (id === undefined)
         this.fail(
@@ -153,7 +153,7 @@ export class AGUIEventStream {
       if (event.timestamp !== undefined) opener.timestamp = event.timestamp
       lane = { family, id, opener }
       this.lanes.set(laneOwner, lane)
-      result.push(opener as unknown as AGUIEvent)
+      result.push(opener as AGUIEvent)
     } else {
       for (const field of ['role', 'name', 'toolCallName', 'parentMessageId']) {
         if (input[field] !== undefined && input[field] !== lane.opener[field])
@@ -308,7 +308,7 @@ export class AGUIEventStream {
       case EventType.TOOL_CALL_START: {
         const parent = event.parentMessageId
         if (parent !== undefined && this.owners.get('text')?.has(parent)) {
-          const parentOwner = this.owners.get('text')!.get(parent)
+          const parentOwner = this.owners.get('text')?.get(parent)
           if (owner !== undefined && owner !== parentOwner)
             this.fail(
               'Tool call subagentRunId does not match its parent message',
@@ -377,7 +377,14 @@ export class AGUIEventStream {
       case EventType.MESSAGES_SNAPSHOT:
         this.seed(event.messages, true)
         break
-      default:
+      case EventType.TEXT_MESSAGE_CHUNK:
+      case EventType.TOOL_CALL_CHUNK:
+      case EventType.REASONING_MESSAGE_CHUNK:
+        return this.fail('Chunk events must be expanded before ordering checks')
+      case EventType.STATE_SNAPSHOT:
+      case EventType.STATE_DELTA:
+      case EventType.RAW:
+      case EventType.CUSTOM:
         break
     }
   }

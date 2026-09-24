@@ -35,7 +35,7 @@ Later:
 - `STEP_STARTED` / `STEP_FINISHED`: `stepName` only
 - `CUSTOM`: `name` and `value`. See [Custom Events](../protocol/custom-events)
 
-On `RUN_FINISHED`, in-process `chat()` still uses TanStack `TokenUsage` (`promptTokens`). The SSE and HTTP wires use the spec `usage` array (`inputTokens`). Read `finishReason` from `metadata.tanstack.finishReason`. Custom servers: see [Event metadata](../protocol/metadata).
+All public events use the AG-UI `usage` array, including in-process `chat()` output and transport callbacks. Read each entry through `inputTokens`, `outputTokens`, and `totalTokens`. Read `finishReason` from `metadata.tanstack.finishReason`. Custom servers: see [Event metadata](../protocol/metadata).
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -70,6 +70,17 @@ Use `EventType` from `@tanstack/ai` or `@tanstack/ai/client`. Both export the up
 These types describe protocol events. They do not start subagents or provide subagent client handles.
 
 `TOOL_CALL_RESULT.content` accepts a string or an array of AG-UI content parts. Text parts use `text` on the wire.
+
+## Client processing
+
+`ChatClient` checks incoming events before updating messages. Malformed fields and invalid event order fail the stream. Unknown event types and fields are ignored.
+
+- Text, tool, and reasoning chunk events expand into start, content or args, and end events. `onChunk` receives these expanded events.
+- Reasoning messages keep their own IDs. Thinking parts can appear in a separate assistant message.
+- Activity snapshots create activity parts. Activity deltas apply JSON Patch to their content.
+- State snapshots and deltas update `client.getAgentState()`. Subagent lifecycle events update `client.getSubagents()`.
+
+A successful `RUN_FINISHED` can list `pendingToolCallIds`. The client executes those tools and sends their results in the next request. Missing handlers and invalid arguments produce error results. Human approvals still use interrupt outcomes.
 
 ## Threads and runs
 

@@ -142,11 +142,9 @@ describe('OpenAIBaseChatCompletionsTextAdapter — usage-only terminal chunk', (
     expect(runFinished).toBeDefined()
     if (runFinished?.type === EventType.RUN_FINISHED) {
       expect(runFinished.finishReason).toBe('tool_calls')
-      expect(runFinished.usage).toMatchObject({
-        promptTokens: 12,
-        completionTokens: 3,
-        totalTokens: 15,
-      })
+      expect(runFinished.usage).toMatchObject([
+        { inputTokens: 12, outputTokens: 3, totalTokens: 15 },
+      ])
     }
   })
 
@@ -213,11 +211,9 @@ describe('OpenAIBaseChatCompletionsTextAdapter — usage-only terminal chunk', (
       // A started/ended tool-call pair was emitted, so the finish reason must
       // surface as `tool_calls` regardless of the missing upstream signal.
       expect(runFinished.finishReason).toBe('tool_calls')
-      expect(runFinished.usage).toMatchObject({
-        promptTokens: 8,
-        completionTokens: 4,
-        totalTokens: 12,
-      })
+      expect(runFinished.usage).toMatchObject([
+        { inputTokens: 8, outputTokens: 4, totalTokens: 12 },
+      ])
     }
   })
 })

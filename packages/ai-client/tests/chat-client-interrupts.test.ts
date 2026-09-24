@@ -291,7 +291,7 @@ describe('InterruptManager hydration', () => {
     expect(Object.isFrozen(snapshot[0]?.binding)).toBe(true)
   })
 
-  it('hydrates a real core client-tool terminal with distinct schema identity hashes', async () => {
+  it('emits a successful core terminal with pending frontend tools', async () => {
     const coreChunks = [
       {
         type: EventType.RUN_STARTED,
@@ -356,68 +356,19 @@ describe('InterruptManager hydration', () => {
     })) {
       emitted.push(chunk)
     }
-    const terminal = emitted.find(
-      (chunk) =>
-        chunk.type === EventType.RUN_FINISHED &&
-        chunk.outcome?.type === 'interrupt',
+    expect(emitted).toContainEqual(
+      expect.objectContaining({
+        type: EventType.RUN_FINISHED,
+        outcome: { type: 'success', pendingToolCallIds: ['core-call'] },
+      }),
     )
-    if (
-      terminal?.type !== EventType.RUN_FINISHED ||
-      terminal.outcome?.type !== 'interrupt'
-    ) {
-      throw new Error('Expected a real core interrupt terminal.')
-    }
-    const interrupt = terminal.outcome.interrupts[0]
-    if (!interrupt) throw new Error('Expected a client-tool interrupt.')
-    const rawBinding = interrupt.metadata?.['tanstack:interruptBinding']
-    if (
-      rawBinding === null ||
-      typeof rawBinding !== 'object' ||
-      Array.isArray(rawBinding)
-    ) {
-      throw new Error('Expected a public interrupt binding.')
-    }
-    const binding = Object.fromEntries(Object.entries(rawBinding))
-    const expectedOutputSchemaHash = hashSchemaInput(
-      lookupDefinition.outputSchema,
-    )
-    const expectedResponseSchema =
-      convertSchemaToJsonSchema(lookupDefinition.outputSchema) ?? {}
-    const expectedResponseSchemaHash = digestInterruptJson(
-      canonicalInterruptJson(expectedResponseSchema),
-    )
-    expect(binding.outputSchemaHash).toBe(expectedOutputSchemaHash)
-    expect(binding.responseSchemaHash).toBe(expectedResponseSchemaHash)
-    expect(binding.outputSchemaHash).not.toBe(binding.responseSchemaHash)
-
-    const { manager } = createManager()
-    manager.hydrate({
-      threadId: 'core-thread',
-      interruptedRunId: 'core-run',
-      generation: 0,
-      interrupts: terminal.outcome.interrupts,
-    })
-    // A correctly-correlated client-tool item is internal only â€” not public.
-    expect(manager.getInterrupts()).toHaveLength(0)
-
-    manager.hydrate({
-      threadId: 'core-thread',
-      interruptedRunId: 'core-run',
-      generation: 0,
-      interrupts: [
-        {
-          ...interrupt,
-          metadata: {
-            ...interrupt.metadata,
-            'tanstack:interruptBinding': {
-              ...binding,
-              outputSchemaHash: 'sha256:configured-schema-drift',
-            },
-          },
-        },
-      ],
-    })
-    expect(manager.getInterrupts()[0]?.kind).toBe('generic')
+    expect(
+      emitted.some(
+        (chunk) =>
+          chunk.type === EventType.RUN_FINISHED &&
+          chunk.outcome?.type === 'interrupt',
+      ),
+    ).toBe(false)
   })
 
   it('keeps deprecated approval and client-tool reason aliases compatible', () => {
@@ -1537,6 +1488,7 @@ describe('ChatClient native interrupts', () => {
             delta: '{}',
             timestamp: Date.now(),
           }
+          yield { type: EventType.TOOL_CALL_END, toolCallId: 'call-1' }
           yield {
             type: EventType.CUSTOM,
             name: 'tool-input-available',
@@ -2053,6 +2005,7 @@ describe('ChatClient native interrupts', () => {
         sentMessages.push(messages)
         calls++
         const runId = context?.runId ?? `run-${calls}`
+        yield { type: EventType.RUN_STARTED, runId, threadId: 'thread-1' }
         if (calls === 1) {
           yield {
             type: EventType.RUN_FINISHED,

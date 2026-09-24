@@ -401,20 +401,22 @@ describe('ChatClient', () => {
                 ...createTextChunks(
                   prompt === 'A' ? 'stale A' : 'fresh B',
                   prompt === 'A' ? 'msg-a' : 'msg-b',
-                ).map((chunk) => {
-                  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-                    const { runId: _runId, ...withoutRunId } = chunk
-                    return withoutRunId as StreamChunk
-                  }
-                  if (chunk.type === 'RUN_FINISHED') {
-                    return {
-                      ...chunk,
-                      threadId: runContext?.threadId ?? chunk.threadId,
-                      runId: runContext?.runId ?? chunk.runId,
-                    } as StreamChunk
-                  }
-                  return chunk
-                }),
+                )
+                  .map((chunk) => {
+                    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+                      const { runId: _runId, ...withoutRunId } = chunk
+                      return withoutRunId as StreamChunk
+                    }
+                    if (chunk.type === 'RUN_FINISHED') {
+                      return {
+                        ...chunk,
+                        threadId: runContext?.threadId ?? chunk.threadId,
+                        runId: runContext?.runId ?? chunk.runId,
+                      } as StreamChunk
+                    }
+                    return chunk
+                  })
+                  .filter((chunk) => chunk.type !== 'RUN_STARTED'),
               ],
             })
             wakeSubscriber?.()
@@ -630,12 +632,18 @@ describe('ChatClient', () => {
                   timestamp: Date.now(),
                 } as StreamChunk,
                 {
+                  type: EventType.TEXT_MESSAGE_START,
+                  messageId: messageId,
+                  role: 'assistant',
+                },
+                {
                   type: EventType.TEXT_MESSAGE_CONTENT,
                   messageId,
                   timestamp: Date.now(),
                   delta: prompt === 'A' ? 'stale content' : 'fresh content',
                   content: prompt === 'A' ? 'stale content' : 'fresh content',
                 } as StreamChunk,
+                { type: EventType.TEXT_MESSAGE_END, messageId: messageId },
                 {
                   type: EventType.RUN_FINISHED,
                   threadId: runContext?.threadId ?? 'thread-1',
@@ -1005,20 +1013,22 @@ describe('ChatClient', () => {
                 ...createTextChunks(
                   prompt === 'A' ? 'stale A' : 'fresh B',
                   messageId,
-                ).map((chunk) => {
-                  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-                    const { runId: _runId, ...withoutRunId } = chunk
-                    return withoutRunId as StreamChunk
-                  }
-                  if (chunk.type === 'RUN_FINISHED') {
-                    return {
-                      ...chunk,
-                      threadId: runContext?.threadId ?? chunk.threadId,
-                      runId: runContext?.runId ?? chunk.runId,
-                    } as StreamChunk
-                  }
-                  return chunk
-                }),
+                )
+                  .map((chunk) => {
+                    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+                      const { runId: _runId, ...withoutRunId } = chunk
+                      return withoutRunId as StreamChunk
+                    }
+                    if (chunk.type === 'RUN_FINISHED') {
+                      return {
+                        ...chunk,
+                        threadId: runContext?.threadId ?? chunk.threadId,
+                        runId: runContext?.runId ?? chunk.runId,
+                      } as StreamChunk
+                    }
+                    return chunk
+                  })
+                  .filter((chunk) => chunk.type !== 'RUN_STARTED'),
               ],
             })
             wakeSubscriber?.()
@@ -1100,7 +1110,12 @@ describe('ChatClient', () => {
             timestamp: Date.now(),
           } as StreamChunk
           yield {
-            type: 'TEXT_MESSAGE_CONTENT',
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'assistant-a',
+            role: 'assistant',
+          } as StreamChunk
+          yield {
+            type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'assistant-a',
             model: 'test',
             timestamp: Date.now(),
@@ -1109,7 +1124,7 @@ describe('ChatClient', () => {
           } as StreamChunk
           await releaseToolChunks.promise
           yield {
-            type: 'TOOL_CALL_START',
+            type: EventType.TOOL_CALL_START,
             toolCallId: 'stale-tool',
             toolCallName: 'staleTool',
             toolName: 'staleTool',
@@ -1119,7 +1134,7 @@ describe('ChatClient', () => {
             index: 0,
           } as StreamChunk
           yield {
-            type: 'TOOL_CALL_ARGS',
+            type: EventType.TOOL_CALL_ARGS,
             toolCallId: 'stale-tool',
             model: 'test',
             timestamp: Date.now(),
@@ -1178,7 +1193,7 @@ describe('ChatClient', () => {
             content: 'stale text',
           } as StreamChunk
           yield {
-            type: 'TOOL_CALL_START',
+            type: EventType.TOOL_CALL_START,
             toolCallId: 'stale-child-tool',
             toolCallName: 'staleTool',
             toolName: 'staleTool',
@@ -1188,7 +1203,7 @@ describe('ChatClient', () => {
             index: 0,
           } as StreamChunk
           yield {
-            type: 'TOOL_CALL_ARGS',
+            type: EventType.TOOL_CALL_ARGS,
             toolCallId: 'stale-child-tool',
             model: 'test',
             timestamp: Date.now(),
@@ -1235,7 +1250,7 @@ describe('ChatClient', () => {
           } as StreamChunk
           await releaseToolChunks.promise
           yield {
-            type: 'TOOL_CALL_START',
+            type: EventType.TOOL_CALL_START,
             toolCallId: 'stale-parentless-tool',
             toolCallName: 'staleTool',
             toolName: 'staleTool',
@@ -1244,7 +1259,7 @@ describe('ChatClient', () => {
             index: 0,
           } as StreamChunk
           yield {
-            type: 'TOOL_CALL_ARGS',
+            type: EventType.TOOL_CALL_ARGS,
             toolCallId: 'stale-parentless-tool',
             model: 'test',
             timestamp: Date.now(),
@@ -1443,13 +1458,7 @@ describe('ChatClient', () => {
       const client = new ChatClient({
         connection: {
           async *connect() {
-            yield {
-              type: EventType.TEXT_MESSAGE_CONTENT,
-              messageId: 'public-message',
-              timestamp: Date.now(),
-              delta: 'Hello',
-              content: 'Hello',
-            } as StreamChunk
+            yield* createTextChunks('Hello', 'public-message')
           },
         },
         onChunk,
@@ -1473,6 +1482,7 @@ describe('ChatClient', () => {
 
     it('stop should not unsubscribe an active subscription', async () => {
       const adapter = createSubscribeAdapter([
+        { type: EventType.RUN_STARTED, runId: 'run-1', threadId: 'thread-1' },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
@@ -1580,6 +1590,16 @@ describe('ChatClient', () => {
     it('unsubscribe should abort in-flight requests and disconnect', async () => {
       const adapter = createSubscribeAdapter([
         {
+          type: EventType.RUN_STARTED,
+          runId: 'run-fixture',
+          threadId: 'thread-fixture',
+        },
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'msg-1',
+          role: 'assistant',
+        },
+        {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
           model: 'test',
@@ -1640,6 +1660,16 @@ describe('ChatClient', () => {
     it('should remain pending without terminal run events', async () => {
       const adapter = createSubscribeAdapter([
         {
+          type: EventType.RUN_STARTED,
+          runId: 'run-fixture',
+          threadId: 'thread-fixture',
+        },
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'msg-1',
+          role: 'assistant',
+        },
+        {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
           model: 'test',
@@ -1683,6 +1713,11 @@ describe('ChatClient', () => {
             timestamp: Date.now(),
           },
           {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'msg-1',
+            role: 'assistant',
+          },
+          {
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
             model: 'test',
@@ -1690,6 +1725,7 @@ describe('ChatClient', () => {
             delta: 'Hi',
             content: 'Hi',
           },
+          { type: EventType.TEXT_MESSAGE_END, messageId: 'msg-1' },
           {
             type: EventType.RUN_FINISHED,
             runId: 'run-1',
@@ -1757,6 +1793,11 @@ describe('ChatClient', () => {
             timestamp: Date.now(),
           },
           {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'msg-1',
+            role: 'assistant',
+          },
+          {
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
             model: 'test',
@@ -1764,6 +1805,7 @@ describe('ChatClient', () => {
             delta: 'Hi',
             content: 'Hi',
           },
+          { type: EventType.TEXT_MESSAGE_END, messageId: 'msg-1' },
           {
             type: EventType.RUN_FINISHED,
             runId: 'run-1',
@@ -1938,6 +1980,11 @@ describe('ChatClient', () => {
             timestamp: Date.now(),
           },
           {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'msg-1',
+            role: 'assistant',
+          },
+          {
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
             model: 'test',
@@ -1945,6 +1992,7 @@ describe('ChatClient', () => {
             delta: 'A',
             content: 'A',
           },
+          { type: EventType.TEXT_MESSAGE_END, messageId: 'msg-1' },
           {
             type: EventType.RUN_FINISHED,
             runId: 'run-1',
@@ -2360,7 +2408,7 @@ describe('ChatClient', () => {
       expect(client.getResumeState()?.runId).toBeTruthy()
     })
 
-    it('keeps append pending when intermediate tool_calls is a direct finishReason', async () => {
+    it('keeps append pending when intermediate tool_calls is in TanStack metadata', async () => {
       const adapter: ConnectConnectionAdapter = {
         async *connect(_messages, _data, _signal, ctx) {
           const runId = ctx?.runId ?? 'run-1'
@@ -2376,7 +2424,7 @@ describe('ChatClient', () => {
             runId,
             threadId,
             timestamp: Date.now(),
-            finishReason: 'tool_calls',
+            metadata: { tanstack: { finishReason: 'tool_calls' } },
           }
           await Promise.resolve()
           yield {
@@ -2982,6 +3030,7 @@ describe('ChatClient', () => {
         error: 'Input validation failed for tool show_notification',
       })
       const errorChunks: Array<StreamChunk> = [
+        { type: EventType.RUN_STARTED, runId: 'run-1', threadId: 'thread-1' },
         {
           type: EventType.TOOL_CALL_START,
           toolCallId: 'tool-1',
@@ -3065,13 +3114,25 @@ describe('ChatClient', () => {
 
   describe('addToolResult', () => {
     it('should add tool result and update message', async () => {
-      const chunks = createToolCallChunks([
-        { id: 'tool-1', name: 'test_tool', arguments: '{}' },
-      ])
-      const adapter = createMockConnectionAdapter({ chunks })
-      const client = new ChatClient({ connection: adapter })
-
-      await client.sendMessage('Test')
+      const client = new ChatClient({
+        connection: createMockConnectionAdapter(),
+        initialMessages: [
+          {
+            id: 'assistant-1',
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool-call',
+                id: 'tool-1',
+                name: 'test_tool',
+                arguments: '{}',
+                input: {},
+                state: 'input-complete',
+              },
+            ],
+          },
+        ],
+      })
 
       // Find the tool call
       const messages = client.getMessages()
@@ -3209,6 +3270,16 @@ describe('ChatClient', () => {
     it('should not hang when connection is updated during an active stream', async () => {
       const noTerminalAdapter = createMockConnectionAdapter({
         chunks: [
+          {
+            type: EventType.RUN_STARTED,
+            runId: 'run-fixture',
+            threadId: 'thread-fixture',
+          },
+          {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: 'msg-1',
+            role: 'assistant',
+          },
           {
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
@@ -3926,11 +3997,9 @@ describe('ChatClient', () => {
 
       await client.sendMessage('Test')
 
-      expect(onCustomEvent).toHaveBeenCalledWith(
-        'simple-notification',
-        undefined,
-        { toolCallId: undefined },
-      )
+      expect(onCustomEvent).toHaveBeenCalledWith('simple-notification', null, {
+        toolCallId: undefined,
+      })
     })
 
     it('should NOT call onCustomEvent for system events like tool-input-available', async () => {
@@ -4072,6 +4141,11 @@ describe('ChatClient', () => {
             // Second stream (after first approval): tool call B needing approval
             // Yield the tool call and approval request
             const preChunks: Array<StreamChunk> = [
+              {
+                type: EventType.RUN_STARTED,
+                runId: 'run-fixture',
+                threadId: 'thread-fixture',
+              },
               {
                 type: EventType.TOOL_CALL_START,
                 toolCallId: 'tc-2',
@@ -4250,6 +4324,7 @@ describe('ChatClient', () => {
         ).toBe(true)
       })
 
+      push({ type: EventType.TEXT_MESSAGE_END, messageId: 'msg-b' })
       push({
         type: EventType.RUN_FINISHED,
         runId: 'run-b',
@@ -4291,6 +4366,7 @@ describe('ChatClient', () => {
         1,
       )
 
+      push({ type: EventType.TEXT_MESSAGE_END, messageId: 'msg-a' })
       push({
         type: EventType.RUN_FINISHED,
         runId: 'run-a',
@@ -4343,12 +4419,18 @@ describe('ChatClient', () => {
           timestamp: Date.now(),
         },
         {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'asst-1',
+          role: 'assistant',
+        },
+        {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'asst-1',
           model: 'test',
           timestamp: Date.now(),
           delta: 'time...',
         },
+        { type: EventType.TEXT_MESSAGE_END, messageId: 'asst-1' },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',

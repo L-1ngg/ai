@@ -229,6 +229,7 @@ export class StreamProcessor {
 
   // Run tracking (for concurrent run safety)
   private readonly activeRuns = new Set<string>()
+  private readonly toolCallRuns = new Map<string, string | undefined>()
 
   // Shared stream state
   private finishReason: string | null = null
@@ -961,7 +962,10 @@ export class StreamProcessor {
 
     // Try active assistant message
     const activeId = this.getActiveAssistantMessageId()
-    if (activeId && preferredId === undefined) {
+    if (
+      activeId &&
+      (preferredId === undefined || this.pendingManualMessageId === activeId)
+    ) {
       const state = this.getMessageState(activeId)
       if (state) {
         this.resumeAssistantState(activeId, state)
@@ -1139,7 +1143,13 @@ export class StreamProcessor {
       this.activeMessageIds.add(messageId)
       const existingState = this.messageStates.get(messageId)
       if (!existingState) {
-        this.createMessageState(messageId, uiRole)
+        const state = this.createMessageState(messageId, uiRole)
+        const lastPart = existingMsg.parts.at(-1)
+        if (lastPart?.type === 'text') {
+          state.currentSegmentText = lastPart.content
+          state.lastEmittedText = lastPart.content
+          state.totalTextContent = lastPart.content
+        }
       } else {
         // If tool calls happened since last text, this TEXT_MESSAGE_START
         // signals a new text segment — reset segment accumulation
@@ -1599,6 +1609,7 @@ export class StreamProcessor {
     state.hasToolCallsSinceTextStart = true
 
     const toolCallId = chunk.toolCallId
+    this.toolCallRuns.set(toolCallId, [...this.activeRuns].at(-1))
     const existingToolCall = state.toolCalls.get(toolCallId)
 
     if (!existingToolCall) {
@@ -1933,18 +1944,21 @@ export class StreamProcessor {
     } else if (chunk.outcome?.type !== 'cancelled') {
       const pending = chunk.outcome?.pendingToolCallIds
       for (const message of this.messages) {
-        for (const part of message.parts) {
+        for (const part of message.parts ?? []) {
           if (
             part.type !== 'tool-call' ||
             part.output !== undefined ||
             part.state === 'error' ||
-            part.approval?.approved === false
+            (part.approval?.needsApproval && part.approval.approved !== true)
           )
             continue
           if (
             pending
               ? !pending.includes(part.id)
-              : message.parts.some(
+              : !this.toolCallRuns.has(part.id) ||
+                (this.toolCallRuns.get(part.id) !== undefined &&
+                  this.toolCallRuns.get(part.id) !== chunk.runId) ||
+                message.parts.some(
                   (value) =>
                     value.type === 'tool-result' &&
                     value.toolCallId === part.id,
@@ -1967,6 +1981,10 @@ export class StreamProcessor {
       }
     }
 
+    for (const [id, runId] of this.toolCallRuns) {
+      if (runId === undefined || runId === chunk.runId)
+        this.toolCallRuns.delete(id)
+    }
     if (this.activeRuns.size === 0) {
       this.completeAllToolCalls()
       const isIntermediateToolTurn =
@@ -2073,6 +2091,7 @@ export class StreamProcessor {
       this.activeRuns.delete(runId)
     } else {
       this.activeRuns.clear()
+      this.toolCallRuns.clear()
     }
     const messageId = this.getActiveAssistantMessageId()
     // Prefer spec field `message`; fall back to deprecated `error.message`.
@@ -2239,7 +2258,7 @@ export class StreamProcessor {
     const target = this.messages.find(
       (message) =>
         message.id === chunk.entityId ||
-        message.parts.some(
+        message.parts?.some(
           (part) =>
             part.type === 'thinking' &&
             (part.id === chunk.entityId || part.stepId === chunk.entityId),
@@ -2321,7 +2340,7 @@ export class StreamProcessor {
     if (chunk.name === 'structured-output.start' && chunk.value) {
       const v = chunk.value as { messageId?: string }
       const { messageId: targetId } = this.ensureAssistantMessage(
-        v.messageId ?? messageId ?? undefined,
+        messageId ?? v.messageId ?? undefined,
       )
       if (targetId) {
         this.structuredMessageIds.add(targetId)
@@ -2344,7 +2363,12 @@ export class StreamProcessor {
         messageId?: string
       }
       const { messageId: targetId } = this.ensureAssistantMessage(
-        v.messageId ?? messageId ?? undefined,
+        v.messageId &&
+          this.messages.some((message) => message.id === v.messageId)
+          ? v.messageId
+          : messageId
+            ? messageId
+            : (v.messageId ?? messageId ?? undefined),
       )
       if (targetId) {
         this.flushStructuredOutputUpdate(targetId)
@@ -2873,6 +2897,7 @@ export class StreamProcessor {
     this.messageStates.clear()
     this.activeMessageIds.clear()
     this.activeRuns.clear()
+    this.toolCallRuns.clear()
     this.toolCallToMessage.clear()
     this.structuredMessageIds.clear()
     this.structuredOutputUpdateBatches.clear()

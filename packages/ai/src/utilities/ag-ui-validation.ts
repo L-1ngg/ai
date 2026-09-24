@@ -22,6 +22,11 @@ interface Schema {
 }
 
 const schemas: Record<string, Schema> = aguiSchema
+function schemaByName(name: string): Schema {
+  const schema = schemas[name]
+  if (!schema) throw new Error(`Missing AG-UI schema: ${name}`)
+  return schema
+}
 const resolved = new WeakMap<Schema, Schema>()
 const DROP = Symbol('unknown AG-UI member')
 export type ProtocolWarning = (message: string) => void
@@ -31,7 +36,7 @@ function resolve(schema: Schema): Schema {
   const cached = resolved.get(schema)
   if (cached) return cached
   const parents = [
-    ...(schema.ref ? [resolve(schemas[schema.ref]!)] : []),
+    ...(schema.ref ? [resolve(schemaByName(schema.ref))] : []),
     ...(schema.allOf?.map(resolve) ?? []),
   ]
   const value: Schema = Object.assign({}, ...parents, schema)
@@ -137,10 +142,9 @@ function read(
   )
     invalid(path, `a string matching ${schema.pattern}`)
   if (Array.isArray(value) && schema.items) {
+    const items = schema.items
     const result = value
-      .map((item, index) =>
-        read(item, schema.items!, `${path}/${index}`, report),
-      )
+      .map((item, index) => read(item, items, `${path}/${index}`, report))
       .filter((item) => item !== DROP)
     if (schema.minItems !== undefined && result.length < schema.minItems)
       invalid(path, `at least ${schema.minItems} items`)
@@ -163,12 +167,9 @@ function read(
         else report(`Removed unrecognized field ${path}/${key}`)
         continue
       }
-      const next = read(
-        child,
-        schema.properties[key]!,
-        `${path}/${key}`,
-        report,
-      )
+      const property = schema.properties[key]
+      if (!property) continue
+      const next = read(child, property, `${path}/${key}`, report)
       if (next === DROP) {
         if (schema.required?.includes(key)) return DROP
       } else entries.push([key, next])
@@ -183,7 +184,7 @@ export function validateAGUIEvent(
   value: unknown,
   report: ProtocolWarning = warn,
 ): AGUIEvent | undefined {
-  const result = read(value, schemas.Event!, '', report)
+  const result = read(value, schemaByName('Event'), '', report)
   return result === DROP ? undefined : (result as AGUIEvent)
 }
 
@@ -191,7 +192,7 @@ export function validateAGUIInput(
   value: unknown,
   report: ProtocolWarning = warn,
 ): RunAgentInput {
-  const result = read(value, schemas.RunAgentInput!, '', report)
+  const result = read(value, schemaByName('RunAgentInput'), '', report)
   if (result === DROP) invalid('/', 'a recognized RunAgentInput')
   return result as RunAgentInput
 }

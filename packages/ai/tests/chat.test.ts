@@ -602,7 +602,7 @@ describe('chat()', () => {
   // Client tools (no execute)
   // ==========================================================================
   describe('client tools (no execute)', () => {
-    it('emits an actionable client-tool interrupt without persistence', async () => {
+    it('finishes successfully with pending client tools without persistence', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -628,26 +628,11 @@ describe('chat()', () => {
         false,
       )
       expect(expectSingleRunFinished(chunks)).toMatchObject({
-        outcome: {
-          type: 'interrupt',
-          interrupts: [
-            {
-              id: 'client_tool_call_1',
-              metadata: {
-                'tanstack:interruptBinding': {
-                  kind: 'client-tool-execution',
-                  interruptId: 'client_tool_call_1',
-                  interruptedRunId: 'interrupted-run',
-                  generation: 0,
-                },
-              },
-            },
-          ],
-        },
+        outcome: { type: 'success', pendingToolCallIds: ['call_1'] },
       })
     })
 
-    it('emits ordered snapshots before canonical bound interrupts', async () => {
+    it('emits ordered snapshots before pending client-tool completion', async () => {
       const sequence: Array<string> = []
       const { adapter } = createMockAdapter({
         iterations: [
@@ -678,17 +663,7 @@ describe('chat()', () => {
       ])
       const terminal = expectSingleRunFinished(chunks)
       expect(terminal).toMatchObject({
-        outcome: {
-          type: 'interrupt',
-          interrupts: [
-            {
-              id: 'client_tool_call_1',
-              reason: 'tanstack:client_tool_execution',
-              toolCallId: 'call_1',
-              responseSchema: {},
-            },
-          ],
-        },
+        outcome: { type: 'success', pendingToolCallIds: ['call_1'] },
       })
     })
 
@@ -868,7 +843,7 @@ describe('chat()', () => {
       )
     })
 
-    it('should yield an interrupt outcome for client tools', async () => {
+    it('yields a successful outcome with pending client tools', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -893,25 +868,11 @@ describe('chat()', () => {
       expect(runFinished).toMatchObject({
         type: 'RUN_FINISHED',
         metadata: { tanstack: { finishReason: 'tool_calls' } },
-        outcome: {
-          type: 'interrupt',
-          interrupts: [
-            {
-              id: 'client_tool_call_1',
-              reason: 'tanstack:client_tool_execution',
-              toolCallId: 'call_1',
-              metadata: {
-                kind: 'client_tool',
-                toolName: 'clientSearch',
-                input: { query: 'test' },
-              },
-            },
-          ],
-        },
+        outcome: { type: 'success', pendingToolCallIds: ['call_1'] },
       })
     })
 
-    it('should not run streaming structured-output finalization after a client-tool interrupt', async () => {
+    it('should not run streaming structured-output finalization while client tools are pending', async () => {
       const structuredOutputSpy = vi.fn().mockResolvedValue({
         data: { status: 'done' },
         rawText: '{"status":"done"}',
@@ -946,7 +907,10 @@ describe('chat()', () => {
       expect(structuredOutputSpy).not.toHaveBeenCalled()
 
       const runFinished = expectSingleRunFinished(chunks)
-      expect(runFinished.outcome?.type).toBe('interrupt')
+      expect(runFinished.outcome).toEqual({
+        type: 'success',
+        pendingToolCallIds: ['call_1'],
+      })
 
       const interruptTerminalIndex = chunks.indexOf(runFinished)
       const chunksAfterInterrupt = chunks.slice(interruptTerminalIndex + 1)
@@ -1026,20 +990,7 @@ describe('chat()', () => {
       expect(runFinishedIndex).toBeGreaterThan(toolResultIndex)
       expect(runFinished).toMatchObject({
         type: 'RUN_FINISHED',
-        outcome: {
-          type: 'interrupt',
-          interrupts: [
-            {
-              reason: 'tanstack:client_tool_execution',
-              toolCallId: 'call_client',
-              metadata: {
-                kind: 'client_tool',
-                toolName: 'showNotification',
-                input: { message: 'done' },
-              },
-            },
-          ],
-        },
+        outcome: { type: 'success', pendingToolCallIds: ['call_client'] },
       })
       expect(
         chunks.some(
@@ -1115,20 +1066,7 @@ describe('chat()', () => {
       expect(runFinishedIndex).toBeGreaterThan(toolResultIndex)
       expect(runFinished).toMatchObject({
         type: 'RUN_FINISHED',
-        outcome: {
-          type: 'interrupt',
-          interrupts: [
-            {
-              reason: 'tanstack:client_tool_execution',
-              toolCallId: 'call_client',
-              metadata: {
-                kind: 'client_tool',
-                toolName: 'showNotification',
-                input: { message: 'done' },
-              },
-            },
-          ],
-        },
+        outcome: { type: 'success', pendingToolCallIds: ['call_client'] },
       })
       expect(
         chunks.some(
@@ -1791,7 +1729,7 @@ describe('chat()', () => {
       expect(calls).toHaveLength(1)
     })
 
-    it('continues an approved client tool through its client-execution interrupt', async () => {
+    it('continues an approved client tool with its tool-result history', async () => {
       const tool = {
         ...clientTool('clientDanger', { needsApproval: true }),
         outputSchema: {
@@ -1835,15 +1773,7 @@ describe('chat()', () => {
         }) as AsyncIterable<StreamChunk>,
       )
       expect(expectSingleRunFinished(approvalChunks)).toMatchObject({
-        outcome: {
-          type: 'interrupt',
-          interrupts: [
-            {
-              id: 'client_tool_call_client',
-              reason: 'tanstack:client_tool_execution',
-            },
-          ],
-        },
+        outcome: { type: 'success', pendingToolCallIds: ['call_client'] },
       })
 
       const outputAdapter = createMockAdapter({
@@ -1852,18 +1782,18 @@ describe('chat()', () => {
       const outputChunks = await collectChunks(
         chat({
           adapter: outputAdapter.adapter,
-          messages: history,
+          messages: [
+            ...history,
+            {
+              role: 'tool',
+              toolCallId: 'call_client',
+              content: JSON.stringify({ result: 'done' }),
+            },
+          ],
           tools: [tool],
           threadId: 'thread-1',
           runId: 'output-continuation',
           parentRunId: 'approval-continuation',
-          resume: [
-            {
-              interruptId: 'client_tool_call_client',
-              status: 'resolved',
-              payload: { result: 'done' },
-            },
-          ],
         }) as AsyncIterable<StreamChunk>,
       )
 
@@ -2090,10 +2020,7 @@ describe('chat()', () => {
       const initialInterruptIds = initialOutcome.interrupts.map(
         (interrupt) => interrupt.id,
       )
-      expect(initialInterruptIds).toEqual([
-        'approval_call_approval',
-        'client_tool_call_client',
-      ])
+      expect(initialInterruptIds).toEqual(['approval_call_approval'])
 
       const continuationAdapter = createMockAdapter({
         iterations: [[ev.runStarted(), ev.runFinished('stop')]],
@@ -2132,7 +2059,10 @@ describe('chat()', () => {
                 expect.objectContaining({
                   scope: 'batch',
                   code: 'item-validation-failed',
-                  interruptIds: initialInterruptIds,
+                  interruptIds: [
+                    'approval_call_approval',
+                    'client_tool_call_client',
+                  ],
                 }),
               ]),
             }),
@@ -2187,7 +2117,7 @@ describe('chat()', () => {
       })
     })
 
-    it('should end with an interrupt outcome for client tool execution waits', async () => {
+    it('ends successfully with pending client tool execution', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -2212,22 +2142,7 @@ describe('chat()', () => {
       expect(runFinished).toMatchObject({
         type: 'RUN_FINISHED',
         metadata: { tanstack: { finishReason: 'tool_calls' } },
-        outcome: {
-          type: 'interrupt',
-          interrupts: [
-            {
-              id: 'client_tool_call_1',
-              reason: 'tanstack:client_tool_execution',
-              message: 'Client tool clientSearch is ready to run',
-              toolCallId: 'call_1',
-              metadata: {
-                kind: 'client_tool',
-                toolName: 'clientSearch',
-                input: { query: 'test' },
-              },
-            },
-          ],
-        },
+        outcome: { type: 'success', pendingToolCallIds: ['call_1'] },
       })
       expect(
         chunks.some(
@@ -4044,11 +3959,9 @@ describe('chat()', () => {
       expect(runFinished).toBeDefined()
       expect(runFinished).not.toHaveProperty('model')
       expect(runFinished).not.toHaveProperty('finishReason')
-      expect(runFinished?.usage).toEqual({
-        promptTokens: 10,
-        completionTokens: 5,
-        totalTokens: 15,
-      })
+      expect(runFinished?.usage).toMatchObject([
+        { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      ])
       expect(onUsage).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ promptTokens: 10 }),

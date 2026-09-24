@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
@@ -646,11 +647,9 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
     expect(finished).toBeDefined()
     // Usage shape is mapped from camel to snake before the base reads it.
-    expect(finished.usage).toEqual({
-      promptTokens: 1,
-      completionTokens: 2,
-      totalTokens: 3,
-    })
+    expect(finished.usage).toMatchObject([
+      { inputTokens: 1, outputTokens: 2, totalTokens: 3 },
+    ])
   })
 
   it('recovers final text from response.completed when no text was streamed', async () => {
@@ -1743,7 +1742,7 @@ describe('OpenRouter responses adapter — cost tracking', () => {
     })
     expect(runFinishedChunk).toMatchObject({
       type: 'RUN_FINISHED',
-      usage: {
+      ...toUsageEventFields({
         promptTokens: 5,
         completionTokens: 2,
         totalTokens: 7,
@@ -1753,7 +1752,7 @@ describe('OpenRouter responses adapter — cost tracking', () => {
           upstreamInputCost: 0.0012,
           upstreamOutputCost: 0.0026,
         },
-      },
+      }),
     })
   })
 
@@ -1810,7 +1809,7 @@ describe('OpenRouter responses adapter — cost tracking', () => {
     const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(runFinishedChunk).toMatchObject({
       type: 'RUN_FINISHED',
-      usage: {
+      ...toUsageEventFields({
         promptTokens: 11,
         completionTokens: 3,
         totalTokens: 14,
@@ -1820,7 +1819,7 @@ describe('OpenRouter responses adapter — cost tracking', () => {
           upstreamInputCost: 0.0012,
           upstreamOutputCost: 0.0026,
         },
-      },
+      }),
     })
   })
 })

@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { EventType } from '@tanstack/ai'
@@ -156,7 +157,7 @@ const runFinished = (
   runId,
   threadId,
   finishReason: normalizeFinishReason(finishReason),
-  usage,
+  ...toUsageEventFields(usage),
   model,
   timestamp,
 })

@@ -396,11 +396,9 @@ describe('Groq AG-UI event emission', () => {
     if (runFinishedChunk?.type === 'RUN_FINISHED') {
       expect(runFinishedChunk.runId).toBeDefined()
       expect(runFinishedChunk.finishReason).toBe('stop')
-      expect(runFinishedChunk.usage).toMatchObject({
-        promptTokens: 5,
-        completionTokens: 1,
-        totalTokens: 6,
-      })
+      expect(runFinishedChunk.usage).toMatchObject([
+        { inputTokens: 5, outputTokens: 1, totalTokens: 6 },
+      ])
     }
   })
 

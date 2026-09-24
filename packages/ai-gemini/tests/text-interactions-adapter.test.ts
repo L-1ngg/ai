@@ -174,11 +174,9 @@ describe('GeminiTextInteractionsAdapter', () => {
 
     const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
     expect(finished.metadata.tanstack.finishReason).toBe('stop')
-    expect(finished.usage).toEqual({
-      promptTokens: 3,
-      completionTokens: 2,
-      totalTokens: 5,
-    })
+    expect(finished.usage).toMatchObject([
+      { inputTokens: 3, outputTokens: 2, totalTokens: 5 },
+    ])
 
     const interactionCustom = chunks.find(
       (c) => c.type === 'CUSTOM' && (c as any).name === 'gemini.interactionId',

@@ -152,7 +152,7 @@ describe('text adapter (binding)', () => {
     const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as {
       usage?: { promptTokens: number; totalTokens: number }
     }
-    expect(finished.usage).toMatchObject({ promptTokens: 41, totalTokens: 45 })
+    expect(finished.usage).toMatchObject([{ inputTokens: 41, totalTokens: 45 }])
   })
 
   it('surfaces reasoning_content as reasoning events', async () => {

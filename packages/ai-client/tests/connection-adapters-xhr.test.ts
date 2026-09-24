@@ -432,7 +432,7 @@ describe('xhr connection adapters', () => {
 
       xhr.progress('{"type":"RUN_STARTED","runId":"run')
       await nextTick()
-      xhr.progress('-1","timestamp":100}\n')
+      xhr.progress('-1","threadId":"thread-1","timestamp":100}\n')
 
       await expect(nextChunk).resolves.toMatchObject({
         done: false,

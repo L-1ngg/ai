@@ -261,7 +261,7 @@ describe('ChatClient runtime context', () => {
     expect(outputs).toEqual(['snapshot-user'])
     expect(findToolCallPart(client, 'tc-tool-snapshot')).toMatchObject({
       output: { initial: 'from-original-tool' },
-      state: 'input-complete',
+      state: 'complete',
     })
     expect(findToolResultPart(client, 'tc-tool-snapshot')).toMatchObject({
       content: JSON.stringify({ initial: 'from-original-tool' }),

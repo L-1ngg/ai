@@ -64,26 +64,9 @@ describe('useChat — fetcher transport', () => {
   })
 
   it('parses an SSE Response returned by the fetcher', async () => {
-    const sseBody =
-      [
-        `data: ${JSON.stringify({
-          type: 'TEXT_MESSAGE_CONTENT',
-          messageId: 'm1',
-          model: 'test',
-          timestamp: Date.now(),
-          delta: 'Hi',
-          content: 'Hi',
-        })}`,
-        `data: ${JSON.stringify({
-          type: 'RUN_FINISHED',
-          runId: 'r1',
-          threadId: 't1',
-          model: 'test',
-          timestamp: Date.now(),
-          finishReason: 'stop',
-        })}`,
-        '',
-      ].join('\n') + '\n'
+    const sseBody = createTextChunks('Hi', 'm1')
+      .map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`)
+      .join('')
 
     const fetcher: ChatFetcher = async () =>
       new Response(sseBody, {

@@ -288,11 +288,9 @@ describe('OpenAIBaseResponsesTextAdapter.structuredOutputStream', () => {
           }
         | undefined
       expect(finished).toBeDefined()
-      expect(finished!.usage).toEqual({
-        promptTokens: 5,
-        completionTokens: 8,
-        totalTokens: 13,
-      })
+      expect(finished!.usage).toMatchObject([
+        { inputTokens: 5, outputTokens: 8, totalTokens: 13 },
+      ])
     })
   })
 

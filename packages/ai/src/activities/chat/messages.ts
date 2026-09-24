@@ -612,6 +612,8 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
 
   for (const part of uiMessage.parts) {
     switch (part.type) {
+      case 'activity':
+        break
       case 'text':
       case 'image':
       case 'audio':

@@ -14,11 +14,16 @@ describe('ChatClient - Abort Signal Handling', () => {
     mockAdapter = {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, abortSignal) {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+        }
         receivedAbortSignal = abortSignal
 
         // Simulate streaming chunks (AG-UI format)
         yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
+          type: EventType.TEXT_MESSAGE_CHUNK,
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
@@ -26,7 +31,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           content: 'Hello',
         }
         yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
+          type: EventType.TEXT_MESSAGE_CHUNK,
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
@@ -72,6 +77,11 @@ describe('ChatClient - Abort Signal Handling', () => {
 
     const adapterWithAbort: ConnectionAdapter = {
       async *connect(_messages, _data, abortSignal) {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+        }
         abortControllerRef = new AbortController()
         if (abortSignal) {
           abortSignal.addEventListener('abort', () => {
@@ -81,7 +91,7 @@ describe('ChatClient - Abort Signal Handling', () => {
 
         try {
           yield {
-            type: EventType.TEXT_MESSAGE_CONTENT,
+            type: EventType.TEXT_MESSAGE_CHUNK,
             messageId: '1',
             model: 'test',
             timestamp: Date.now(),
@@ -91,7 +101,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           // Simulate long-running stream
           await new Promise((resolve) => setTimeout(resolve, 100))
           yield {
-            type: EventType.TEXT_MESSAGE_CONTENT,
+            type: EventType.TEXT_MESSAGE_CHUNK,
             messageId: '1',
             model: 'test',
             timestamp: Date.now(),
@@ -136,7 +146,12 @@ describe('ChatClient - Abort Signal Handling', () => {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, abortSignal) {
         yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CHUNK,
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
@@ -150,7 +165,7 @@ describe('ChatClient - Abort Signal Handling', () => {
         }
 
         yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
+          type: EventType.TEXT_MESSAGE_CHUNK,
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
@@ -193,7 +208,12 @@ describe('ChatClient - Abort Signal Handling', () => {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, abortSignal) {
         yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CHUNK,
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
@@ -233,7 +253,12 @@ describe('ChatClient - Abort Signal Handling', () => {
     const adapterWithAbort: ConnectionAdapter = {
       async *connect(_messages, _data, _abortSignal) {
         yield {
-          type: EventType.TEXT_MESSAGE_CONTENT,
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CHUNK,
           messageId: '1',
           model: 'test',
           timestamp: Date.now(),
@@ -271,6 +296,11 @@ describe('ChatClient - Abort Signal Handling', () => {
     const adapter: ConnectionAdapter = {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, abortSignal) {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+        }
         if (abortSignal) {
           abortSignals.push(abortSignal)
         }
@@ -317,6 +347,11 @@ describe('ChatClient - Abort Signal Handling', () => {
     const adapter: ConnectionAdapter = {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, _abortSignal) {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+        }
         connectCalled = true
         yield {
           type: EventType.RUN_FINISHED,
@@ -364,6 +399,11 @@ describe('ChatClient - Abort Signal Handling', () => {
     const adapter: ConnectionAdapter = {
       // eslint-disable-next-line @typescript-eslint/require-await
       async *connect(_messages, _data, abortSignal) {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: 'run-1',
+          threadId: 'thread-1',
+        }
         if (abortSignal) {
           signalsPassedToConnect.push(abortSignal)
         }

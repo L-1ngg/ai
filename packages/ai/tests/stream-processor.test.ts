@@ -1281,7 +1281,7 @@ describe('StreamProcessor', () => {
         settle(processor)
 
         const part = toolCallPart(processor)
-        expect(part?.state).toBe('input-complete')
+        expect(part?.state).toBe('error')
         expect(part?.arguments).toBe(ARGS_HEAD)
         expect(part?.input).toBeUndefined()
       })
@@ -1497,7 +1497,8 @@ describe('StreamProcessor', () => {
 
       processor.finalizeStream()
 
-      const parts = processor.getMessages()[0]!.parts
+      const parts = processor.getMessages().flatMap((message) => message.parts)
+      expect(processor.getMessages()).toHaveLength(2)
       expect(parts).toHaveLength(2)
       expect(parts[0]!.type).toBe('thinking')
       expect((parts[0] as any).content).toBe('Let me think about this...')
@@ -1538,24 +1539,24 @@ describe('StreamProcessor', () => {
       expect((thinkingParts[0] as any).content).toBe('ABC')
     })
 
-    it('should create separate ThinkingParts for different stepIds', () => {
+    it('should create separate ThinkingParts for different reasoning message IDs', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.stepStarted('step-1'))
-      processor.processChunk(ev.reasoningContent('First thought'))
-      processor.processChunk(ev.reasoningContent(' continued'))
+      processor.processChunk(ev.reasoningContent('First thought', 'r-1'))
+      processor.processChunk(ev.reasoningContent(' continued', 'r-1'))
 
       processor.processChunk(ev.stepStarted('step-2'))
-      processor.processChunk(ev.reasoningContent('Second thought'))
+      processor.processChunk(ev.reasoningContent('Second thought', 'r-2'))
 
-      const parts = processor.getMessages()[0]!.parts
+      const parts = processor.getMessages().flatMap((message) => message.parts)
       const thinkingParts = parts.filter((p) => p.type === 'thinking')
       expect(thinkingParts).toHaveLength(2)
       expect((thinkingParts[0] as any).content).toBe('First thought continued')
-      expect((thinkingParts[0] as any).stepId).toBe('step-1')
+      expect((thinkingParts[0] as any).stepId).toBe('r-1')
       expect((thinkingParts[1] as any).content).toBe('Second thought')
-      expect((thinkingParts[1] as any).stepId).toBe('step-2')
+      expect((thinkingParts[1] as any).stepId).toBe('r-2')
     })
 
     it('should handle REASONING_MESSAGE_CONTENT without prior STEP_STARTED', () => {
@@ -1592,40 +1593,24 @@ describe('StreamProcessor', () => {
       expect(state.content).toBe('Answer')
     })
 
-    it('should clear pendingThinkingStepId when a later STEP_STARTED arrives with an active message', () => {
+    it('keeps reasoning identity independent of step events', () => {
       const processor = new StreamProcessor()
-
-      // 1. STEP_STARTED arrives before any assistant message exists →
-      //    pendingThinkingStepId = 'step-a'
       processor.processChunk(ev.stepStarted('step-a'))
-
-      // 2. Assistant message gets created by TEXT_MESSAGE_START (note:
-      //    prepareAssistantMessage() would reset stream state, which we
-      //    don't want here — we want to expose the leak across the
-      //    no-active → active transition).
       processor.processChunk(ev.textStart())
-
-      // 3. STEP_STARTED arrives again — takes active-id branch. It MUST
-      //    clear pendingThinkingStepId, otherwise the stale 'step-a'
-      //    value will be consumed by the next REASONING_MESSAGE_CONTENT.
       processor.processChunk(ev.stepStarted('step-b'))
-
-      // 4. REASONING_MESSAGE_CONTENT for step-b. If pendingThinkingStepId
-      //    still held 'step-a', consumePendingThinkingStep would promote it
-      //    and attribute 'contentB' to step-a.
-      processor.processChunk(ev.reasoningContent('contentB'))
-
-      const parts = processor.getMessages()[0]!.parts
-      const thinkingParts = parts.filter((p) => p.type === 'thinking')
-
-      // Only step-b should have produced a ThinkingPart with contentB.
-      // No phantom step-a part should exist.
-      expect(thinkingParts.some((p) => (p as any).stepId === 'step-a')).toBe(
-        false,
-      )
-      expect(thinkingParts).toHaveLength(1)
-      expect((thinkingParts[0] as any).stepId).toBe('step-b')
-      expect((thinkingParts[0] as any).content).toBe('contentB')
+      processor.processChunk(ev.reasoningContent('contentB', 'reasoning-b'))
+      const thinkingParts = processor
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'thinking')
+      expect(thinkingParts).toEqual([
+        {
+          type: 'thinking',
+          id: 'reasoning-b',
+          stepId: 'reasoning-b',
+          content: 'contentB',
+        },
+      ])
     })
   })
 
@@ -2357,7 +2342,7 @@ describe('StreamProcessor', () => {
       ).toBe(true)
     })
 
-    it('should create assistant message lazily on error', () => {
+    it('does not invent an assistant message for a run error', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()
 
@@ -2367,9 +2352,7 @@ describe('StreamProcessor', () => {
       processor.finalizeStream()
 
       const messages = processor.getMessages()
-      expect(messages).toHaveLength(1)
-      expect(messages[0]?.role).toBe('assistant')
-      expect(messages[0]?.parts).toHaveLength(0)
+      expect(messages).toHaveLength(0)
     })
 
     it('should create assistant message lazily on thinking content', () => {
@@ -2752,12 +2735,12 @@ describe('StreamProcessor', () => {
       expect(events.onThinkingUpdate).toHaveBeenCalledTimes(2)
       expect(events.onThinkingUpdate).toHaveBeenCalledWith(
         msgId,
-        'step-1',
+        'r-1',
         'Thinking',
       )
       expect(events.onThinkingUpdate).toHaveBeenCalledWith(
         msgId,
-        'step-1',
+        'r-1',
         'Thinking more',
       )
     })
@@ -5148,7 +5131,7 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.runFinished())
 
       const messages = processor.getMessages()
-      const assistantMsg = messages.find((m) => m.role === 'assistant')
+      const assistantMsg = messages.find((m) => m.id === 'r-1')
       expect(assistantMsg).toBeDefined()
 
       const thinkingPart = assistantMsg!.parts.find(
@@ -5157,12 +5140,14 @@ describe('StreamProcessor', () => {
       expect(thinkingPart).toBeDefined()
       expect(thinkingPart!.content).toBe('Thinking...')
 
-      const textPart = assistantMsg!.parts.find((p) => p.type === 'text')
+      const textPart = messages
+        .flatMap((message) => message.parts)
+        .find((p) => p.type === 'text')
       expect(textPart).toBeDefined()
       expect(textPart!.content).toBe('Answer')
     })
 
-    it('should attribute reasoning content to pending STEP_STARTED stepId', () => {
+    it('attributes reasoning content to its message ID despite STEP_STARTED', () => {
       const processor = new StreamProcessor()
 
       processor.processChunk(ev.runStarted())
@@ -5188,7 +5173,7 @@ describe('StreamProcessor', () => {
         .parts.filter((p) => p.type === 'thinking')
 
       expect(thinkingParts).toHaveLength(1)
-      expect((thinkingParts[0] as any).stepId).toBe('step-1')
+      expect((thinkingParts[0] as any).stepId).toBe('r-1')
       expect((thinkingParts[0] as any).content).toBe('Thinking...')
     })
 

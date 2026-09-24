@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
 import { getPendingTurn } from '@tanstack/ai/adapter-internals'
@@ -61,7 +62,7 @@ const ev = {
     threadId,
     finishReason: 'stop',
     timestamp: 1,
-    ...(usage ? { usage } : {}),
+    ...toUsageEventFields(usage),
   }),
   interrupted: (interruptId = 'interrupt-1'): AdapterYieldChunk => ({
     type: EventType.RUN_FINISHED,
@@ -272,7 +273,7 @@ describe('withPersistence (state-only)', () => {
           threadId: 't1',
           finishReason: 'tool_calls',
           timestamp: 1,
-          usage: {
+          ...toUsageEventFields({
             promptTokens: 10,
             completionTokens: 2,
             totalTokens: 12,
@@ -280,7 +281,7 @@ describe('withPersistence (state-only)', () => {
             billed: { quantity: 2, unit: 'units' },
             unitsBilled: 2,
             cost: 1,
-          },
+          }),
         },
       ],
       [
@@ -627,11 +628,11 @@ describe('withPersistence (state-only)', () => {
           threadId: 't1',
           finishReason: 'tool_calls',
           timestamp: 1,
-          usage: {
+          ...toUsageEventFields({
             promptTokens: 10,
             completionTokens: 2,
             totalTokens: 12,
-          },
+          }),
         },
       ],
       [
@@ -1170,11 +1171,11 @@ describe('withPersistence (state-only)', () => {
           threadId: 't1',
           finishReason: 'tool_calls',
           timestamp: 1,
-          usage: {
+          ...toUsageEventFields({
             promptTokens: 10,
             completionTokens: 2,
             totalTokens: 12,
-          },
+          }),
         },
       ],
       [

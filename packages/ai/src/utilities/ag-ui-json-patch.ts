@@ -68,7 +68,8 @@ export function applyAGUIPatch(
       return
     }
     const parent = get(path.slice(0, -1))
-    const key = path[path.length - 1]!
+    const key = path.at(-1)
+    if (key === undefined) throw new Error('Missing JSON Patch path')
     if (Array.isArray(parent)) {
       const offset = index(key, parent.length, operation === 'add')
       if (operation === 'remove') parent.splice(offset, 1)

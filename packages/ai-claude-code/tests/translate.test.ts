@@ -127,12 +127,15 @@ describe('translateSdkStream', () => {
     const chunks = await collect([init, assistantText('hi'), resultSuccess])
     const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(finished).toMatchObject({
-      usage: {
-        promptTokens: 100,
-        completionTokens: 50,
-        totalTokens: 150,
-        promptTokensDetails: { cachedTokens: 10, cacheWriteTokens: 5 },
-      },
+      usage: [
+        {
+          inputTokens: 100,
+          outputTokens: 50,
+          totalTokens: 150,
+          cachedInputTokens: 10,
+          cacheWriteInputTokens: 5,
+        },
+      ],
     })
   })
 

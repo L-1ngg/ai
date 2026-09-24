@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
@@ -833,11 +834,9 @@ describe('OpenRouter AG-UI event emission', () => {
     if (runFinishedChunk?.type === 'RUN_FINISHED') {
       expect(runFinishedChunk.runId).toBeDefined()
       expect(runFinishedChunk.finishReason).toBe('stop')
-      expect(runFinishedChunk.usage).toMatchObject({
-        promptTokens: 5,
-        completionTokens: 1,
-        totalTokens: 6,
-      })
+      expect(runFinishedChunk.usage).toMatchObject([
+        { inputTokens: 5, outputTokens: 1, totalTokens: 6 },
+      ])
     }
   })
 
@@ -2100,11 +2099,9 @@ describe('OpenRouter duplicate event prevention', () => {
     const runFinished = chunks.filter((c) => c.type === 'RUN_FINISHED')
     expect(runFinished).toHaveLength(1)
     if (runFinished[0]?.type === 'RUN_FINISHED') {
-      expect(runFinished[0].usage).toMatchObject({
-        promptTokens: 10,
-        completionTokens: 5,
-        totalTokens: 15,
-      })
+      expect(runFinished[0].usage).toMatchObject([
+        { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      ])
     }
   })
 
@@ -2839,7 +2836,7 @@ describe('OpenRouter cost tracking', () => {
     })
     expect(runFinishedChunk).toMatchObject({
       type: 'RUN_FINISHED',
-      usage: {
+      ...toUsageEventFields({
         promptTokens: 5,
         completionTokens: 2,
         totalTokens: 7,
@@ -2849,7 +2846,7 @@ describe('OpenRouter cost tracking', () => {
           upstreamInputCost: 0.0012,
           upstreamOutputCost: 0.0026,
         },
-      },
+      }),
     })
   })
 
@@ -2861,7 +2858,8 @@ describe('OpenRouter cost tracking', () => {
       cost: 0,
     })
     expect(
-      runFinishedChunk?.type === 'RUN_FINISHED' && runFinishedChunk.usage,
+      runFinishedChunk?.type === 'RUN_FINISHED' &&
+        runFinishedChunk.metadata?.tanstack?.usage,
     ).toMatchObject({ cost: 0 })
   })
 
@@ -2873,7 +2871,7 @@ describe('OpenRouter cost tracking', () => {
     })
     expect(runFinishedChunk?.type).toBe('RUN_FINISHED')
     if (runFinishedChunk?.type === 'RUN_FINISHED') {
-      expect(runFinishedChunk.usage).toMatchObject({ totalTokens: 7 })
+      expect(runFinishedChunk.usage).toMatchObject([{ totalTokens: 7 }])
       expect(runFinishedChunk.usage).not.toHaveProperty('cost')
       expect(runFinishedChunk.usage).not.toHaveProperty('costDetails')
     }

@@ -118,7 +118,15 @@ describe('webSocket() subscribe/send', () => {
     if (!sentFrame) throw new Error('expected a sent frame')
     expect(JSON.parse(sentFrame).runId).toBe('r')
 
-    ws.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 }, 'off-1')
+    ws.emit(
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'a',
+        timestamp: 0,
+      },
+      'off-1',
+    )
     ws.emit({ type: 'ping' }) // must be ignored
     await new Promise((r) => setTimeout(r, 0))
     ac.abort()
@@ -149,7 +157,12 @@ describe('webSocket() subscribe/send', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     // Bare chunk (no id) — not wrapped in an {id, chunk} envelope.
-    ws.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'x', timestamp: 0 })
+    ws.emit({
+      type: 'TEXT_MESSAGE_CONTENT',
+      messageId: 'msg-1',
+      delta: 'x',
+      timestamp: 0,
+    })
     await new Promise((r) => setTimeout(r, 0))
     ac.abort()
     await sub
@@ -174,7 +187,12 @@ describe('webSocket() subscribe/send', () => {
     expect(ws.url).toContain('runId=run-j')
 
     ws.emit(
-      { type: 'TEXT_MESSAGE_CONTENT', delta: 'joined', timestamp: 0 },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'joined',
+        timestamp: 0,
+      },
       'off-1',
     )
     await new Promise((r) => setTimeout(r, 0))
@@ -262,7 +280,12 @@ describe('webSocket() reconnect', () => {
       throw new Error('expected a FakeWebSocket instance to have been created')
     await new Promise((r) => setTimeout(r, 0))
     ws1.emit(
-      { type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'a',
+        timestamp: 0,
+      },
       'off-1',
     )
     await new Promise((r) => setTimeout(r, 0))
@@ -281,11 +304,21 @@ describe('webSocket() reconnect', () => {
 
     // Server replays the de-duped boundary + a new chunk + terminal.
     ws2.emit(
-      { type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'a',
+        timestamp: 0,
+      },
       'off-1',
     )
     ws2.emit(
-      { type: 'TEXT_MESSAGE_CONTENT', delta: 'b', timestamp: 0 },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'b',
+        timestamp: 0,
+      },
       'off-2',
     )
     ws2.emit(
@@ -330,7 +363,12 @@ describe('webSocket() reconnect', () => {
     if (!ws1) throw new Error('expected a first FakeWebSocket instance')
     await tick()
     ws1.emit(
-      { type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'a',
+        timestamp: 0,
+      },
       'r1-off-1',
     )
     ws1.emit(
@@ -358,7 +396,12 @@ describe('webSocket() reconnect', () => {
     await tick()
     expect(FakeWebSocket.instances.length).toBe(1) // conversation socket reused
     ws1.emit(
-      { type: 'TEXT_MESSAGE_CONTENT', delta: 'b', timestamp: 0 },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'b',
+        timestamp: 0,
+      },
       'r2-off-1',
     )
     await tick()
@@ -434,7 +477,12 @@ describe('webSocket() reconnect', () => {
     )
     await tick()
     ws1.emit(
-      { type: 'TEXT_MESSAGE_CONTENT', delta: 'more', timestamp: 0 },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'more',
+        timestamp: 0,
+      },
       'off-2',
     )
     await tick()
@@ -503,7 +551,12 @@ describe('webSocket() fatal drop surfacing', () => {
     // This chunk lands in the sink's buffer (queue) BEFORE the consumer has
     // pulled anything via .next(), reproducing the real chat-client shape
     // (chunks can arrive well before the consumer's next await).
-    ws.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 })
+    ws.emit({
+      type: 'TEXT_MESSAGE_CONTENT',
+      messageId: 'msg-1',
+      delta: 'a',
+      timestamp: 0,
+    })
     await tick()
 
     // Fatal drop: no lastEventId was ever observed, so `onclose` fails the
@@ -551,7 +604,12 @@ describe('webSocket() fatal drop surfacing', () => {
     // the no-progress counter), then the socket drops — this reconnect is
     // legitimate and does not count against the ceiling.
     ws1.emit(
-      { type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'a',
+        timestamp: 0,
+      },
       'off-1',
     )
     await tick()
@@ -665,7 +723,12 @@ describe('webSocket() fatal drop surfacing', () => {
     const ws = FakeWebSocket.instances[0]
     if (!ws) throw new Error('expected a FakeWebSocket instance')
     ws.emit(
-      { type: 'TEXT_MESSAGE_CONTENT', delta: 'replayed', timestamp: 0 },
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        delta: 'replayed',
+        timestamp: 0,
+      },
       'off-1',
     )
     ws.serverClose(1000)

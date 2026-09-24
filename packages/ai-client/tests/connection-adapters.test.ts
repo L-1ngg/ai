@@ -219,13 +219,13 @@ describe('connection-adapters', () => {
       // client must forward EVERY event and stop only when the source closes,
       // never returning early on the first terminal.
       const body =
-        'data: {"type":"RUN_STARTED","timestamp":1}\n\n' +
-        'data: {"type":"TOOL_CALL_END","timestamp":2}\n\n' +
-        'data: {"type":"RUN_FINISHED","timestamp":3}\n\n' +
-        'data: {"type":"TOOL_CALL_RESULT","timestamp":4}\n\n' +
-        'data: {"type":"RUN_STARTED","timestamp":5}\n\n' +
+        'data: {"type":"RUN_STARTED","runId":"r1","threadId":"t1","timestamp":1}\n\n' +
+        'data: {"type":"TOOL_CALL_END","toolCallId":"tc1","timestamp":2}\n\n' +
+        'data: {"type":"RUN_FINISHED","runId":"r1","threadId":"t1","timestamp":3}\n\n' +
+        'data: {"type":"TOOL_CALL_RESULT","toolCallId":"tc1","messageId":"result1","content":"done","timestamp":4}\n\n' +
+        'data: {"type":"RUN_STARTED","runId":"r2","threadId":"t1","timestamp":5}\n\n' +
         'data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"m","model":"t","timestamp":6,"delta":"final","content":"final"}\n\n' +
-        'data: {"type":"RUN_FINISHED","timestamp":7}\n\n'
+        'data: {"type":"RUN_FINISHED","runId":"r2","threadId":"t1","timestamp":7}\n\n'
 
       const mockReader = {
         read: vi
@@ -742,7 +742,7 @@ describe('connection-adapters', () => {
           .mockResolvedValueOnce({
             done: false,
             value: new TextEncoder().encode(
-              'data: {"type":"RUN_STARTED","runId":"run-1","timestamp":100}\n\n',
+              'data: {"type":"RUN_STARTED","runId":"run-1","threadId":"thread-1","timestamp":100}\n\n',
             ),
           })
           .mockResolvedValueOnce({
@@ -1122,7 +1122,7 @@ describe('connection-adapters', () => {
           .mockResolvedValueOnce({
             done: false,
             value: new TextEncoder().encode(
-              '{"type":"RUN_STARTED","runId":"run-1","timestamp":100}\n',
+              '{"type":"RUN_STARTED","runId":"run-1","threadId":"thread-1","timestamp":100}\n',
             ),
           })
           .mockResolvedValueOnce({

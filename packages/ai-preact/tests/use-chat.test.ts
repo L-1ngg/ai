@@ -1915,7 +1915,7 @@ describe('useChat', () => {
             timestamp: Date.now(),
           },
           {
-            type: EventType.TEXT_MESSAGE_CONTENT,
+            type: EventType.TEXT_MESSAGE_CHUNK,
             messageId: 'msg-after-toggle',
             timestamp: Date.now(),
             delta: 'after toggle',

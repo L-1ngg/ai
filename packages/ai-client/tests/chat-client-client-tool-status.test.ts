@@ -1,3 +1,4 @@
+import { EventType } from '@tanstack/ai/client'
 import { describe, expect, it, vi } from 'vitest'
 import { ChatClient } from '../src/chat-client'
 import {
@@ -39,8 +40,9 @@ describe('client tool call status (issue #421)', () => {
     // bare RUN_FINISHED — no assistant message, no text — after receiving the
     // client tool result.
     const round2Chunks: Array<StreamChunk> = [
+      { type: EventType.RUN_STARTED, runId: 'run-2', threadId: 'thread-2' },
       {
-        type: 'RUN_FINISHED',
+        type: EventType.RUN_FINISHED,
         runId: 'run-2',
         threadId: 'thread-2',
         model: 'test',
@@ -137,8 +139,9 @@ describe('client tool call status (issue #421)', () => {
     // immediately with a bare RUN_FINISHED and no assistant message, so
     // onStreamEnd never fires. Status must still settle to 'ready'.
     const chunks: Array<StreamChunk> = [
+      { type: EventType.RUN_STARTED, runId: 'run-1', threadId: 'thread-1' },
       {
-        type: 'RUN_FINISHED',
+        type: EventType.RUN_FINISHED,
         runId: 'run-1',
         threadId: 'thread-1',
         model: 'test',

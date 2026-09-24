@@ -1,3 +1,4 @@
+import { EventType } from '@tanstack/ai/client'
 import { describe, expect, it, vi } from 'vitest'
 import { ChatClient, UnsupportedResponseStreamError } from '../src'
 import { createTextChunks } from './test-utils'
@@ -38,26 +39,9 @@ describe('ChatClient — fetcher transport', () => {
   })
 
   it('parses an SSE Response returned by the fetcher (server-fn style)', async () => {
-    const sseBody =
-      [
-        `data: ${JSON.stringify({
-          type: 'TEXT_MESSAGE_CONTENT',
-          messageId: 'm1',
-          model: 'test',
-          timestamp: Date.now(),
-          delta: 'Hi',
-          content: 'Hi',
-        })}`,
-        `data: ${JSON.stringify({
-          type: 'RUN_FINISHED',
-          runId: 'r1',
-          threadId: 't1',
-          model: 'test',
-          timestamp: Date.now(),
-          metadata: { tanstack: { finishReason: 'stop' } },
-        })}`,
-        '',
-      ].join('\n') + '\n'
+    const sseBody = createTextChunks('Hi', 'm1')
+      .map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`)
+      .join('')
 
     const fetcher = vi.fn<ChatFetcher>(async () => {
       return new Response(sseBody, {
@@ -161,8 +145,9 @@ describe('ChatClient — fetcher transport', () => {
 
   it('passes UIMessages and merged body to the fetcher', async () => {
     const fetcher = vi.fn<ChatFetcher>(async function* () {
+      yield { type: EventType.RUN_STARTED, runId: 'r1', threadId: 't1' }
       yield {
-        type: 'RUN_FINISHED',
+        type: EventType.RUN_FINISHED,
         runId: 'r1',
         threadId: 't1',
         model: 'test',
@@ -259,8 +244,9 @@ describe('ChatClient — fetcher transport', () => {
 
   it('surfaces an AsyncIterable that throws after yielding chunks', async () => {
     const fetcher = vi.fn<ChatFetcher>(async function* () {
+      yield { type: EventType.RUN_STARTED, runId: 'r1', threadId: 't1' }
       yield {
-        type: 'TEXT_MESSAGE_CONTENT',
+        type: EventType.TEXT_MESSAGE_CHUNK,
         messageId: 'm1',
         model: 'test',
         timestamp: Date.now(),
@@ -287,8 +273,9 @@ describe('ChatClient — fetcher transport', () => {
 
   it('completes cleanly when AsyncIterable ends without RUN_FINISHED', async () => {
     const fetcher = vi.fn<ChatFetcher>(async function* () {
+      yield { type: EventType.RUN_STARTED, runId: 'r1', threadId: 't1' }
       yield {
-        type: 'TEXT_MESSAGE_CONTENT',
+        type: EventType.TEXT_MESSAGE_CHUNK,
         messageId: 'm1',
         model: 'test',
         timestamp: Date.now(),
@@ -318,11 +305,16 @@ describe('ChatClient — fetcher transport', () => {
     const observedChunks: Array<StreamChunk> = []
     const fetcher: ChatFetcher = async () => {
       return (async function* () {
+        yield {
+          type: EventType.RUN_STARTED,
+          runId: 'r1',
+          threadId: 't1',
+        } as StreamChunk
         await new Promise((r) => setTimeout(r, 5))
         for (let i = 0; i < 10; i++) {
           await new Promise((r) => setTimeout(r, 20))
           yield {
-            type: 'TEXT_MESSAGE_CONTENT',
+            type: EventType.TEXT_MESSAGE_CHUNK,
             messageId: 'm1',
             model: 'test',
             timestamp: Date.now(),

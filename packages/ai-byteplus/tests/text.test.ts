@@ -281,11 +281,7 @@ describe('BytePlus text adapter', () => {
       const runFinished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
       expect(
         runFinished?.type === EventType.RUN_FINISHED && runFinished.usage,
-      ).toMatchObject({
-        promptTokens: 12,
-        completionTokens: 7,
-        totalTokens: 19,
-      })
+      ).toMatchObject([{ inputTokens: 12, outputTokens: 7, totalTokens: 19 }])
     })
 
     it('attaches encrypted_content to the reasoning step as its signature', async () => {

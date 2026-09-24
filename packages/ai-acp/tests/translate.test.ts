@@ -378,13 +378,15 @@ describe('translateAcpStream', () => {
     const finished = chunks.at(-1) as unknown as {
       usage: Record<string, unknown>
     }
-    expect(finished.usage).toMatchObject({
-      promptTokens: 50,
-      completionTokens: 10,
-      totalTokens: 60,
-      promptTokensDetails: { cachedTokens: 20 },
-      completionTokensDetails: { reasoningTokens: 4 },
-    })
+    expect(finished.usage).toMatchObject([
+      {
+        inputTokens: 50,
+        outputTokens: 10,
+        totalTokens: 60,
+        cachedInputTokens: 20,
+        reasoningTokens: 4,
+      },
+    ])
   })
 
   it('omits usage when the harness reports none', async () => {

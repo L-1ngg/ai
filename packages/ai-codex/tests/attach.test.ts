@@ -274,6 +274,7 @@ describe('codex attach wiring', () => {
     // `chunkFingerprint` (what `alignToStoredLog` compares with) drops
     // `timestamp`, so an arbitrary placeholder there still matches.
     const storedRunStarted: AdapterYieldChunk = {
+      protocolVersion: '1.0',
       type: EventType.RUN_STARTED,
       runId,
       threadId,

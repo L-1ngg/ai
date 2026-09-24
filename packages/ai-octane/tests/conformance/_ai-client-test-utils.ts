@@ -1,3 +1,23 @@
+import { EventType, withTanstackMetadata } from '@tanstack/ai/client'
+function runFinishedChunk(options: {
+  runId: string
+  threadId: string
+  finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+  model?: string
+}): Extract<StreamChunk, { type: 'RUN_FINISHED' }> {
+  return withTanstackMetadata(
+    {
+      type: EventType.RUN_FINISHED,
+      runId: options.runId,
+      threadId: options.threadId,
+      timestamp: Date.now(),
+    },
+    {
+      finishReason: options.finishReason,
+      ...(options.model !== undefined ? { model: options.model } : {}),
+    },
+  ) as Extract<StreamChunk, { type: 'RUN_FINISHED' }>
+}
 // Vendored from `@tanstack/ai-client`'s `tests/test-utils.ts` — the shared
 // conformance helpers the upstream `@tanstack/ai-react` tests import. That
 // file is not part of the package's published surface, and reaching across
@@ -13,7 +33,10 @@
 // dropped rather than carried as dead code. Pull more across from upstream as
 // further test cases are ported.
 import type { ConnectConnectionAdapter, UIMessage } from '@tanstack/ai-client'
-import type { ModelMessage, StreamChunk } from '@tanstack/ai/client'
+import type {
+  ModelMessage,
+  AdapterYieldChunk as StreamChunk,
+} from '@tanstack/ai/client'
 
 /**
  * Options for creating a mock connection adapter
@@ -130,30 +153,27 @@ export function createTextChunks(
   model: string = 'test',
 ): Array<StreamChunk> {
   const chunks: Array<StreamChunk> = []
-  let accumulated = ''
   const runId = `run-${messageId}`
   const threadId = `thread-${messageId}`
 
-  for (const chunk of text) {
-    accumulated += chunk
+  chunks.push(
+    { type: EventType.RUN_STARTED, runId, threadId },
+    { type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant' },
+  )
+
+  for (const delta of text) {
     chunks.push({
-      type: 'TEXT_MESSAGE_CONTENT',
+      type: EventType.TEXT_MESSAGE_CONTENT,
       messageId,
-      model,
       timestamp: Date.now(),
-      delta: chunk,
-      content: accumulated,
+      delta,
     } as StreamChunk)
   }
 
-  chunks.push({
-    type: 'RUN_FINISHED',
-    runId,
-    threadId,
-    model,
-    timestamp: Date.now(),
-    finishReason: 'stop',
-  } as StreamChunk)
+  chunks.push(
+    { type: EventType.TEXT_MESSAGE_END, messageId },
+    runFinishedChunk({ runId, threadId, finishReason: 'stop', model }),
+  )
 
   return chunks
 }
@@ -170,61 +190,46 @@ export function createToolCallChunks(
 ): Array<StreamChunk> {
   const chunks: Array<StreamChunk> = []
   const runId = `run-${messageId}`
+  chunks.push({
+    type: EventType.RUN_STARTED,
+    runId,
+    threadId: `thread-${messageId}`,
+  })
 
   for (let i = 0; i < toolCalls.length; i++) {
     const toolCall = toolCalls[i]!
 
-    // TOOL_CALL_START event
     chunks.push({
-      type: 'TOOL_CALL_START',
+      type: EventType.TOOL_CALL_START,
       toolCallId: toolCall.id,
       toolCallName: toolCall.name,
-      toolName: toolCall.name,
-      model,
       timestamp: Date.now(),
-      index: i,
     } as StreamChunk)
 
-    // TOOL_CALL_ARGS event
     chunks.push({
-      type: 'TOOL_CALL_ARGS',
+      type: EventType.TOOL_CALL_ARGS,
       toolCallId: toolCall.id,
-      model,
       timestamp: Date.now(),
       delta: toolCall.arguments,
     } as StreamChunk)
 
-    // Add tool-input-available CUSTOM chunk if requested
-    if (includeToolInputAvailable) {
-      let parsedInput: any
-      try {
-        parsedInput = JSON.parse(toolCall.arguments)
-      } catch {
-        parsedInput = toolCall.arguments
-      }
-
-      chunks.push({
-        type: 'CUSTOM',
-        model,
-        timestamp: Date.now(),
-        name: 'tool-input-available',
-        value: {
-          toolCallId: toolCall.id,
-          toolName: toolCall.name,
-          input: parsedInput,
-        },
-      } as StreamChunk)
-    }
+    chunks.push({ type: EventType.TOOL_CALL_END, toolCallId: toolCall.id })
   }
 
   chunks.push({
-    type: 'RUN_FINISHED',
-    runId,
-    threadId: `thread-${messageId}`,
-    model,
-    timestamp: Date.now(),
-    finishReason: 'tool_calls',
-  } as StreamChunk)
+    ...runFinishedChunk({
+      runId,
+      threadId: `thread-${messageId}`,
+      finishReason: 'tool_calls',
+      model,
+    }),
+    outcome: {
+      type: 'success',
+      pendingToolCallIds: includeToolInputAvailable
+        ? toolCalls.map((call) => call.id)
+        : [],
+    },
+  })
 
   return chunks
 }

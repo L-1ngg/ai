@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { describe, expect, it, vi } from 'vitest'
 import {
   EventType,
@@ -129,7 +130,7 @@ const interruptFinished = (
   threadId: 't1',
   finishReason: 'tool_calls',
   timestamp: 1,
-  ...(usage ? { usage } : {}),
+  ...toUsageEventFields(usage),
   outcome: {
     type: 'interrupt',
     interrupts: [
@@ -179,7 +180,7 @@ const runFinished = (runId = 'r1', usage?: TokenUsage): AdapterYieldChunk => ({
   threadId: 't1',
   finishReason: 'stop',
   timestamp: 1,
-  ...(usage ? { usage } : {}),
+  ...toUsageEventFields(usage),
 })
 
 const toolCallFinished = (
@@ -191,7 +192,7 @@ const toolCallFinished = (
   threadId: 't1',
   finishReason: 'tool_calls',
   timestamp: 1,
-  ...(usage ? { usage } : {}),
+  ...toUsageEventFields(usage),
 })
 
 const toolCallChunks = (usage?: TokenUsage) => [
@@ -488,14 +489,13 @@ describe('interrupt persistence', () => {
   // The full two-phase chain for an approval-required client tool, driven
   // entirely from persisted server state with empty client `messages`:
   //   phase 1: model requests the tool  -> approval interrupt pending
-  //   phase 2: resume approves           -> client-execution interrupt pending
-  //   phase 3: resume supplies output    -> tool result fed back, model finishes
+  //   phase 2: resume approves           -> successful terminal with pending tool IDs
+  //   phase 3: tool-result message supplies output    -> tool result fed back, model finishes
   //
   // The engine reprocesses the pending tool call from the thread the middleware
   // rehydrates (not from the omitted client history), so approving does NOT
-  // re-invoke the model — it advances straight to the client-execution
-  // interrupt. Feeding the client output then drives exactly one model call.
-  it('applies persisted approval and client-tool resume decisions with empty client messages', async () => {
+  // re-invoke the model — it advances straight to the client execution. Feeding the client output then drives exactly one model call.
+  it('applies persisted approval and accepts the frontend tool result', async () => {
     const persistence = memoryPersistence()
     await persistClientToolTurn(persistence, [
       approvalClientTool('clientSearch'),
@@ -532,17 +532,10 @@ describe('interrupt persistence', () => {
       approvalChunks.find(
         (chunk) =>
           chunk.type === EventType.RUN_FINISHED &&
-          chunk.outcome?.type === 'interrupt',
+          chunk.outcome?.type === 'success',
       ),
     ).toMatchObject({
-      outcome: {
-        interrupts: [
-          {
-            id: 'client_tool_tool-call-1',
-            toolCallId: 'tool-call-1',
-          },
-        ],
-      },
+      outcome: { type: 'success', pendingToolCallIds: ['tool-call-1'] },
     })
     expect(
       (await persistence.stores.interrupts!.get('approval_tool-call-1'))
@@ -551,7 +544,7 @@ describe('interrupt persistence', () => {
     expect(
       (await persistence.stores.interrupts!.get('client_tool_tool-call-1'))
         ?.status,
-    ).toBe('pending')
+    ).toBeUndefined()
 
     const afterClientTool = mockAdapter([
       [runStarted(), text('done'), runFinished('r1')],
@@ -559,17 +552,16 @@ describe('interrupt persistence', () => {
     const finalChunks = await collect(
       chat({
         adapter: afterClientTool.adapter,
-        messages: [],
+        messages: [
+          {
+            role: 'tool',
+            toolCallId: 'tool-call-1',
+            content: JSON.stringify({ answer: 42 }),
+          },
+        ],
         tools: [clientTool('clientSearch')],
         runId: 'r1',
         threadId: 't1',
-        resume: [
-          {
-            interruptId: 'client_tool_tool-call-1',
-            status: 'resolved',
-            payload: { answer: 42 },
-          },
-        ],
         middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
     )
@@ -577,13 +569,15 @@ describe('interrupt persistence', () => {
     // The client output is fed back as a tool result, then a single model call
     // produces the final answer.
     expect(afterClientTool.calls).toHaveLength(1)
-    expect(finalChunks).toContainEqual(
-      expect.objectContaining({
-        type: EventType.TOOL_CALL_RESULT,
-        toolCallId: 'tool-call-1',
-        content: JSON.stringify({ answer: 42 }),
-      }),
-    )
+    expect(afterClientTool.calls[0]).toMatchObject({
+      messages: expect.arrayContaining([
+        expect.objectContaining({
+          role: 'tool',
+          toolCallId: 'tool-call-1',
+          content: JSON.stringify({ answer: 42 }),
+        }),
+      ]),
+    })
     expect(finalChunks).toContainEqual(
       expect.objectContaining({ delta: 'done' }),
     )
@@ -598,6 +592,19 @@ describe('interrupt persistence', () => {
   it('completes a cancelled client-tool resume after its output schema changes', async () => {
     const persistence = memoryPersistence()
     await persistClientToolTurn(persistence, [clientTool('clientSearch')])
+
+    await persistence.stores.interrupts!.create({
+      interruptId: 'client_tool_tool-call-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: Date.now(),
+      payload: {
+        id: 'client_tool_tool-call-1',
+        reason: 'client_tool_input',
+        toolCallId: 'tool-call-1',
+        metadata: { kind: 'client_tool', toolName: 'clientSearch', input: {} },
+      },
+    })
 
     const pending = await persistence.stores.interrupts!.get(
       'client_tool_tool-call-1',

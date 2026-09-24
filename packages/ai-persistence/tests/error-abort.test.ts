@@ -1,3 +1,4 @@
+import { toUsageEventFields } from '@tanstack/ai/adapter-internals'
 import { describe, expect, it, vi } from 'vitest'
 import {
   EventType,
@@ -204,7 +205,7 @@ describe('chat persistence error/abort hooks', () => {
           threadId: 't1',
           finishReason: 'stop',
           timestamp: 1,
-          usage,
+          ...toUsageEventFields(usage),
         },
       ],
     ])

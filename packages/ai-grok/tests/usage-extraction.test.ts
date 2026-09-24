@@ -88,11 +88,9 @@ describe('Grok usage extraction', () => {
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     if (doneChunk?.type === 'RUN_FINISHED') {
-      expect(doneChunk.usage).toMatchObject({
-        promptTokens: 100,
-        completionTokens: 50,
-        totalTokens: 150,
-      })
+      expect(doneChunk.usage).toMatchObject([
+        { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+      ])
     }
   })
 
@@ -122,17 +120,15 @@ describe('Grok usage extraction', () => {
     const doneChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
     expect(doneChunk).toBeDefined()
     if (doneChunk?.type === 'RUN_FINISHED') {
-      expect(doneChunk.usage).toMatchObject({
-        promptTokens: 100,
-        completionTokens: 80,
-        totalTokens: 180,
-        promptTokensDetails: {
-          cachedTokens: 25,
-        },
-        completionTokensDetails: {
+      expect(doneChunk.usage).toMatchObject([
+        {
+          inputTokens: 100,
+          outputTokens: 80,
+          totalTokens: 180,
+          cachedInputTokens: 25,
           reasoningTokens: 30,
         },
-      })
+      ])
     }
   })
 })

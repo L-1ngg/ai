@@ -491,6 +491,7 @@ describe('uiMessagesToWire', () => {
             type: 'function',
             function: { name: 'lookup', arguments: '{"id":1}' },
             encryptedValue: 'tool-sig-1',
+            metadata: { thoughtSignature: 'tool-sig-1' },
           },
         ],
         metadata: {

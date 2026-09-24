@@ -1195,6 +1195,10 @@ export function normalizeConnectionAdapter(
     },
     async send(messages, data, abortSignal, runContext) {
       const protocolScope = {}
+      const pushScoped = (chunk: StreamChunk, runId?: string) => {
+        protocolScopes.set(chunk, protocolScope)
+        push(chunk, runId)
+      }
       let hasTerminalEvent = false
       let upstreamThreadId: string | undefined
       let upstreamRunId: string | undefined
@@ -1206,6 +1210,7 @@ export function normalizeConnectionAdapter(
           runContext,
         )
         for await (const chunk of stream) {
+          if (abortSignal?.aborted) continue
           if ('threadId' in chunk && typeof chunk.threadId === 'string') {
             upstreamThreadId = chunk.threadId
           }
@@ -1215,8 +1220,7 @@ export function normalizeConnectionAdapter(
           if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
             hasTerminalEvent = true
           }
-          protocolScopes.set(chunk, protocolScope)
-          push(chunk, runContext?.runId)
+          pushScoped(chunk, runContext?.runId)
         }
 
         // If the connect stream ended cleanly without a terminal event,
@@ -1225,7 +1229,7 @@ export function normalizeConnectionAdapter(
         // observed, but stamp the caller's request runId so getChunkRunId()
         // correlates to activeRunIds / currentRunId (same as real stream chunks).
         if (!abortSignal?.aborted && !hasTerminalEvent) {
-          push(
+          pushScoped(
             withTanstackMetadata(
               {
                 type: EventType.RUN_FINISHED,
@@ -1266,7 +1270,7 @@ export function normalizeConnectionAdapter(
               timestamp: Date.now(),
               message,
             }
-            push(synthetic, runContext?.runId)
+            pushScoped(synthetic, runContext?.runId)
           } catch {
             // fall through to rethrow the original error
           }

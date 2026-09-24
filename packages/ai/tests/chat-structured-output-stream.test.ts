@@ -449,12 +449,14 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(finished).toBeDefined()
       expect(finished).not.toHaveProperty('finishReason')
       expect(tanstackMetadata(finished)?.finishReason).toBe('stop')
-      expect(finished!.usage).toEqual({
-        promptTokens: 125,
-        completionTokens: 1346,
-        totalTokens: 1471,
-        promptTokensDetails: { cachedTokens: 5760 },
-      })
+      expect(finished!.usage).toMatchObject([
+        {
+          inputTokens: 125,
+          outputTokens: 1346,
+          totalTokens: 1471,
+          cachedInputTokens: 5760,
+        },
+      ])
     })
 
     it('omits usage on RUN_FINISHED when the adapter does not report it', async () => {

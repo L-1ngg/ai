@@ -244,7 +244,7 @@ describe('injectChat — resume', () => {
           timestamp: Date.now(),
         },
         {
-          type: EventType.TEXT_MESSAGE_CONTENT,
+          type: EventType.TEXT_MESSAGE_CHUNK,
           messageId: 'msg-1',
           timestamp: Date.now(),
           delta: 'Hi',

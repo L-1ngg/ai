@@ -73,7 +73,7 @@ export async function POST(req: Request) {
 }
 ```
 
-`chatParamsFromRequestBody` checks the AG-UI request shape without a schema runtime. `mergeAgentTools` merges the server's tool registry with client-declared tools (server wins on collision; client-only tools become no-execute stubs that flow through the runtime's `ClientToolRequest` path).
+`chatParamsFromRequestBody` checks the AG-UI request shape with the generated protocol validator. `mergeAgentTools` merges the server's tool registry with client-declared tools (server wins on collision; client-only tools become no-execute stubs that flow through the runtime's `ClientToolRequest` path).
 
 `params.messages` is a mixed array of TanStack `UIMessage` anchors (with `parts`) and AG-UI fan-out duplicates (`{role:'tool',...}`, `{role:'reasoning',...}`). The existing `convertMessagesToModelMessages` (called inside `chat()`) handles dedup automatically.
 
@@ -202,7 +202,22 @@ Keep spec fields at the top level. Put TanStack extras in `metadata.tanstack`.
 `toWireChunk` performs this conversion. Do not import `@ag-ui/core/schemas`
 into production code: only that optional entry loads Zod.
 
-These event types do not provide a subagent runtime or client handles.
+`ChatClient` validates known fields and event ordering before applying events.
+It expands chunk events before `onChunk`, applies activity and state patches,
+and tracks subagent lifecycle and message ownership. Keep explicit start/end
+pairs balanced. Unknown fields and event types are ignored.
+
+All public adapter and chat events use AG-UI `usage[]` with `inputTokens` and
+`outputTokens`. Provider-specific usage fields belong in
+`metadata.tanstack.usage`. Middleware accounting still uses `TokenUsage`.
+
+Frontend tool handoff uses a successful `RUN_FINISHED` with
+`outcome.pendingToolCallIds`. Send tool-result messages on the next request.
+Missing client handlers return tool errors. Human approvals and generic
+interrupts continue to use interrupt outcomes. Frontend handoff calls
+middleware `onFinish` and completes persistence for that run.
+
+These event types do not start subagents or provide subagent execution handles.
 
 **Typical event sequence for a text-only response:**
 

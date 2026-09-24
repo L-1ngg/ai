@@ -1,3 +1,4 @@
+import { EventType } from '@tanstack/ai/client'
 import { vi } from 'vitest'
 import { withTanstackMetadata } from '@tanstack/ai/client'
 import type {
@@ -15,10 +16,10 @@ function runFinishedChunk(options: {
   threadId: string
   finishReason: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   model?: string
-}): StreamChunk {
+}): Extract<StreamChunk, { type: 'RUN_FINISHED' }> {
   return withTanstackMetadata(
     {
-      type: 'RUN_FINISHED',
+      type: EventType.RUN_FINISHED,
       runId: options.runId,
       threadId: options.threadId,
       timestamp: Date.now(),
@@ -27,7 +28,7 @@ function runFinishedChunk(options: {
       finishReason: options.finishReason,
       ...(options.model !== undefined ? { model: options.model } : {}),
     },
-  ) as StreamChunk
+  ) as Extract<StreamChunk, { type: 'RUN_FINISHED' }>
 }
 
 /**
@@ -239,9 +240,14 @@ export function createTextChunks(
   const runId = `run-${messageId}`
   const threadId = `thread-${messageId}`
 
+  chunks.push(
+    { type: EventType.RUN_STARTED, runId, threadId },
+    { type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant' },
+  )
+
   for (const delta of text) {
     chunks.push({
-      type: 'TEXT_MESSAGE_CONTENT',
+      type: EventType.TEXT_MESSAGE_CONTENT,
       messageId,
       timestamp: Date.now(),
       delta,
@@ -249,6 +255,7 @@ export function createTextChunks(
   }
 
   chunks.push(
+    { type: EventType.TEXT_MESSAGE_END, messageId },
     runFinishedChunk({ runId, threadId, finishReason: 'stop', model }),
   )
 
@@ -264,12 +271,17 @@ export function createCustomEventChunks(
 ): Array<StreamChunk> {
   const chunks: Array<StreamChunk> = []
 
+  chunks.push({
+    type: EventType.RUN_STARTED,
+    runId: 'run-1',
+    threadId: 'thread-1',
+  })
   for (const event of events) {
     chunks.push({
-      type: 'CUSTOM',
+      type: EventType.CUSTOM,
       timestamp: Date.now(),
       name: event.name,
-      value: event.value,
+      value: event.value ?? null,
     } as StreamChunk)
   }
 
@@ -297,54 +309,46 @@ export function createToolCallChunks(
 ): Array<StreamChunk> {
   const chunks: Array<StreamChunk> = []
   const runId = `run-${messageId}`
+  chunks.push({
+    type: EventType.RUN_STARTED,
+    runId,
+    threadId: `thread-${messageId}`,
+  })
 
   for (let i = 0; i < toolCalls.length; i++) {
     const toolCall = toolCalls[i]!
 
     chunks.push({
-      type: 'TOOL_CALL_START',
+      type: EventType.TOOL_CALL_START,
       toolCallId: toolCall.id,
       toolCallName: toolCall.name,
       timestamp: Date.now(),
     } as StreamChunk)
 
     chunks.push({
-      type: 'TOOL_CALL_ARGS',
+      type: EventType.TOOL_CALL_ARGS,
       toolCallId: toolCall.id,
       timestamp: Date.now(),
       delta: toolCall.arguments,
     } as StreamChunk)
 
-    // Add tool-input-available CUSTOM chunk if requested
-    if (includeToolInputAvailable) {
-      let parsedInput: any
-      try {
-        parsedInput = JSON.parse(toolCall.arguments)
-      } catch {
-        parsedInput = toolCall.arguments
-      }
-
-      chunks.push({
-        type: 'CUSTOM',
-        timestamp: Date.now(),
-        name: 'tool-input-available',
-        value: {
-          toolCallId: toolCall.id,
-          toolName: toolCall.name,
-          input: parsedInput,
-        },
-      } as StreamChunk)
-    }
+    chunks.push({ type: EventType.TOOL_CALL_END, toolCallId: toolCall.id })
   }
 
-  chunks.push(
-    runFinishedChunk({
+  chunks.push({
+    ...runFinishedChunk({
       runId,
       threadId: `thread-${messageId}`,
       finishReason: 'tool_calls',
       model,
     }),
-  )
+    outcome: {
+      type: 'success',
+      pendingToolCallIds: includeToolInputAvailable
+        ? toolCalls.map((call) => call.id)
+        : [],
+    },
+  })
 
   return chunks
 }
@@ -365,32 +369,37 @@ export function createApprovalToolCallChunks(
 ): Array<StreamChunk> {
   const chunks: Array<StreamChunk> = []
   const runId = `run-${messageId}`
+  chunks.push({
+    type: EventType.RUN_STARTED,
+    runId,
+    threadId: `thread-${messageId}`,
+  })
 
   for (let i = 0; i < toolCalls.length; i++) {
     const toolCall = toolCalls[i]!
 
     chunks.push({
-      type: 'TOOL_CALL_START',
+      type: EventType.TOOL_CALL_START,
       toolCallId: toolCall.id,
       toolCallName: toolCall.name,
       timestamp: Date.now(),
     } as StreamChunk)
 
     chunks.push({
-      type: 'TOOL_CALL_ARGS',
+      type: EventType.TOOL_CALL_ARGS,
       toolCallId: toolCall.id,
       timestamp: Date.now(),
       delta: toolCall.arguments,
     } as StreamChunk)
 
     chunks.push({
-      type: 'TOOL_CALL_END',
+      type: EventType.TOOL_CALL_END,
       toolCallId: toolCall.id,
       timestamp: Date.now(),
     } as StreamChunk)
 
     chunks.push({
-      type: 'CUSTOM',
+      type: EventType.CUSTOM,
       timestamp: Date.now(),
       name: 'approval-requested',
       value: {
@@ -426,20 +435,34 @@ export function createThinkingChunks(
   const chunks: Array<StreamChunk> = []
   const runId = `run-${messageId}`
   const reasoningId = `reasoning-${messageId}`
+  chunks.push(
+    { type: EventType.RUN_STARTED, runId, threadId: `thread-${messageId}` },
+    {
+      type: EventType.REASONING_MESSAGE_START,
+      messageId: reasoningId,
+      role: 'reasoning',
+    },
+  )
 
   for (const delta of thinkingContent) {
     chunks.push({
-      type: 'REASONING_MESSAGE_CONTENT',
+      type: EventType.REASONING_MESSAGE_CONTENT,
       messageId: reasoningId,
       timestamp: Date.now(),
       delta,
     } as StreamChunk)
   }
 
+  chunks.push({ type: EventType.REASONING_MESSAGE_END, messageId: reasoningId })
   if (textContent) {
+    chunks.push({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId,
+      role: 'assistant',
+    })
     for (const delta of textContent) {
       chunks.push({
-        type: 'TEXT_MESSAGE_CONTENT',
+        type: EventType.TEXT_MESSAGE_CONTENT,
         messageId,
         timestamp: Date.now(),
         delta,
@@ -447,6 +470,7 @@ export function createThinkingChunks(
     }
   }
 
+  if (textContent) chunks.push({ type: EventType.TEXT_MESSAGE_END, messageId })
   chunks.push(
     runFinishedChunk({
       runId,
