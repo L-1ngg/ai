@@ -138,9 +138,10 @@ export async function forecast(city: string) {
 The client connects to the URL and speaks MCP. The server `auth` option runs, the same as for any host.
 
 - `callTool` accepts only the tool names of `server`, and each tool's input type.
+- `callTool` returns the MCP result. For a tool with an `outputSchema`, `structuredContent` has the tool output type.
+- `getPrompt` accepts only the prompt names of `server`, and each prompt's argument type.
 - `readResource` accepts only the resource URIs of `server`.
 - `import type` keeps the server code out of the app bundle.
-- `callTool` returns the MCP result. Read the text from `content`.
 
 ### Call the server in the same process
 

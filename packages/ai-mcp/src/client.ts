@@ -46,6 +46,16 @@ import type {
 } from '@modelcontextprotocol/client'
 import type { ServerTool } from '@tanstack/ai'
 
+type CallToolResult = Awaited<ReturnType<Client['callTool']>>
+
+/**
+ * The raw MCP result of `callTool`. When the tool output type is known,
+ * `structuredContent` has that type. An untyped tool keeps the SDK type.
+ */
+export type TypedCallToolResult<TOutput> = unknown extends TOutput
+  ? CallToolResult
+  : Omit<CallToolResult, 'structuredContent'> & { structuredContent?: TOutput }
+
 export interface MCPClient<
   TServer extends ServerDescriptor = AutomaticDescriptor,
 > {
@@ -80,9 +90,14 @@ export interface MCPClient<
   ) => Promise<ReadResourceResult>
   resourceTemplates: () => Promise<Array<ResourceTemplateType>>
   prompts: () => Promise<Array<Prompt>>
-  getPrompt: (
-    name: string,
-    args?: Record<string, string>,
+  /**
+   * Renders one prompt. With a typed server, `name` is one of its prompt
+   * names and `args` has that prompt's argument type. MCP sends each
+   * argument as a string.
+   */
+  getPrompt: <TName extends keyof TServer['prompts'] & string>(
+    name: TName,
+    args?: TServer['prompts'][TName]['args'],
   ) => Promise<GetPromptResult>
   /**
    * Call a tool directly and return its raw MCP result. Tools declaring
@@ -92,13 +107,14 @@ export interface MCPClient<
    * the server.
    *
    * With a typed server, `name` is one of its tool names and `args` has
-   * that tool's input type. The result stays the raw MCP result.
+   * that tool's input type. The result is the raw MCP result. For a tool
+   * with an output schema, `structuredContent` has the tool output type.
    */
   callTool: <TName extends keyof TServer['tools'] & string>(
     name: TName,
     args?: TServer['tools'][TName]['input'],
     options?: { signal?: AbortSignal },
-  ) => Promise<Awaited<ReturnType<Client['callTool']>>>
+  ) => Promise<TypedCallToolResult<TServer['tools'][TName]['output']>>
   /**
    * The ORIGINAL connection descriptor this client was created from — the
    * `transport` input and `prefix` passed to `createMCPClient`. Used by
@@ -354,19 +370,22 @@ class MCPClientImpl<
     return (await this.#client.listPrompts()).prompts
   }
 
-  async getPrompt(
-    name: string,
-    args?: Record<string, string>,
-  ): Promise<GetPromptResult> {
+  async getPrompt(name: string, args?: unknown): Promise<GetPromptResult> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
-    return this.#client.getPrompt({ name, arguments: args })
+    // MCP prompt arguments are strings.
+    const promptArgs = isArgs(args)
+      ? Object.fromEntries(
+          Object.entries(args).map(([key, value]) => [key, String(value)]),
+        )
+      : undefined
+    return this.#client.getPrompt({ name, arguments: promptArgs })
   }
 
-  async callTool(
-    name: string,
-    args?: unknown,
+  async callTool<TName extends keyof TServer['tools'] & string>(
+    name: TName,
+    args?: TServer['tools'][TName]['input'],
     options?: { signal?: AbortSignal },
-  ): Promise<Awaited<ReturnType<Client['callTool']>>> {
+  ): Promise<TypedCallToolResult<TServer['tools'][TName]['output']>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
     if (!this.#toolDefinitions) {
       // Lazy discovery so task-required tools work without a prior tools()
@@ -388,13 +407,16 @@ class MCPClientImpl<
     if (taskRequired && !serverSupportsTaskCalls(this.#client)) {
       throw new MCPTaskRequiredToolError(name)
     }
-    return callMcpTool(
+    const result = await callMcpTool(
       this.#client,
       name,
       isArgs(args) ? args : {},
       taskRequired,
       options?.signal,
     )
+    // Trust boundary: the server type says what `structuredContent` holds.
+    // The client does not check the wire value against that type.
+    return result as TypedCallToolResult<TServer['tools'][TName]['output']>
   }
 
   async close(): Promise<void> {

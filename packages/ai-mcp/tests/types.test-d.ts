@@ -13,7 +13,10 @@ import type {
   ServerDescriptor,
 } from '../src/types'
 import type { ServerTool } from '@tanstack/ai'
-import type { ToolAnnotations } from '@modelcontextprotocol/client'
+import type {
+  CallToolResult,
+  ToolAnnotations,
+} from '@modelcontextprotocol/client'
 
 interface WeatherServer extends ServerDescriptor {
   tools: { get_weather: { input: { city: string }; output: string } }
@@ -90,8 +93,11 @@ async function typedRemote() {
   expectTypeOf(remote).toEqualTypeOf<
     MCPClient<DescriptorFromServer<typeof travelServer>>
   >()
-  await remote.callTool('get_weather', { city: 'Paris' })
+  const weather = await remote.callTool('get_weather', { city: 'Paris' })
+  // get_weather has `outputSchema: z.string()`.
+  expectTypeOf(weather.structuredContent).toEqualTypeOf<string | undefined>()
   await remote.readResource('file:///city-guide.md')
+  await remote.getPrompt('trip_brief', { city: 'Paris' })
   const tools = await remote.tools()
   expectTypeOf(tools).items.toMatchTypeOf<{ name: 'get_weather' }>()
 
@@ -101,15 +107,22 @@ async function typedRemote() {
   await remote.callTool('get_weather', { city: 1 })
   // @ts-expect-error the URI is not on this server
   await remote.readResource('file:///missing.md')
+  // @ts-expect-error the prompt name is not on this server
+  await remote.getPrompt('missing', { city: 'Paris' })
+  // @ts-expect-error city is a string
+  await remote.getPrompt('trip_brief', { city: 1 })
 }
 void typedRemote
 
-// Without a type argument, callTool and readResource accept any name.
+// Without a type argument, every name is accepted and results keep the SDK
+// types.
 async function untypedRemote() {
   const remote = await createMCPClient({
     transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
   })
-  await remote.callTool('anything', { any: 'args' })
+  const result = await remote.callTool('anything', { any: 'args' })
+  expectTypeOf(result).toEqualTypeOf<CallToolResult>()
   await remote.readResource('file:///anything.md')
+  await remote.getPrompt('anything', { any: 'args' })
 }
 void untypedRemote

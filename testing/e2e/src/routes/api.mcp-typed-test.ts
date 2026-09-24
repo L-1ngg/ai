@@ -53,12 +53,16 @@ export const Route = createFileRoute('/api/mcp-typed-test')({
         try {
           const tools = await mcp.tools()
           const forecast = await mcp.callTool('forecast', { city: 'Paris' })
+          // `structuredContent` is typed as the tool output: string.
+          const forecastText: string | undefined = forecast.structuredContent
+          const brief = await mcp.getPrompt('trip_brief', { city: 'Paris' })
           return Response.json({
             tools: tools.map((tool) => ({
               name: tool.name,
               outputSchema: tool.outputSchema ?? null,
             })),
-            forecast: forecast.structuredContent ?? null,
+            forecast: forecastText ?? null,
+            brief: brief.messages,
           })
         } finally {
           await mcp.close()

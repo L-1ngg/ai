@@ -85,12 +85,19 @@ test.describe('mcp: createMCPServer with auth, output schema, and a task', () =>
     const result = JSON.parse(body) as {
       tools: Array<{ name: string; outputSchema: { type?: string } | null }>
       forecast: unknown
+      brief: unknown
     }
 
     const forecast = result.tools.find((tool) => tool.name === 'forecast')
     expect(forecast?.outputSchema?.type).toBe('string')
     expect(result.tools.map((tool) => tool.name)).toContain('build_report')
     expect(result.forecast).toBe('Sunny in Paris')
+    expect(result.brief).toEqual([
+      {
+        role: 'user',
+        content: { type: 'text', text: 'Plan one day in Paris.' },
+      },
+    ])
   })
 
   test('chat() runs the typed tool and the task tool with a bearer token', async ({

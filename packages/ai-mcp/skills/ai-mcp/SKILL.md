@@ -181,8 +181,10 @@ For a deployed server, pass `typeof server` and a transport.
 Import the server with `import type`, so its code stays out of the app.
 The client speaks MCP, so the server `auth` option runs.
 `callTool` accepts only the server tool names and their input types.
-`readResource` accepts only the server resource URIs.
 `callTool` returns the raw MCP result.
+For a tool with an `outputSchema`, `structuredContent` has the tool output type.
+`getPrompt` accepts only the server prompt names and their argument types.
+`readResource` accepts only the server resource URIs.
 
 ```typescript
 import { createMCPClient } from '@tanstack/ai-mcp'

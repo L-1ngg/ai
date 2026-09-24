@@ -1,5 +1,5 @@
 import { toolDefinition } from '@tanstack/ai'
-import { createMCPServer } from '@tanstack/ai-mcp/server'
+import { createMCPServer, promptDefinition } from '@tanstack/ai-mcp/server'
 import { z } from 'zod'
 
 /**
@@ -26,10 +26,19 @@ const buildReport = toolDefinition({
   return 'Report ready'
 })
 
+const tripBrief = promptDefinition({
+  name: 'trip_brief',
+  description: 'A short trip brief for a city',
+  argsSchema: z.object({ city: z.string() }),
+}).render(async ({ city }) => [
+  { role: 'user', content: `Plan one day in ${city}.` },
+])
+
 export const typedServer = createMCPServer({
   name: 'typed-weather',
   version: '1.0.0',
   tools: [forecast, buildReport],
+  prompts: [tripBrief],
   auth: {
     verifyToken: async (token) =>
       token === 'alice' || token === 'bob' ? { subject: token } : false,
