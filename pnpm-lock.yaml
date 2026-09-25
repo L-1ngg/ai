@@ -2226,7 +2226,7 @@ importers:
         version: 6.1.5
       terminal-image:
         specifier: ^4.3.0
-        version: 4.3.0
+        version: 4.3.0(supports-color@7.2.0)
     devDependencies:
       '@types/node':
         specifier: ^24.10.1
@@ -2235,14 +2235,14 @@ importers:
         specifier: ^19.2.7
         version: 19.3.0
       '@vitest/coverage-v8':
-        specifier: 4.0.14
-        version: 4.0.14(vitest@4.1.11)
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.11)
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(@microsoft/api-extractor@7.47.7(@types/node@24.13.6))(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0)
+        version: 8.5.1(@microsoft/api-extractor@7.47.7(@types/node@24.13.6))(jiti@2.7.0)(postcss@8.5.28)(supports-color@7.2.0)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0)
       vite:
-        specifier: ^7.3.3
-        version: 7.3.6(@types/node@24.13.6)(jiti@2.7.0)(less@4.6.6)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
+        specifier: ^8.2.1
+        version: 8.3.0(@types/node@24.13.6)(esbuild@0.27.7)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
       zod:
         specifier: ^4.2.0
         version: 4.3.6
@@ -3637,7 +3637,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ai-cli
       vitest:
-        specifier: ^4.0.14
+        specifier: ^4.1.10
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.13.6)(@vitest/coverage-v8@4.1.10(vitest@4.1.10))(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0))(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
 
   testing/e2e:
@@ -11680,15 +11680,6 @@ packages:
       vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
       vue: ^3.2.25
 
-  '@vitest/coverage-v8@4.0.14':
-    resolution: {integrity: sha512-EYHLqN/BY6b47qHH7gtMxAg++saoGmsjWmAq9MlXxAz4M0NcHh9iOyKhBZyU4yxZqOd8Xnqp80/5saeitz4Cng==}
-    peerDependencies:
-      '@vitest/browser': 4.0.14
-      vitest: 4.0.14
-    peerDependenciesMeta:
-      '@vitest/browser':
-        optional: true
-
   '@vitest/coverage-v8@4.1.10':
     resolution: {integrity: sha512-IM49HmthevbgAO4anp1hwtoT9wYe59w0LR00gr+eagHE+ZJ5lK4sLPeO0ubgoJcwLk6dehU3R24N+FbEEKDc8g==}
     peerDependencies:
@@ -11726,9 +11717,6 @@ packages:
       vite:
         optional: true
 
-  '@vitest/pretty-format@4.0.14':
-    resolution: {integrity: sha512-SOYPgujB6TITcJxgd3wmsLl+wZv+fy3av2PpiPpsWPZ6J1ySUYfScfpIt2Yv56ShJXR2MOA6q2KjKHN4EpdyRQ==}
-
   '@vitest/pretty-format@4.1.10':
     resolution: {integrity: sha512-W1HsjSH4MXQ9YfmmhLAoIYf1HRfekQCGngeIgcei6MP5QQGWUe0gkopdZQaVCFO+JDJMrAJGwa5pRpNpvy4P8Q==}
 
@@ -11752,9 +11740,6 @@ packages:
 
   '@vitest/spy@4.1.11':
     resolution: {integrity: sha512-apNa/prQy2qCeywhnixOHPRCgGNhvg7T4Dapfl1GahLp/R+uhBm5cPyFoNVyqsNd2h1nJxL6BqqdIjiABL60YA==}
-
-  '@vitest/utils@4.0.14':
-    resolution: {integrity: sha512-hLqXZKAWNg8pI+SQXyXxWCTOpA3MvsqcbVeNgSi8x/CSN2wi26dSzn1wrOhmCmFjEvN9p8/kLFRHa6PI8jHazw==}
 
   '@vitest/utils@4.1.10':
     resolution: {integrity: sha512-fy9am/HWxbaGt/Sawrp90vt6Y6jQwf1RX77cz3uwoJwJVMli/e1IEwRPnMNJ7vKfPTwo0diXifkpPvwH9v7nGA==}
@@ -12057,9 +12042,6 @@ packages:
   ast-types@0.16.1:
     resolution: {integrity: sha512-6t10qk83GOG8p0vKmaCr8eiilZwO171AvbROMtvvNiwrTly62t+7XkA8RdIIVbpMhCASAsxgAzdRSwh6nw/5Dg==}
     engines: {node: '>=4'}
-
-  ast-v8-to-istanbul@0.3.12:
-    resolution: {integrity: sha512-BRRC8VRZY2R4Z4lFIL35MwNXmwVqBityvOIwETtsCSwvjl0IdgFsy9NhdaA6j74nUdtJJlIypeRhpDam19Wq3g==}
 
   ast-v8-to-istanbul@1.0.5:
     resolution: {integrity: sha512-UPAgKJFSEGMWSDr3LX4tqnAb4f7KGT8O40Tyx8wbYmmZ/yn58lNCm8h3svs3eXgiGd5AXxz8NDOvXWvicq+rJA==}
@@ -14842,10 +14824,6 @@ packages:
 
   istanbul-lib-report@3.0.1:
     resolution: {integrity: sha512-GCfE1mtsHGOELCU8e/Z7YWzpmybrx/+dSTfLrvY8qRmaY6zXTKWn6WQIjaAFw069icm6GVMNkgu0NzI4iPZUNw==}
-    engines: {node: '>=10'}
-
-  istanbul-lib-source-maps@5.0.6:
-    resolution: {integrity: sha512-yg2d+Em4KizZC5niWhQaIomgf5WlL4vOOjZ5xGCmF8SnPE/mDWWXgvRExdcpCgh9lLRRa1/fSYp2ymmbJ1pI+A==}
     engines: {node: '>=10'}
 
   istanbul-reports@3.2.0:
@@ -22945,14 +22923,14 @@ snapshots:
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
-  '@jimp/core@1.6.1':
+  '@jimp/core@1.6.1(supports-color@7.2.0)':
     dependencies:
       '@jimp/file-ops': 1.6.1
       '@jimp/types': 1.6.1
       '@jimp/utils': 1.6.1
       await-to-js: 3.0.0
       exif-parser: 0.1.12
-      file-type: 21.3.4
+      file-type: 21.3.4(supports-color@7.2.0)
       mime: 3.0.0
     transitivePeerDependencies:
       - supports-color
@@ -22970,7 +22948,7 @@ snapshots:
 
   '@jimp/js-bmp@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       '@jimp/utils': 1.6.1
       bmp-ts: 1.0.9
@@ -22979,7 +22957,7 @@ snapshots:
 
   '@jimp/js-gif@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       gifwrap: 0.10.1
       omggif: 1.0.10
@@ -22988,7 +22966,7 @@ snapshots:
 
   '@jimp/js-jpeg@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       jpeg-js: 0.4.4
     transitivePeerDependencies:
@@ -22996,7 +22974,7 @@ snapshots:
 
   '@jimp/js-png@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       pngjs: 7.0.0
     transitivePeerDependencies:
@@ -23004,7 +22982,7 @@ snapshots:
 
   '@jimp/js-tiff@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       utif2: 4.1.0
     transitivePeerDependencies:
@@ -23018,7 +22996,7 @@ snapshots:
 
   '@jimp/plugin-blur@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/utils': 1.6.1
     transitivePeerDependencies:
       - supports-color
@@ -23030,7 +23008,7 @@ snapshots:
 
   '@jimp/plugin-color@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       '@jimp/utils': 1.6.1
       tinycolor2: 1.6.0
@@ -23040,7 +23018,7 @@ snapshots:
 
   '@jimp/plugin-contain@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/plugin-blit': 1.6.1
       '@jimp/plugin-resize': 1.6.1
       '@jimp/types': 1.6.1
@@ -23051,7 +23029,7 @@ snapshots:
 
   '@jimp/plugin-cover@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/plugin-crop': 1.6.1
       '@jimp/plugin-resize': 1.6.1
       '@jimp/types': 1.6.1
@@ -23061,7 +23039,7 @@ snapshots:
 
   '@jimp/plugin-crop@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       '@jimp/utils': 1.6.1
       zod: 3.25.76
@@ -23091,7 +23069,7 @@ snapshots:
 
   '@jimp/plugin-hash@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/js-bmp': 1.6.1
       '@jimp/js-jpeg': 1.6.1
       '@jimp/js-png': 1.6.1
@@ -23111,7 +23089,7 @@ snapshots:
 
   '@jimp/plugin-print@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/js-jpeg': 1.6.1
       '@jimp/js-png': 1.6.1
       '@jimp/plugin-blit': 1.6.1
@@ -23131,7 +23109,7 @@ snapshots:
 
   '@jimp/plugin-resize@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/types': 1.6.1
       zod: 3.25.76
     transitivePeerDependencies:
@@ -23139,7 +23117,7 @@ snapshots:
 
   '@jimp/plugin-rotate@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/plugin-crop': 1.6.1
       '@jimp/plugin-resize': 1.6.1
       '@jimp/types': 1.6.1
@@ -23150,7 +23128,7 @@ snapshots:
 
   '@jimp/plugin-threshold@1.6.1':
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/plugin-color': 1.6.1
       '@jimp/plugin-hash': 1.6.1
       '@jimp/types': 1.6.1
@@ -29029,7 +29007,7 @@ snapshots:
       '@types/react': 19.2.7
       '@types/react-dom': 19.2.3(@types/react@19.2.7)
 
-  '@tokenizer/inflate@0.4.1':
+  '@tokenizer/inflate@0.4.1(supports-color@7.2.0)':
     dependencies:
       debug: 4.4.3(supports-color@7.2.0)
       token-types: 6.1.2
@@ -29759,23 +29737,6 @@ snapshots:
       vite: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
       vue: 3.5.25(typescript@5.9.3)
 
-  '@vitest/coverage-v8@4.0.14(vitest@4.1.11)':
-    dependencies:
-      '@bcoe/v8-coverage': 1.0.2
-      '@vitest/utils': 4.0.14
-      ast-v8-to-istanbul: 0.3.12
-      istanbul-lib-coverage: 3.2.2
-      istanbul-lib-report: 3.0.1
-      istanbul-lib-source-maps: 5.0.6
-      istanbul-reports: 3.2.0
-      magicast: 0.5.2
-      obug: 2.2.1
-      std-env: 3.10.0
-      tinyrainbow: 3.1.1
-      vitest: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.13.6)(@vitest/coverage-v8@4.0.14)(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0))(vite@7.3.6(@types/node@24.13.6)(jiti@2.7.0)(less@4.6.6)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
-    transitivePeerDependencies:
-      - supports-color
-
   '@vitest/coverage-v8@4.1.10(vitest@4.1.10)':
     dependencies:
       '@bcoe/v8-coverage': 1.0.2
@@ -29846,14 +29807,6 @@ snapshots:
     optionalDependencies:
       vite: 8.3.0(@types/node@24.13.6)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
 
-  '@vitest/mocker@4.1.11(vite@7.3.6(@types/node@24.13.6)(jiti@2.7.0)(less@4.6.6)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))':
-    dependencies:
-      '@vitest/spy': 4.1.11
-      estree-walker: 3.0.3
-      magic-string: 0.30.21
-    optionalDependencies:
-      vite: 7.3.6(@types/node@24.13.6)(jiti@2.7.0)(less@4.6.6)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
-
   '@vitest/mocker@4.1.11(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))':
     dependencies:
       '@vitest/spy': 4.1.11
@@ -29878,10 +29831,6 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 8.3.0(@types/node@24.13.6)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
-
-  '@vitest/pretty-format@4.0.14':
-    dependencies:
-      tinyrainbow: 3.1.1
 
   '@vitest/pretty-format@4.1.10':
     dependencies:
@@ -29918,11 +29867,6 @@ snapshots:
   '@vitest/spy@4.1.10': {}
 
   '@vitest/spy@4.1.11': {}
-
-  '@vitest/utils@4.0.14':
-    dependencies:
-      '@vitest/pretty-format': 4.0.14
-      tinyrainbow: 3.1.1
 
   '@vitest/utils@4.1.10':
     dependencies:
@@ -30283,12 +30227,6 @@ snapshots:
   ast-types@0.16.1:
     dependencies:
       tslib: 2.8.1
-
-  ast-v8-to-istanbul@0.3.12:
-    dependencies:
-      '@jridgewell/trace-mapping': 0.3.31
-      estree-walker: 3.0.3
-      js-tokens: 10.0.0
 
   ast-v8-to-istanbul@1.0.5:
     dependencies:
@@ -32458,9 +32396,9 @@ snapshots:
     dependencies:
       flat-cache: 4.0.1
 
-  file-type@21.3.4:
+  file-type@21.3.4(supports-color@7.2.0):
     dependencies:
-      '@tokenizer/inflate': 0.4.1
+      '@tokenizer/inflate': 0.4.1(supports-color@7.2.0)
       strtok3: 10.3.5
       token-types: 6.1.2
       uint8array-extras: 1.5.0
@@ -33494,14 +33432,6 @@ snapshots:
       make-dir: 4.0.0
       supports-color: 7.2.0
 
-  istanbul-lib-source-maps@5.0.6:
-    dependencies:
-      '@jridgewell/trace-mapping': 0.3.31
-      debug: 4.4.3(supports-color@7.2.0)
-      istanbul-lib-coverage: 3.2.2
-    transitivePeerDependencies:
-      - supports-color
-
   istanbul-reports@3.2.0:
     dependencies:
       html-escaper: 2.0.2
@@ -33547,9 +33477,9 @@ snapshots:
 
   jimp-compact@0.16.1: {}
 
-  jimp@1.6.1:
+  jimp@1.6.1(supports-color@7.2.0):
     dependencies:
-      '@jimp/core': 1.6.1
+      '@jimp/core': 1.6.1(supports-color@7.2.0)
       '@jimp/diff': 1.6.1
       '@jimp/js-bmp': 1.6.1
       '@jimp/js-gif': 1.6.1
@@ -38218,11 +38148,11 @@ snapshots:
 
   term-size@2.2.1: {}
 
-  terminal-image@4.3.0:
+  terminal-image@4.3.0(supports-color@7.2.0):
     dependencies:
       chalk: 5.6.2
       image-dimensions: 2.6.0
-      jimp: 1.6.1
+      jimp: 1.6.1(supports-color@7.2.0)
       log-update: 8.0.0
       omggif: 1.0.10
       supports-terminal-graphics: 0.1.0
@@ -38495,7 +38425,7 @@ snapshots:
       - tsx
       - yaml
 
-  tsup@8.5.1(@microsoft/api-extractor@7.47.7(@types/node@24.13.6))(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0):
+  tsup@8.5.1(@microsoft/api-extractor@7.47.7(@types/node@24.13.6))(jiti@2.7.0)(postcss@8.5.28)(supports-color@7.2.0)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.27.7)
       cac: 6.7.14
@@ -39171,25 +39101,6 @@ snapshots:
       tsx: 4.23.12
       yaml: 2.9.0
 
-  vite@7.3.6(@types/node@24.13.6)(jiti@2.7.0)(less@4.6.6)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0):
-    dependencies:
-      esbuild: 0.28.1
-      fdir: 6.5.0(picomatch@4.0.7)
-      picomatch: 4.0.7
-      postcss: 8.5.28
-      rollup: 4.60.1
-      tinyglobby: 0.2.17
-    optionalDependencies:
-      '@types/node': 24.13.6
-      fsevents: 2.3.3
-      jiti: 2.7.0
-      less: 4.6.6
-      lightningcss: 1.33.0
-      sass: 1.101.0
-      terser: 5.44.1
-      tsx: 4.23.12
-      yaml: 2.9.0
-
   vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.6.1)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0):
     dependencies:
       lightningcss: 1.33.0
@@ -39254,6 +39165,24 @@ snapshots:
     optionalDependencies:
       '@types/node': 24.10.3
       esbuild: 0.28.1
+      fsevents: 2.3.3
+      jiti: 2.7.0
+      less: 4.6.6
+      sass: 1.101.0
+      terser: 5.44.1
+      tsx: 4.23.12
+      yaml: 2.9.0
+
+  vite@8.3.0(@types/node@24.13.6)(esbuild@0.27.7)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0):
+    dependencies:
+      lightningcss: 1.33.0
+      picomatch: 4.0.7
+      postcss: 8.5.28
+      rolldown: 1.2.9
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 24.13.6
+      esbuild: 0.27.7
       fsevents: 2.3.3
       jiti: 2.7.0
       less: 4.6.6
@@ -39447,37 +39376,6 @@ snapshots:
     transitivePeerDependencies:
       - msw
     optional: true
-
-  vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.13.6)(@vitest/coverage-v8@4.0.14)(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0))(vite@7.3.6(@types/node@24.13.6)(jiti@2.7.0)(less@4.6.6)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)):
-    dependencies:
-      '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(vite@7.3.6(@types/node@24.13.6)(jiti@2.7.0)(less@4.6.6)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
-      '@vitest/pretty-format': 4.1.11
-      '@vitest/runner': 4.1.11
-      '@vitest/snapshot': 4.1.11
-      '@vitest/spy': 4.1.11
-      '@vitest/utils': 4.1.11
-      es-module-lexer: 2.3.2
-      expect-type: 1.4.0
-      magic-string: 0.30.21
-      obug: 2.2.1
-      pathe: 2.0.3
-      picomatch: 4.0.7
-      std-env: 4.2.0
-      tinybench: 2.9.0
-      tinyexec: 1.3.1
-      tinyglobby: 0.2.17
-      tinyrainbow: 3.1.1
-      vite: 7.3.6(@types/node@24.13.6)(jiti@2.7.0)(less@4.6.6)(lightningcss@1.33.0)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
-      why-is-node-running: 2.3.0
-    optionalDependencies:
-      '@opentelemetry/api': 1.9.1
-      '@types/node': 24.13.6
-      '@vitest/coverage-v8': 4.0.14(vitest@4.1.11)
-      happy-dom: 20.11.2
-      jsdom: 27.4.0(@noble/hashes@2.3.0)
-    transitivePeerDependencies:
-      - msw
 
   vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.13.6)(@vitest/coverage-v8@4.1.10(vitest@4.1.10))(happy-dom@20.11.2)(jsdom@27.4.0(@noble/hashes@2.3.0))(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)):
     dependencies:

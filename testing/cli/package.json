@@ -9,6 +9,6 @@
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/ai-cli": "workspace:*",
-    "vitest": "^4.0.14"
+    "vitest": "^4.1.10"
   }
 }

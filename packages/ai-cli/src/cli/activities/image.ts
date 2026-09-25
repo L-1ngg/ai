@@ -44,7 +44,7 @@ export async function runImage(ctx: RunContext, prompt: string): Promise<void> {
       generateImage({
         // The CLI resolves adapters at runtime; the static generic is erased.
         adapter: adapter as never,
-        prompt,
+        prompt: prompt as never,
         numberOfImages: numberValue(ctx.options.count) ?? 1,
         size: stringValue(ctx.options.size) as never,
         modelOptions: modelOptions as never,

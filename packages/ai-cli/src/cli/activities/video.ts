@@ -32,7 +32,7 @@ export async function runVideo(ctx: RunContext, prompt: string): Promise<void> {
     () =>
       generateVideo({
         adapter: adapter as never,
-        prompt,
+        prompt: prompt as never,
         size: (typeof ctx.options.size === 'string'
           ? ctx.options.size
           : undefined) as never,
@@ -115,7 +115,7 @@ export async function runVideoStatus(
     })
     return
   }
-  emitJson({ jobId, ...status })
+  emitJson({ ...status, jobId })
 }
 
 async function pollToCompletion(
