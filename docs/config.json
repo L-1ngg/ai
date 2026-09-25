@@ -137,7 +137,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-09-25"
         },
         {
           "label": "Connection Adapters",
