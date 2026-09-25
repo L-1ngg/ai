@@ -404,6 +404,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let hasClosedReasoning = false
     let model: string = chatOptions.model
     let usage: OpenAI.Responses.Response['usage'] | undefined
+    let responseCompleted = false
 
     const closeReasoning = function* (this: {
       name: string
@@ -600,6 +601,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
 
         if (chunk.type === 'response.completed') {
+          responseCompleted = true
           const response = chunk.response
           if (response.usage) usage = response.usage
           if (response.model) model = response.model
@@ -640,6 +642,20 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           model,
           timestamp: Date.now(),
         }
+      }
+
+      if (!responseCompleted) {
+        const message = 'Responses API stream ended without response.completed'
+        yield {
+          type: EventType.RUN_ERROR,
+          runId: aguiState.runId,
+          model,
+          timestamp: Date.now(),
+          message,
+          code: 'incomplete_stream',
+          error: { message, code: 'incomplete_stream' },
+        }
+        return
       }
 
       if (accumulatedContent.length === 0) {
@@ -910,9 +926,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let reasoningEncryptedContent: string | undefined
     let closedReasoningStepId: string | undefined
     let hasClosedReasoning = false
-    // Track whether we've emitted a terminal RUN_FINISHED so the
-    // end-of-stream fallback below knows to synthesise one when the upstream
-    // cuts off without a response.completed event.
+    // Terminal provider errors return before the EOF check below.
     let runFinishedEmitted = false
 
     const adapterName = this.name
@@ -1868,10 +1882,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
-      // Synthetic terminal RUN_FINISHED if the stream ended without a
-      // response.completed event (e.g. truncated upstream connection). This
-      // mirrors the chat-completions adapter's behavior so consumers always
-      // see a terminal event for every started run.
+      // EOF without response.completed does not confirm a successful run.
       if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
         yield* closeReasoning()
         if (hasEmittedTextMessageStart) {
@@ -1882,17 +1893,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             timestamp: Date.now(),
           }
         }
-        // Omit `usage` entirely (vs `usage: undefined`) — the synthetic
-        // RUN_FINISHED for truncated streams has no usage data, and AG-UI's
-        // `RunFinishedEvent.usage` is optional without `| undefined` under
-        // `exactOptionalPropertyTypes`.
+        const message = 'Responses API stream ended without response.completed'
         yield {
-          type: EventType.RUN_FINISHED,
+          type: EventType.RUN_ERROR,
           runId: aguiState.runId,
-          threadId: aguiState.threadId,
           model: model || options.model,
           timestamp: Date.now(),
-          finishReason: toolCallMetadata.size > 0 ? 'tool_calls' : 'stop',
+          message,
+          code: 'incomplete_stream',
+          error: { message, code: 'incomplete_stream' },
         }
       }
     } catch (error: unknown) {

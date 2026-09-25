@@ -5,10 +5,12 @@ import { createOpenaiChat } from '@tanstack/ai-openai'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 const FINAL_TEXT = 'Recovered from response.completed'
 
-function makeCompletionOnlyResponsesStream(): ReadableStream<Uint8Array> {
+function makeCompletionOnlyResponsesStream(
+  missingTerminal = false,
+): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
   const responseId = 'resp_completion_only'
-  const events = [
+  const events: Array<Record<string, unknown>> = [
     {
       type: 'response.created',
       response: {
@@ -53,6 +55,12 @@ function makeCompletionOnlyResponsesStream(): ReadableStream<Uint8Array> {
       },
     },
   ]
+  if (missingTerminal) {
+    events.splice(1, 2, {
+      type: 'response.output_text.delta',
+      delta: 'Partial answer',
+    })
+  }
 
   return new ReadableStream<Uint8Array>({
     start(controller) {
@@ -68,14 +76,45 @@ function makeCompletionOnlyResponsesStream(): ReadableStream<Uint8Array> {
 export const Route = createFileRoute('/api/openai-completed-response-text')({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const missingTerminal =
+          new URL(request.url).searchParams.get('scenario') ===
+          'missing-terminal'
         const adapter = createOpenaiChat('gpt-5.2', DUMMY_KEY, {
           fetch: async () =>
-            new Response(makeCompletionOnlyResponsesStream(), {
+            new Response(makeCompletionOnlyResponsesStream(missingTerminal), {
               status: 200,
               headers: { 'Content-Type': 'text/event-stream' },
             }),
         })
+
+        if (missingTerminal) {
+          let onError = false
+          let onFinish = false
+          let text = ''
+          let errorCode: string | undefined
+          const events: Array<string> = []
+          for await (const chunk of chat({
+            adapter,
+            messages: [{ role: 'user', content: 'Complete the answer' }],
+            middleware: [
+              {
+                name: 'observe',
+                onError: () => {
+                  onError = true
+                },
+                onFinish: () => {
+                  onFinish = true
+                },
+              },
+            ],
+          })) {
+            events.push(chunk.type)
+            if (chunk.type === 'TEXT_MESSAGE_CONTENT') text += chunk.delta
+            if (chunk.type === 'RUN_ERROR') errorCode = chunk.code
+          }
+          return Response.json({ events, text, errorCode, onError, onFinish })
+        }
 
         const text = await chat({
           adapter,
