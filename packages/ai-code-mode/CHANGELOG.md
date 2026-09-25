@@ -1,5 +1,11 @@
 # @tanstack/ai-code-mode
 
+## 0.4.17
+
+### Patch Changes
+
+- [#1487](https://github.com/TanStack/ai/pull/1487) [`04e8d16`](https://github.com/TanStack/ai/commit/04e8d16c2075ee193a9c0856c6e9ed9add3fe779) - State in the Code Mode system prompt and in the `execute_typescript` tool description that `discover_tools` is a separate tool call. It is not a function inside the sandbox. Models no longer call `discover_tools` from inside `execute_typescript` and get a `ReferenceError`.
+
 ## 0.4.16
 
 ### Patch Changes

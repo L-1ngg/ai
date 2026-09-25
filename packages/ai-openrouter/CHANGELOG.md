@@ -1,5 +1,13 @@
 # @tanstack/ai-openrouter
 
+## 0.19.21
+
+### Patch Changes
+
+- [#1490](https://github.com/TanStack/ai/pull/1490) [`5226f8e`](https://github.com/TanStack/ai/commit/5226f8edbf842955cd9510efd850ca910f159bd3) - Keep `usage.cost` (and `costDetails`) from the OpenRouter Decisions API in `decide()` results. `result.meta.usage.cost` is now set, the same as with the OpenRouter text and image adapters.
+
+- [#1492](https://github.com/TanStack/ai/pull/1492) [`af743bf`](https://github.com/TanStack/ai/commit/af743bf9ff7b338e0a0ec6b56a27a54b5fab7aac) - Stop reading an OpenRouter Responses stream after `response.completed`. Before, `chat()` and `structuredOutputStream` waited for the HTTP body to close, so a body that stayed open delayed `RUN_FINISHED`. The adapter now finishes on the terminal event and releases the upstream reader.
+
 ## 0.19.20
 
 ### Patch Changes

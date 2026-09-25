@@ -1,5 +1,11 @@
 # @tanstack/openai-base
 
+## 0.11.2
+
+### Patch Changes
+
+- [#1489](https://github.com/TanStack/ai/pull/1489) [`489d610`](https://github.com/TanStack/ai/commit/489d610bb78f92f5df989b18acc71fe18cdfd3f9) - Stop reading an OpenAI Responses stream after `response.completed`. Before, `chat()` and `structuredOutputStream` waited for the HTTP body to close, so a body that stayed open delayed `RUN_FINISHED`. The adapter now finishes on the terminal event and releases the upstream reader.
+
 ## 0.11.1
 
 ### Patch Changes

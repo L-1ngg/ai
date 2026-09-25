@@ -1,5 +1,11 @@
 # @tanstack/ai-client
 
+## 0.35.2
+
+### Patch Changes
+
+- [#1488](https://github.com/TanStack/ai/pull/1488) [`73f25f7`](https://github.com/TanStack/ai/commit/73f25f7c60ac022bcfd1cbb0b95c9e03787ee1e2) - Rejoin an active continuation run on hydrate. When hydrate reports an active run and a pending interrupt from a different (parent) run, the client now joins the active run with `joinRun`. Before, it restored the parent interrupt, so the reply never appeared and the thread stayed parked. When both ids are the same (a run that just paused), the interrupt still wins.
+
 ## 0.35.1
 
 ### Patch Changes

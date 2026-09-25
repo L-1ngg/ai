@@ -1,5 +1,11 @@
 # @tanstack/ai-sandbox
 
+## 0.5.16
+
+### Patch Changes
+
+- [#1491](https://github.com/TanStack/ai/pull/1491) [`cd5aaaf`](https://github.com/TanStack/ai/commit/cd5aaaf91db56bc823ff99cf75c538f7e0a13c3f) - Leave the Git source token out of the workspace hash. A new token for `gitSource({ auth: { token } })` (for example, an hourly GitHub App token) no longer changes the sandbox key, so `reuse: 'thread'` finds the same sandbox again. The URL, ref, depth, and username still change the key.
+
 ## 0.5.15
 
 ### Patch Changes
