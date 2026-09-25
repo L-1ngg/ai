@@ -277,7 +277,8 @@ id, so a later `attach()` continues where it left off. See
 
 Returns the current frozen `ChatClientSnapshot`. The field names are
 `messages`, `status`, `isLoading`, `error`, `queue`, `runId`, `isSubscribed`,
-`connectionStatus`, `sessionGenerating`, and `interruptState`. Nested
+`connectionStatus`, `sessionGenerating`, `hasOlderMessages`, and
+`interruptState`. Nested
 `messages` and `queue` entries are copies. In-place `messages.push` throws.
 Use `setMessages`.
 
