@@ -3,9 +3,7 @@ id: ToolCallHookContext
 title: ToolCallHookContext
 ---
 
-# Interface: ToolCallHookContext
-
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:368](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L368)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:390](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L390)
 
 Context provided to tool call hooks (onBeforeToolCall / onAfterToolCall).
 
@@ -17,7 +15,7 @@ Context provided to tool call hooks (onBeforeToolCall / onAfterToolCall).
 args: unknown;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:374](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L374)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:396](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L396)
 
 Parsed arguments for the tool call
 
@@ -31,7 +29,7 @@ tool:
   | undefined;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:372](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L372)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:394](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L394)
 
 The resolved tool definition, if found
 
@@ -43,7 +41,7 @@ The resolved tool definition, if found
 toolCall: ToolCall;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:370](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L370)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:392](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L392)
 
 The tool call being executed
 
@@ -55,7 +53,7 @@ The tool call being executed
 toolCallId: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:378](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L378)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:400](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L400)
 
 ID of the tool call
 
@@ -67,6 +65,6 @@ ID of the tool call
 toolName: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:376](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L376)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:398](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L398)
 
 Name of the tool

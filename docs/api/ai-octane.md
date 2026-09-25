@@ -16,11 +16,59 @@ Install `@tanstack/ai-octane`, then call `useChat` the same way you would in Rea
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-octane octane
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+octane: @tanstack/ai-octane octane
+
+<!-- ::end:tabs -->
 
 `octane` is a required peer. This package publishes uncompiled source, like Svelte packages that ship `.svelte`.
+
+## `useRegisterWebMCPTools(tools, options?)`
+
+Register executable client tools after the Octane component mounts. Octane removes them on cleanup and replaces them when `tools` or `options` change.
+
+For a complete setup and behavior guide, see [WebMCP Tools](../tools/webmcp).
+
+```tsx
+import {
+  useRegisterWebMCPTools,
+  type UseRegisterWebMCPToolsOptions,
+} from '@tanstack/ai-octane'
+import { searchProducts } from './tools'
+
+const tools = [searchProducts]
+const options: UseRegisterWebMCPToolsOptions<typeof tools> = {
+  onError(error) {
+    console.error(error)
+  },
+}
+
+function ProductsPage() {
+  useRegisterWebMCPTools(tools, options)
+  return null
+}
+```
+
+`UseRegisterWebMCPToolsOptions<TTools, TContext>` contains `toolOptions`, `context`, and `onError`. The hook owns the registration signal.
+
+The `context` field is required when a tool declares a required runtime context. Keep `tools` and `options` stable when their values do not change.
+
+## `usePageWebMCPTools(options?)`
+
+Read the WebMCP tools on the page as client tools. The array starts empty and updates when the page adds or removes a tool. Pass it to `useChat` as `tools`.
+
+```tsx
+import { usePageWebMCPTools } from "@tanstack/ai-octane"
+
+export function useSameOriginPageTools() {
+  return usePageWebMCPTools({
+    filter: (tool) => tool.origin === location.origin,
+  })
+}
+```
+
+`filter` skips a tool when it returns `false`. `onError` gets a failed WebMCP read. For a complete guide, see [Page WebMCP Tools in Chat](../tools/webmcp-page-tools).
 
 ## `useChat(options)`
 
@@ -82,7 +130,7 @@ export function ChatComponent() {
 }
 ```
 
-The matching server route still runs `chat({ adapter, messages })` and returns SSE. See [Quick Start: Octane](../getting-started/quick-start-octane).
+The matching server route still runs `chat({ adapter, messages })` and returns SSE. See [Quick Start](../getting-started/quick-start).
 
 ### Options you pass first
 
@@ -289,6 +337,6 @@ Re-exported from `@tanstack/ai-client`:
 
 ## Next
 
-- [Quick Start: Octane](../getting-started/quick-start-octane)
+- [Quick Start](../getting-started/quick-start)
 - [Tools](../tools/tools)
 - [Client tools](../tools/client-tools)

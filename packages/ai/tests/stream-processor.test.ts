@@ -255,6 +255,73 @@ describe('StreamProcessor', () => {
       expect(processor.getMessages()).toHaveLength(1)
     })
 
+    describe('prependMessages', () => {
+      it('inserts older messages in front', () => {
+        const events = spyEvents()
+        const processor = new StreamProcessor({ events })
+        processor.setMessages([
+          {
+            id: 'm2',
+            role: 'user',
+            parts: [{ type: 'text', content: 'two' }],
+          },
+        ])
+        events.onMessagesChange.mockClear()
+
+        processor.prependMessages([
+          {
+            id: 'm1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'one' }],
+          },
+          {
+            id: 'm2',
+            role: 'user',
+            parts: [{ type: 'text', content: 'dup' }],
+          },
+        ])
+
+        const messages = processor.getMessages()
+        expect(messages.map((message) => message.id)).toEqual(['m1', 'm2'])
+        expect(messages[1]!.parts[0]).toEqual({
+          type: 'text',
+          content: 'two',
+        })
+        expect(events.onMessagesChange).toHaveBeenCalledTimes(1)
+      })
+
+      it('skips duplicate ids in the prepend list and keeps existing messages', () => {
+        const processor = new StreamProcessor()
+        processor.setMessages([
+          {
+            id: 'm1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'kept' }],
+          },
+        ])
+
+        processor.prependMessages([
+          {
+            id: 'm1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'first-dup' }],
+          },
+          {
+            id: 'm1',
+            role: 'user',
+            parts: [{ type: 'text', content: 'second-dup' }],
+          },
+        ])
+
+        const messages = processor.getMessages()
+        expect(messages.map((message) => message.id)).toEqual(['m1'])
+        expect(messages[0]!.parts[0]).toEqual({
+          type: 'text',
+          content: 'kept',
+        })
+      })
+    })
+
     it('addUserMessage with string content', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
@@ -4137,6 +4204,32 @@ describe('StreamProcessor', () => {
       processor.processChunk(ev.textContent('It is ', 'anthropic-msg-1'))
       processor.processChunk(ev.textContent('sunny.', 'anthropic-msg-1'))
       processor.processChunk(ev.textEnd('anthropic-msg-1'))
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      const textParts = messages[0]?.parts.filter((p) => p.type === 'text')
+      expect(textParts).toEqual([{ type: 'text', content: 'It is sunny.' }])
+    })
+
+    it('should not drop the first TEXT_MESSAGE_CONTENT delta when the text starts before the tool call (#1247)', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'tc-1',
+          toolCallName: 'lookupWeather',
+          toolName: 'lookupWeather',
+          parentMessageId: 'msg-1',
+        }),
+      )
+      processor.processChunk(ev.toolArgs('tc-1', '{"location":"Berlin"}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'lookupWeather'))
+      // Two deltas again: the first is the one that goes missing, and only
+      // once a second arrives to displace it.
+      processor.processChunk(ev.textContent('It is '))
+      processor.processChunk(ev.textContent('sunny.'))
+      processor.processChunk(ev.textEnd())
       processor.finalizeStream()
 
       const messages = processor.getMessages()

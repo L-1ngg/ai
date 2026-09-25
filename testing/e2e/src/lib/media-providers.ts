@@ -96,7 +96,7 @@ export function createImageAdapter(
         httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
     grok: () =>
-      createGrokImage('grok-2-image-1212', DUMMY_KEY, {
+      createGrokImage('grok-imagine-image', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
@@ -236,7 +236,7 @@ export function createVideoAdapter(
     if (provider !== 'gemini') {
       throw new Error(`No interactions-video adapter for provider: ${provider}`)
     }
-    return createGeminiVideo('gemini-omni-flash-preview', DUMMY_KEY, {
+    return createGeminiVideo('gemini-omni-1.1-flash', DUMMY_KEY, {
       httpOptions: { baseUrl: `${llmockBase(aimockPort)}/omni-video`, headers },
     })
   }

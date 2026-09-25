@@ -2,7 +2,7 @@
 title: Video Generation
 id: video-generation
 order: 6
-description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, BytePlus Seedance, OpenRouter, or fal.ai using TanStack AI's experimental generateVideo() jobs/polling API."
+description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, BytePlus Seedance, OpenRouter, or fal.ai using TanStack AI's experimental generateVideo() API."
 keywords:
   - tanstack ai
   - video generation
@@ -23,8 +23,6 @@ keywords:
   - image-to-video
 ---
 
-# Video Generation (Experimental)
-
 > **⚠️ EXPERIMENTAL FEATURE WARNING**
 >
 > Video generation is an **experimental feature** that is subject to significant changes. Please read the caveats below carefully before using this feature.
@@ -39,11 +37,13 @@ keywords:
 
 ## Overview
 
-TanStack AI provides experimental support for video generation through dedicated video adapters. Unlike image generation, video generation is an **asynchronous operation** that uses a jobs/polling pattern:
+TanStack AI provides experimental support for video generation through dedicated video adapters. Most providers are **asynchronous** and use a jobs/polling pattern:
 
 1. **Create a job** - Submit a prompt and receive a job ID
 2. **Poll for status** - Check the job status until it's complete
 3. **Retrieve the video** - Get the URL to download/view the generated video
+
+For a prompt-steerable live stream (no download URL), use [Live Generation](./live-generation) or [World Generation](./world-generation).
 
 Currently supported:
 
@@ -79,6 +79,8 @@ const { jobId, model } = await generateVideo({
 
 console.log("Job started:", jobId);
 ```
+
+For a stream that plays while it generates, and that you can steer with a new prompt, use [Live Generation](./live-generation). `generateVideo()` is the job path: create, poll, then fetch a file URL.
 
 ### Polling for Status
 
@@ -609,7 +611,7 @@ fal is the exception: `duration` is typed from `@fal-ai/client`'s
 
 #### Gemini Omni Flash (Interactions API) Model Options
 
-Gemini Omni Flash (`gemini-omni-flash-preview`) is Google's multimodal
+Gemini Omni Flash (`gemini-omni-1.1-flash`) is Google's multimodal
 video-generation model with conversational editing. It only serves the
 [Interactions API](https://ai.google.dev/gemini-api/docs/omni), and the same
 `geminiVideo()` adapter routes it automatically:
@@ -620,8 +622,8 @@ video-generation model with conversational editing. It only serves the
   When Google delivers by reference instead, the Files API URI passes through
   and needs your API key to download, like Veo.
 
-Clips are 720p at 24 FPS. `duration` accepts any value in the **3 to 10 second**
-range (fractional seconds included), defaulting to 10 seconds when omitted:
+`duration` accepts any value in the **3 to 10 second** range (fractional
+seconds included), defaulting to 10 seconds when omitted:
 
 - `availableDurations()` reports
   `{ kind: 'range', min: 3, max: 10, unit: 'seconds' }`.
@@ -629,24 +631,29 @@ range (fractional seconds included), defaulting to 10 seconds when omitted:
 - `snapDuration(n)` snaps raw seconds into the range, clamping to its bounds and
   rounding to whole seconds.
 
-The `size` option maps onto the interaction's output aspect ratio:
+The `size` option is an `aspectRatio_resolution` template, same shape as
+grok and byteplus video. Bare `'16:9'` / `'9:16'` uses the 720p default.
+Add a suffix for the other tiers (`'360p'`, `'1080p'`, `'4k'`):
 
 ```typescript ignore
 import { generateVideo, getVideoJobStatus } from "@tanstack/ai";
 import { geminiVideo } from "@tanstack/ai-gemini";
 
-const adapter = geminiVideo("gemini-omni-flash-preview");
+const adapter = geminiVideo("gemini-omni-1.1-flash");
 
 const { jobId } = await generateVideo({
   adapter,
   prompt: "A woman playing violin outdoors at golden hour",
-  size: "9:16", // aspect ratio: '16:9' (default) or '9:16'
+  size: "9:16_1080p", // '16:9' | '9:16', optional _360p/_720p/_1080p/_4k
   duration: 6, // 3-10 seconds; omit for the 10s default
 });
 
 const status = await getVideoJobStatus({ adapter, jobId });
 // status.url → 'data:video/mp4;base64,…' once completed
 ```
+
+`gemini-omni-flash-preview` still type-checks as a deprecated alias until
+it shuts down on 2026-09-30. Use `gemini-omni-1.1-flash` in new code.
 
 Image and video prompt parts are sent to the interaction as content blocks,
 grouped as images, then videos, then the text prompt (Omni doesn't use Veo's
@@ -668,7 +675,7 @@ edits the video while preserving everything you didn't mention:
 import { generateVideo } from "@tanstack/ai";
 import { geminiVideo } from "@tanstack/ai-gemini";
 
-const adapter = geminiVideo("gemini-omni-flash-preview");
+const adapter = geminiVideo("gemini-omni-1.1-flash");
 
 // Turn 1: generate
 const first = await generateVideo({
@@ -920,9 +927,12 @@ await generateVideo({
 #### VideoJobResult (from create)
 
 ```typescript
+import type { PersistedArtifactRef } from '@tanstack/ai/client'
+
 interface VideoJobResult {
   jobId: string; // Unique job identifier for polling
   model: string; // Model used for generation
+  artifacts?: Array<PersistedArtifactRef>
 }
 ```
 

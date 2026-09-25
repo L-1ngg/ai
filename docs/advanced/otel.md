@@ -22,9 +22,18 @@ Structured-output calls with no tools skip the agent loop and only run the final
 
 Install `@opentelemetry/api` — it's an optional peer dependency of `@tanstack/ai`:
 
-```bash
-pnpm add @opentelemetry/api
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @opentelemetry/api
+vue: @opentelemetry/api
+solid: @opentelemetry/api
+svelte: @opentelemetry/api
+preact: @opentelemetry/api
+angular: @opentelemetry/api
+vanilla: @opentelemetry/api
+octane: @opentelemetry/api
+
+<!-- ::end:tabs -->
 
 Wire up your OTel SDK however you already do (e.g. `@opentelemetry/sdk-node`). Then pass a `Tracer` (and optionally a `Meter`) into the middleware. The OTel middleware lives on its own subpath — importing it never affects users who don't need OTel:
 
@@ -206,7 +215,7 @@ otelMiddleware({
 
 ## Beyond chat: media activities
 
-`otelMiddleware` is not chat-only. The media activities — `generateImage`, `generateVideo`, `generateAudio`, `generateSpeech`, and `generateTranscription` — accept the **same** `otelMiddleware` value on their `middleware` option. Each is a single request → response (or submit → poll for video), so the middleware emits one span per call instead of the chat span tree:
+`otelMiddleware` is not chat-only. The media activities (`generateImage`, `generateVideo`, `generateLiveVideo`, `generateWorld`, `generateAudio`, `generateSpeech`, and `generateTranscription`) accept the **same** `otelMiddleware` value on their `middleware` option. Each is a single request to response (or submit then poll for video), so the middleware emits one span per call instead of the chat span tree:
 
 ```ts
 import { generateImage } from '@tanstack/ai'
@@ -226,7 +235,7 @@ const result = await generateImage({
 })
 ```
 
-The same `otel` value can be passed to `chat()` and to any media activity — its shared lifecycle hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) are authored against the activity-agnostic `GenerationMiddlewareContext`, so the one instance works everywhere.
+You can pass the same `otel` value to `chat()`, `decide()`, and any media activity. Its shared lifecycle hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) are authored against the activity-agnostic `GenerationMiddlewareContext`, so the one instance works everywhere.
 
 Each media call produces one `CLIENT` span tagged with the activity's `gen_ai.operation.name`:
 
@@ -237,7 +246,10 @@ Each media call produces one `CLIENT` span tagged with the activity's `gen_ai.op
 | `generateAudio` | `audio_generation` |
 | `generateSpeech` | `text_to_speech` |
 | `generateTranscription` | `transcription` |
+| `generateWorld` | `world_generation` |
+| `generateLiveVideo` | `live_video_generation` |
 | `summarize` | `summarize` |
+| `decide` | `evaluate` |
 
 The span carries `gen_ai.system` and `gen_ai.request.model` at start and, on finish, the same `gen_ai.usage.*` / `tanstack.ai.usage.*` attributes documented above — including the `tanstack.ai.usage.billed_quantity` / `tanstack.ai.usage.billed_unit` pair for unit-billed media. When a `Meter` is supplied it records the `gen_ai.client.operation.duration` histogram, tagged per activity. For streaming video the span covers the full create → poll → complete lifecycle. Non-streaming video is two calls, so the submit itself emits no span — the run opens once the provider accepts the job, and the `getVideoJobStatus()` poll that observes a terminal state ends it. If a streaming video consumer abandons the stream before completion, the span is ended via `onAbort` (status `ERROR`, `tanstack.ai.completion.reason = cancelled`) rather than leaked.
 

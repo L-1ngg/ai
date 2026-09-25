@@ -12,8 +12,6 @@ keywords:
   - last-event-id
 ---
 
-# Resumable Streams
-
 A resumable stream lets a client reconnect to an in-flight response after a page
 refresh, a dropped connection, or a suspended tab, without calling the provider
 again.
@@ -30,7 +28,7 @@ two fit together and when to pick each, see
 
 The log is kept per **run** — one `RUN_STARTED` → `RUN_FINISHED` execution, not
 a whole conversation. If the thread/run distinction is new, see
-[Threads and runs](../chat/streaming#threads-and-runs).
+[Threads and runs](../chat/stream-events#threads-and-runs).
 
 Three steps: pick an adapter, wrap your response with it, add a `GET` handler.
 

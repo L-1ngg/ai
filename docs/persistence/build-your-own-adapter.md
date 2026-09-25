@@ -9,8 +9,6 @@ keywords:
   - drizzle prisma d1 adapter
 ---
 
-# Build Your Own Persistence Adapter
-
 Your data lives in your own database (Postgres behind Prisma, a SQLite file, D1,
 Mongo) and you do not want another service just for chat history. You do not need
 one. An adapter is a plain object of store functions. The core never looks at your
@@ -113,10 +111,31 @@ retrying them safe.
 turn this into a recipe against your stack: your ORM config, your schema file, your
 database handle.
 
-```bash
-pnpm add @tanstack/ai-persistence
-npx @tanstack/intent@latest install
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-persistence
+vue: @tanstack/ai-persistence
+solid: @tanstack/ai-persistence
+svelte: @tanstack/ai-persistence
+preact: @tanstack/ai-persistence
+angular: @tanstack/ai-persistence
+vanilla: @tanstack/ai-persistence
+octane: @tanstack/ai-persistence
+
+<!-- ::end:tabs -->
+
+<!-- ::start:tabs variant="package-manager" mode="local-install" -->
+
+react: @tanstack/intent@latest install
+vue: @tanstack/intent@latest install
+solid: @tanstack/intent@latest install
+svelte: @tanstack/intent@latest install
+preact: @tanstack/intent@latest install
+angular: @tanstack/intent@latest install
+vanilla: @tanstack/intent@latest install
+octane: @tanstack/intent@latest install
+
+<!-- ::end:tabs -->
 
 Then ask for "add chat persistence to this app". There are recipes for Drizzle,
 Prisma, Cloudflare D1, and anything else (raw `pg`, Kysely, SQLite, Mongo, Supabase).
@@ -150,6 +169,11 @@ runPersistenceConformance('chat-only adapter', () => chatOnlyPersistence(), {
   skipMethods: ['runs.listByThread'],
 })
 ```
+
+The optional run methods are `listByThread`, `listByParentRun`, and
+`listReclaimable`. Add an omitted `listByThread` or `listReclaimable` to
+`skipMethods`. An omitted `listByParentRun` needs no entry: the subagent checks
+skip on their own.
 
 Anything absent and undeclared fails with a message naming exactly what to add, so a
 half-wired adapter cannot report a pass. When this is green, your adapter is a drop-in

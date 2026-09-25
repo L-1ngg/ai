@@ -18,9 +18,18 @@ The Anthropic adapter provides access to Claude models, including Claude Fable 5
 
 ## Installation
 
-```bash
-npm install @tanstack/ai-anthropic
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-anthropic
+vue: @tanstack/ai-anthropic
+solid: @tanstack/ai-anthropic
+svelte: @tanstack/ai-anthropic
+preact: @tanstack/ai-anthropic
+angular: @tanstack/ai-anthropic
+vanilla: @tanstack/ai-anthropic
+octane: @tanstack/ai-anthropic
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 
@@ -69,9 +78,18 @@ is the path for regional endpoints and Google Cloud credentials.
 
 Install the Vertex SDK next to the Anthropic adapter:
 
-```bash
-npm install @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+vue: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+solid: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+svelte: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+preact: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+angular: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+vanilla: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+octane: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+
+<!-- ::end:tabs -->
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -105,9 +123,18 @@ Anthropic-compatible client. The adapter only needs `beta.messages.create`.
 Message mapping, streaming, tools, media, usage, and structured output stay
 on the same TanStack path.
 
-```bash
-npm install @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+vue: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+solid: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+svelte: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+preact: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+angular: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+vanilla: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+octane: @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+
+<!-- ::end:tabs -->
 
 ```typescript
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
@@ -260,6 +287,9 @@ Per-model rules (enforced by the adapter's types):
 - **`effort`** accepts `"low" | "medium" | "high" | "xhigh" | "max"`;
   `"xhigh"` is available on Claude Opus 4.7+, Claude Sonnet 5, and
   Claude Fable 5.
+- **`output_config`** is accepted on Claude Opus 4.7, Opus 4.8, Sonnet 5,
+  Fable 5, Opus 5, Fable 5.1 and Opus 5.5. When you also pass an `outputSchema`, the
+  adapter adds `output_config.format` and keeps the `effort` you set.
 
 ### Prompt Caching
 

@@ -8,6 +8,7 @@ import type { MediaPrompt, MediaPromptPart } from '@tanstack/ai/client'
 import type { VideoBilling } from '@/lib/billing'
 
 import { generateVideoFn } from '@/lib/server-functions'
+import { byok, callWithByok, toByokProvider } from '@/lib/byok'
 import { VIDEO_MODELS } from '@/lib/models'
 import { getRandomVideoPrompt } from '@/lib/prompts'
 import { imageUrlToPart, readMediaFile, toVideoPart } from '@/lib/media'
@@ -115,7 +116,7 @@ export default function VideoGenerator({
   const omniInRun =
     selectedModel === 'all'
       ? geminiModels.length > 0
-      : selectedModel.startsWith('gemini-omni-flash-preview')
+      : selectedModel.startsWith('gemini-omni')
 
   // Each card runs its own generation, so the form is busy while any of them
   // reports that it is.
@@ -469,17 +470,22 @@ function VideoModelCard({
       // `options.signal` is the hook's abort signal. Forwarding it matters
       // more here than for images: cancelling the response is what ends the
       // server's polling loop instead of leaving it running to the timeout.
+      byok,
+      byokProvider: () => toByokProvider(model.provider),
       fetcher: (input, options) =>
-        generateVideoFn({
-          data: {
-            prompt: input.prompt,
-            model: model.id,
-            ...(previousInteractionRef.current
-              ? { previousInteractionId: previousInteractionRef.current }
-              : {}),
-          },
-          signal: options?.signal,
-        }),
+        callWithByok(
+          generateVideoFn({
+            data: {
+              prompt: input.prompt,
+              model: model.id,
+              ...(previousInteractionRef.current
+                ? { previousInteractionId: previousInteractionRef.current }
+                : {}),
+            },
+            signal: options?.signal,
+            headers: options?.headers,
+          }),
+        ),
       onChunk: (chunk) => {
         const usage = readVideoBilling(chunk)
         if (usage) setBilling(usage)

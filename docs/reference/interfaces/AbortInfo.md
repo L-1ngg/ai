@@ -3,9 +3,7 @@ id: AbortInfo
 title: AbortInfo
 ---
 
-# Interface: AbortInfo
-
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:499](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L499)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:521](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L521)
 
 Information passed to onAbort.
 
@@ -17,7 +15,7 @@ Information passed to onAbort.
 optional cancelRequested?: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:519](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L519)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:541](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L541)
 
 True only when the abort came from an explicit, out-of-band cancel (e.g. a
 cancel endpoint setting `RunRecord.cancelRequested`), never from a mere
@@ -41,7 +39,7 @@ host reads `RunRecord.cancelRequested` in addition to this flag.
 duration: number;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:503](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L503)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:525](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L525)
 
 Duration until abort in milliseconds
 
@@ -53,6 +51,6 @@ Duration until abort in milliseconds
 optional reason?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:501](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L501)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:523](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L523)
 
 The reason for the abort, if provided

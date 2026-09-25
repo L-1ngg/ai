@@ -29,9 +29,18 @@ Perplexity Sonar chat stays on this adapter. [`@tanstack/ai-perplexity`](./perpl
 
 The adapter ships inside `@tanstack/ai-openai` under the `/compatible` subpath — no extra install:
 
-```bash
-npm install @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-openai
+vue: @tanstack/ai-openai
+solid: @tanstack/ai-openai
+svelte: @tanstack/ai-openai
+preact: @tanstack/ai-openai
+angular: @tanstack/ai-openai
+vanilla: @tanstack/ai-openai
+octane: @tanstack/ai-openai
+
+<!-- ::end:tabs -->
 
 ## Basic Usage
 
@@ -117,7 +126,12 @@ const provider = openaiCompatible({
 
 ## Chat Completions vs Responses
 
-By default the adapter targets the **Chat Completions** API (`/chat/completions`) — the surface virtually every compatible provider implements. For the rare provider that also implements OpenAI's **Responses** API (e.g. Azure OpenAI), opt in with `api: "responses"`:
+By default the adapter targets the **Chat Completions** API (`/chat/completions`). For providers that implement the **Responses** API, select `api: "responses"`. This API choice also controls how `ChatStreamSummarizeAdapter` forwards `maxLength`, regardless of the wrapper name:
+
+- Chat Completions uses `max_tokens`.
+- Responses uses `max_output_tokens`.
+
+An explicit token limit in `modelOptions` takes precedence over `maxLength`.
 
 ```typescript
 import { openaiCompatible } from "@tanstack/ai-openai/compatible";
@@ -151,6 +165,8 @@ Any provider implementing the OpenAI Chat Completions API works. Common ones are
 | Mistral | `https://api.mistral.ai/v1` | `mistral-large-latest` |
 | Nebius | `https://api.studio.nebius.ai/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | Z.AI (GLM) | `https://api.z.ai/api/paas/v4` | `glm-4.6` |
+| Upstage (Solar) | `https://api.upstage.ai/v1` | `solar-pro4`, `solar-mini` |
+| Liner | `https://platform.liner.com/api/v1` | `liner-mark-1.0` |
 | Baseten | `https://inference.baseten.co/v1` | model-dependent |
 | Hugging Face (router) | `https://router.huggingface.co/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
 | NVIDIA NIM | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |

@@ -3,8 +3,6 @@ id: ChatResumeGenericResolution
 title: ChatResumeGenericResolution
 ---
 
-# Type Alias: ChatResumeGenericResolution
-
 ```ts
 type ChatResumeGenericResolution = 
   | {
@@ -19,4 +17,4 @@ type ChatResumeGenericResolution =
 };
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:339](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L339)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:361](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L361)
