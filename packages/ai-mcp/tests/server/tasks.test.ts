@@ -85,20 +85,13 @@ describe('server tasks', () => {
     expect(working.record).toEqual({
       taskId: handle.taskId,
       status: 'working',
+      ttl: null,
       createdAt: expect.any(String),
       lastUpdatedAt: expect.any(String),
-      ttlMs: null,
     })
     expect(working.record.createdAt).toMatch(isoTime)
-    expect(working.spec2026).toEqual({
-      resultType: 'complete',
-      taskId: handle.taskId,
-      status: 'working',
-      createdAt: working.record.createdAt,
-      lastUpdatedAt: working.record.lastUpdatedAt,
-      ttlMs: null,
-    })
-    expect(working.spec2025).toEqual({
+    // The spec 2025-11-25 Task that tasks/get returns.
+    expect(working.task).toEqual({
       taskId: handle.taskId,
       status: 'working',
       ttl: null,
@@ -114,28 +107,16 @@ describe('server tasks', () => {
     expect(saved).toEqual({
       taskId: handle.taskId,
       status: 'completed',
+      ttl: null,
       createdAt: working.record.createdAt,
       lastUpdatedAt: expect.any(String),
-      ttlMs: null,
       result: { text: 'done' },
     })
 
     const polled = await requireTask(handle.taskId, store)
     expect(polled.record).toEqual(saved)
-    expect(polled.spec2026).toEqual({
-      resultType: 'complete',
-      taskId: handle.taskId,
-      status: 'completed',
-      createdAt: working.record.createdAt,
-      lastUpdatedAt: polled.record.lastUpdatedAt,
-      ttlMs: null,
-      // The same CallToolResult that the 2025 tasks/result returns.
-      result: {
-        content: [{ type: 'text', text: '{"text":"done"}' }],
-        structuredContent: { text: 'done' },
-      },
-    })
-    expect(polled.spec2025).toEqual({
+    // The tool result stays on the record. tasks/result reads it.
+    expect(polled.task).toEqual({
       taskId: handle.taskId,
       status: 'completed',
       ttl: null,
@@ -152,9 +133,9 @@ describe('server tasks', () => {
       expect(await store.get(handle.taskId)).toEqual({
         taskId: handle.taskId,
         status: 'completed',
+        ttl: null,
         createdAt: expect.any(String),
         lastUpdatedAt: expect.any(String),
-        ttlMs: null,
         result: { text: 'done' },
       })
     })
@@ -182,7 +163,7 @@ describe('server tasks', () => {
     const store = inMemoryTaskStore()
     const captured = captureWaitUntil()
     const handle = await startTask(
-      async () => {
+      () => {
         throw new Error('rate limit')
       },
       { store, waitUntil: captured.waitUntil },
@@ -193,21 +174,12 @@ describe('server tasks', () => {
     expect(await store.get(handle.taskId)).toEqual({
       taskId: handle.taskId,
       status: 'failed',
+      ttl: null,
       createdAt: expect.any(String),
       lastUpdatedAt: expect.any(String),
-      ttlMs: null,
-      error: { code: -32603, message: 'rate limit' },
+      statusMessage: 'rate limit',
     })
-    expect(polled.spec2026).toEqual({
-      resultType: 'complete',
-      taskId: handle.taskId,
-      status: 'failed',
-      createdAt: polled.record.createdAt,
-      lastUpdatedAt: polled.record.lastUpdatedAt,
-      ttlMs: null,
-      error: { code: -32603, message: 'rate limit' },
-    })
-    expect(polled.spec2025).toEqual({
+    expect(polled.task).toEqual({
       taskId: handle.taskId,
       status: 'failed',
       ttl: null,

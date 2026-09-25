@@ -10,6 +10,7 @@ import {
 import type {
   Client,
   Request,
+  TaskStatus,
   Tool as McpToolDef,
   ToolAnnotations,
   Transport,
@@ -111,7 +112,7 @@ export function mcpContentToTanstack(
  * Calls one MCP tool and returns the tool result.
  *
  * A spec 2025 task waits on `tasks/get`, then reads `tasks/result`.
- * A spec 2026 task waits on `tasks/get`. The tool result is on that response.
+ * Spec 2026-07-28 has no tasks, so a 2026 call returns the tool result.
  * `chat()` receives the tool result after the task ends.
  *
  * `signal` stops the wait. This function then sends `tasks/cancel`.
@@ -231,21 +232,12 @@ const passThroughResult = {
   },
 }
 
-type TaskStatusName =
-  | 'working'
-  | 'input_required'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
-
+/** The spec 2025-11-25 task fields this client reads. */
 type TaskState = {
   taskId: string
-  status: TaskStatusName
-  pollIntervalMs: number | undefined
+  status: TaskStatus
+  pollInterval: number | undefined
   statusMessage: string | undefined
-  result: unknown
-  errorMessage: string | undefined
-  inputRequests: unknown
 }
 
 const defaultPollMs = 1000
@@ -264,14 +256,10 @@ async function finishToolCall(
   signal?: AbortSignal,
 ) {
   throwIfInputRequired(raw)
-  // A task body can also carry `content`. Read the task before the tool result.
-  const spec2025Task = readNestedTask(raw)
-  if (spec2025Task !== undefined) {
-    return pollTask(client, mcpName, spec2025Task, '2025', signal)
-  }
-  const spec2026Task = readFlatTask(raw)
-  if (spec2026Task !== undefined) {
-    return pollTask(client, mcpName, spec2026Task, '2026', signal)
+  // A spec 2025 task body also carries `content`. Read the task first.
+  const task = readNestedTask(raw)
+  if (task !== undefined) {
+    return pollTask(client, mcpName, task, signal)
   }
   if (isCallToolResult(raw)) return raw
   throw missingTaskResult(mcpName)
@@ -281,7 +269,6 @@ async function pollTask(
   client: Client,
   mcpName: string,
   task: TaskState,
-  era: '2025' | '2026',
   signal?: AbortSignal,
 ) {
   let current = task
@@ -291,9 +278,6 @@ async function pollTask(
       current.status === 'input_required'
     ) {
       if (current.status === 'input_required') {
-        if (hasInputRequests(current)) {
-          throwInputRequired(current.inputRequests, current.inputRequests)
-        }
         // A spec 2025 task sends its input request on tasks/result, as a
         // request to the client. This client does not answer those requests,
         // so stop here. Polling again would never end.
@@ -302,7 +286,7 @@ async function pollTask(
           `MCP task "${current.taskId}" needs input. This client cannot answer a spec 2025 task input request.`,
         )
       }
-      const delay = current.pollIntervalMs ?? defaultPollMs
+      const delay = current.pollInterval ?? defaultPollMs
       await waitForPoll(delay, signal)
       current = await readPolledTask(client, current.taskId, mcpName, signal)
     }
@@ -317,10 +301,7 @@ async function pollTask(
 
   switch (current.status) {
     case 'completed':
-      if (era === '2025') {
-        return completed2025(client, mcpName, current.taskId, signal)
-      }
-      return completed2026(mcpName, current)
+      return taskResult(client, mcpName, current.taskId, signal)
     case 'failed':
     case 'cancelled':
       throw terminalTaskError(current)
@@ -331,7 +312,7 @@ async function pollTask(
   }
 }
 
-async function completed2025(
+async function taskResult(
   client: Client,
   mcpName: string,
   taskId: string,
@@ -343,12 +324,6 @@ async function completed2025(
   return result
 }
 
-function completed2026(mcpName: string, task: TaskState) {
-  throwIfInputRequired(task.result)
-  if (!isCallToolResult(task.result)) throw missingTaskResult(mcpName)
-  return task.result
-}
-
 async function readPolledTask(
   client: Client,
   taskId: string,
@@ -357,7 +332,7 @@ async function readPolledTask(
 ) {
   const body = await taskRequest(client, 'tasks/get', { taskId }, signal)
   throwIfInputRequired(body)
-  const task = readTaskState(body) ?? readNestedTask(body)
+  const task = readTaskState(body)
   if (task === undefined) throw missingTaskResult(mcpName)
   return task
 }
@@ -368,9 +343,6 @@ function taskRequest(
   params: Record<string, unknown>,
   signal?: AbortSignal,
 ) {
-  if (client.getProtocolEra() === 'modern') {
-    return rawRequest(client, method, params, signal)
-  }
   return sdkRequest(client, method, params, signal)
 }
 
@@ -549,10 +521,6 @@ function firstInputRequest(requests: unknown) {
   return undefined
 }
 
-function hasInputRequests(task: TaskState) {
-  return hasRequests(task.inputRequests)
-}
-
 function hasRequests(requests: unknown) {
   return isRecord(requests) && Object.keys(requests).length > 0
 }
@@ -562,35 +530,24 @@ function readNestedTask(value: unknown) {
   return readTaskState(value.task)
 }
 
-function readFlatTask(value: unknown) {
-  if (!isRecord(value)) return undefined
-  const isSpec2026 =
-    value.resultType === 'task' || 'ttlMs' in value || 'pollIntervalMs' in value
-  if (!isSpec2026) return undefined
-  return readTaskState(value)
-}
-
 function readTaskState(value: unknown) {
   if (!isRecord(value)) return undefined
   if (typeof value.taskId !== 'string' || value.taskId.length === 0) {
     return undefined
   }
   if (!isTaskStatus(value.status)) return undefined
-  const statusMessage =
-    typeof value.statusMessage === 'string' ? value.statusMessage : undefined
   const task: TaskState = {
     taskId: value.taskId,
     status: value.status,
-    pollIntervalMs: readPollInterval(value),
-    statusMessage,
-    result: value.result,
-    errorMessage: readErrorMessage(value.error),
-    inputRequests: value.inputRequests,
+    pollInterval:
+      typeof value.pollInterval === 'number' ? value.pollInterval : undefined,
+    statusMessage:
+      typeof value.statusMessage === 'string' ? value.statusMessage : undefined,
   }
   return task
 }
 
-function isTaskStatus(value: unknown): value is TaskStatusName {
+function isTaskStatus(value: unknown): value is TaskStatus {
   switch (value) {
     case 'working':
     case 'input_required':
@@ -603,19 +560,8 @@ function isTaskStatus(value: unknown): value is TaskStatusName {
   }
 }
 
-function readPollInterval(value: Record<string, unknown>) {
-  if (typeof value.pollIntervalMs === 'number') return value.pollIntervalMs
-  if (typeof value.pollInterval === 'number') return value.pollInterval
-  return undefined
-}
-
-function readErrorMessage(value: unknown) {
-  if (!isRecord(value)) return undefined
-  return typeof value.message === 'string' ? value.message : undefined
-}
-
 function terminalTaskError(task: TaskState) {
-  const detail = task.errorMessage ?? task.statusMessage
+  const detail = task.statusMessage
   if (detail !== undefined && detail.length > 0) {
     return new Error(`MCP task "${task.taskId}" ${task.status}: ${detail}`)
   }

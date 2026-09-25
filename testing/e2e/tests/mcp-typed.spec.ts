@@ -132,7 +132,7 @@ test.describe('mcp: createMCPServer with auth, output schema, and a task', () =>
       body,
     ).toBe(false)
     expect(resultFor(events, 'forecast')).toContain('Sunny in Paris')
-    // The client polls tasks/get with the same token until the task ends.
+    // Spec 2026 has no tasks, so the task tool runs inline on this call.
     expect(resultFor(events, 'build_report')).toContain('Report ready')
   })
 

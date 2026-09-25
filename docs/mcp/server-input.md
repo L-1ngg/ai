@@ -10,13 +10,17 @@ keywords:
   - requestInput
   - confirmation
   - input required
+  - MCPToolContext
 ---
 
-Before your tool deletes a file, your tool must get a confirmation from the user. Call `requestInput` on `ctx` for that confirmation. `ctx` is the second argument of `.server()`.
+Before your tool deletes a file, your tool must get a confirmation from the user. Call `requestInput` on `ctx.context` for that confirmation.
 
-```ts ignore
+`ctx` is the second argument of the function you pass to `.server()`. Give `.server()` the type `MCPToolContext`, so `ctx.context.requestInput` type-checks.
+
+```ts
 import { toolDefinition } from '@tanstack/ai'
 import { createMCPServer } from '@tanstack/ai-mcp/server'
+import type { MCPToolContext } from '@tanstack/ai-mcp/server'
 import { z } from 'zod'
 
 const deleteFile = toolDefinition({
@@ -25,8 +29,8 @@ const deleteFile = toolDefinition({
   inputSchema: z.object({
     path: z.string(),
   }),
-}).server(async ({ path }, ctx) => {
-  const answer = await ctx.requestInput({
+}).server<MCPToolContext>(async ({ path }, ctx) => {
+  const answer = await ctx.context.requestInput({
     message: `Delete ${path}? Type yes to continue.`,
   })
 
@@ -49,6 +53,8 @@ export function fetch(request: Request) {
 ```
 
 `requestInput` returns the string that the user sends.
+
+If the user declines or cancels, `requestInput` throws an Error. The tool call then ends with a tool error.
 
 ## Spec 2025 and spec 2026
 

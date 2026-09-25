@@ -93,7 +93,7 @@ The route path is `/api/mcp`.
 1. Save the server code as `src/mcp-server.ts`.
 2. Call `handleMcp` for each request.
 
-```ts ignore
+```ts
 // src/index.ts
 import { handleMcp } from './mcp-server'
 
@@ -118,7 +118,7 @@ Your app calls the deployed server. You want a wrong tool name or a wrong argume
 2. In the app, import its type with `import type`.
 3. Pass `typeof server` to `createMCPClient`, with the URL of the server.
 
-```ts ignore
+```ts
 // app/weather.ts
 import { createMCPClient } from '@tanstack/ai-mcp'
 import type { server } from '../src/mcp-server'
@@ -147,7 +147,7 @@ The client connects to the URL and speaks MCP. The server `auth` option runs, th
 
 When the app and the server run in one process, pass the server object:
 
-```ts ignore
+```ts
 import { createMCPClient } from '@tanstack/ai-mcp'
 import { server } from '../src/mcp-server'
 
@@ -159,7 +159,7 @@ This client opens no connection. It calls the tool function directly and returns
 
 - The server `auth` option does not run.
 - The client has no `tools()`, so you cannot pass it to `chat()`.
-- A tool gets the spec 2026 context. `ctx.requestInput` throws, and `ctx.sample` uses the `sample` option of the server.
+- A tool gets the spec 2026 context. `ctx.context.requestInput` throws, and `ctx.context.sample` uses the `sample` option of the server.
 
 Now `callTool('get_weather', { city })` goes to the deployed server, and `callTool('get_wether', { city })` fails the type check.
 

@@ -122,9 +122,9 @@ describe('createServerToolContext', () => {
     it('calls the sample adapter and does not ask the client', async () => {
       const client = textCallback('from-client')
       const adapter = textCallback('from-adapter')
+      // Era 2026 has no client sampling. The adapter is the only source.
       const ctx = createServerToolContext({
         era: '2026',
-        clientSample: client.fn,
         sample: adapter.fn,
       })
 
@@ -134,10 +134,8 @@ describe('createServerToolContext', () => {
     })
 
     it('throws when the 2026 sample adapter is missing', async () => {
-      const client = textCallback('from-client')
       const ctx = createServerToolContext({
         era: '2026',
-        clientSample: client.fn,
       })
 
       const error = await rejectionOf(ctx.sample(summaryRequest))
@@ -147,7 +145,6 @@ describe('createServerToolContext', () => {
         throw new Error('expected an Error')
       }
       expect(error.message).toContain('sample')
-      expect(client.requests).toEqual([])
     })
   })
 })

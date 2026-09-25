@@ -85,6 +85,16 @@ export function serveMCPStdio(server: {
         response.headers.get('content-type'),
         text,
       )
+      // A 401 or a 404 can carry no JSON-RPC body. The host still needs
+      // an answer to its request, or it waits until its own timeout.
+      if (outbound.length === 0 && !response.ok) {
+        await sendFailure(
+          transport,
+          message,
+          `The MCP server answered HTTP ${response.status}.`,
+        )
+        return
+      }
       for (const outboundMessage of outbound) {
         await transport.send(outboundMessage)
       }
@@ -362,13 +372,17 @@ function mediaType(header: string | null) {
   return essence.trim().toLowerCase()
 }
 
-async function sendFailure(transport: StdioServerTransport, message: unknown) {
+async function sendFailure(
+  transport: StdioServerTransport,
+  message: unknown,
+  text = 'Internal server error',
+) {
   if (!isJSONRPCRequest(message)) return
   await transport.send(
     parseJSONRPCMessage({
       jsonrpc: '2.0',
       id: message.id,
-      error: { code: -32603, message: 'Internal server error' },
+      error: { code: -32603, message: text },
     }),
   )
 }

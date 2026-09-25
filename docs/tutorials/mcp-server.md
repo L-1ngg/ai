@@ -151,7 +151,7 @@ The call is type-safe:
 
 A wrong name is a type error. A number for `city` is a type error.
 
-```ts ignore
+```ts
 import { createServerFn } from '@tanstack/react-start'
 import { createMCPClient } from '@tanstack/ai-mcp'
 import { server } from '../mcp-server'

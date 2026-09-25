@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createMCPClient } from '../src/client'
 import { ToolInputRequiredError } from '../src/server/context'
+import type { MCPToolContext } from '../src/server/context'
 import { createMCPServer } from '../src/server/create-server'
 import { travelClient } from './direct-client-boundary'
 import { travelServer } from './fixtures/travel-server'
@@ -17,21 +18,15 @@ function contextServer() {
         name: 'ask',
         description: 'Asks the user',
         inputSchema: z.object({ city: z.string() }),
-      }).server(async (_args, ctx) => {
-        if (ctx === undefined || !('requestInput' in ctx)) return 'no ctx'
-        const requestInput = ctx.requestInput
-        if (typeof requestInput !== 'function') return 'no ctx'
-        return String(await requestInput({ message: 'Which day?' }))
-      }),
+      }).server<MCPToolContext>(async (_args, ctx) =>
+        String(await ctx.context.requestInput({ message: 'Which day?' })),
+      ),
       toolDefinition({
         name: 'draft',
         description: 'Uses the sample option',
-      }).server(async (_args, ctx) => {
-        if (ctx === undefined || !('sample' in ctx)) return 'no ctx'
-        const sample = ctx.sample
-        if (typeof sample !== 'function') return 'no ctx'
-        return String(await sample({ messages: [] }))
-      }),
+      }).server<MCPToolContext>(async (_args, ctx) =>
+        String(await ctx.context.sample({ messages: [] })),
+      ),
     ],
   })
 }
@@ -61,14 +56,14 @@ describe('createMCPClient({ server })', () => {
     ).rejects.toThrow('The MCP server has no tool missing.')
   })
 
-  it('gives the tool ctx.requestInput, which throws ToolInputRequiredError', async () => {
+  it('gives the tool ctx.context.requestInput, which throws ToolInputRequiredError', async () => {
     const client = await createMCPClient({ server: contextServer() })
     await expect(
       client.callTool('ask', { city: 'Paris' }),
     ).rejects.toBeInstanceOf(ToolInputRequiredError)
   })
 
-  it('gives the tool ctx.sample from the server sample option', async () => {
+  it('gives the tool ctx.context.sample from the server sample option', async () => {
     const client = await createMCPClient({ server: contextServer() })
     expect(await client.callTool('draft', {})).toBe('from-sample')
   })

@@ -2,7 +2,6 @@ import {
   Client,
   StreamableHTTPClientTransport,
 } from '@modelcontextprotocol/client'
-import { PROTOCOL_VERSION_META_KEY } from '@modelcontextprotocol/server'
 import { toolDefinition } from '@tanstack/ai'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -11,8 +10,10 @@ import {
   resourceDefinition,
 } from '../../src/server/definitions'
 import { createMCPServer } from '../../src/server/create-server'
-import type { SampleRequest } from '../../src/server/context'
+import type { MCPToolContext, SampleRequest } from '../../src/server/context'
 import { inMemoryTaskStore } from '../../src/server/stores'
+import { MCPInputRequiredError } from '../../src/input-required'
+import { callMcpTool } from '../../src/tools'
 
 const serverUrl = new URL('https://mcp.example.com/mcp')
 const protectedResourceUrl =
@@ -20,6 +21,35 @@ const protectedResourceUrl =
 
 const summaryRequest: SampleRequest = {
   messages: [{ role: 'user', content: 'Draft a summary' }],
+}
+
+// Spec 2025-11-25 task shapes.
+const taskShape = z.looseObject({
+  taskId: z.string(),
+  status: z.string(),
+  ttl: z.null(),
+})
+const createTaskResult = z.looseObject({ task: taskShape })
+const callToolResult = z.looseObject({
+  content: z.array(z.looseObject({ type: z.string() })),
+})
+
+function taskCall(client: Client, name: string) {
+  return client.request(
+    { method: 'tools/call', params: { name, arguments: {}, task: {} } },
+    createTaskResult,
+  )
+}
+
+function taskGet(client: Client, taskId: string) {
+  return client.request({ method: 'tasks/get', params: { taskId } }, taskShape)
+}
+
+function taskResultOf(client: Client, taskId: string) {
+  return client.request(
+    { method: 'tasks/result', params: { taskId } },
+    callToolResult,
+  )
 }
 
 function echoTool() {
@@ -106,36 +136,6 @@ async function openSession(
   return sessionId
 }
 
-function modernTaskGet(token: string, taskId: string) {
-  return new Request(serverUrl, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${token}`,
-      'content-type': 'application/json',
-      accept: 'application/json, text/event-stream',
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 3,
-      method: 'tasks/get',
-      params: {
-        taskId,
-        _meta: { [PROTOCOL_VERSION_META_KEY]: '2026-07-28' },
-      },
-    }),
-  })
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function hasSample(
-  ctx: object,
-): ctx is { sample: (request: SampleRequest) => Promise<unknown> } {
-  return 'sample' in ctx && typeof ctx.sample === 'function'
-}
-
 function deferredText() {
   const box: { resolve?: (value: { text: string }) => void } = {}
   const work = new Promise<{ text: string }>((resolve) => {
@@ -146,34 +146,6 @@ function deferredText() {
     throw new Error('The deferred work has no resolve')
   }
   return { work, resolve }
-}
-
-function rpcResult(text: string) {
-  const payload = text.trim().startsWith('{') ? text : sseData(text)
-  if (payload === undefined) return undefined
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(payload)
-  } catch {
-    return undefined
-  }
-  if (!isRecord(parsed)) return undefined
-  return parsed.result
-}
-
-function sseData(text: string) {
-  const lines = text.split('\n')
-  const data = lines.find((line) => line.startsWith('data:'))
-  if (data === undefined) return undefined
-  return data.slice('data:'.length).trim()
-}
-
-function taskResultFrom(bodies: ReadonlyArray<string>) {
-  const results = bodies.map((body) => rpcResult(body))
-  for (const result of results) {
-    if (isRecord(result) && result.resultType === 'task') return result
-  }
-  return undefined
 }
 
 async function withClient(
@@ -195,7 +167,7 @@ async function withClient(
     { name: 'tester', version: '1.0.0' },
     {
       versionNegotiation,
-      capabilities: { sampling: {} },
+      capabilities: { elicitation: { form: {} }, sampling: {} },
     },
   )
   hooks.prepare?.(client)
@@ -274,12 +246,11 @@ describe('createMCPServer', () => {
     })
   })
 
-  it('returns a task handle before the task tool finishes', async () => {
+  it('returns a spec 2025 task handle before the task tool finishes', async () => {
     const taskStore = inMemoryTaskStore()
     const gate = deferredText()
     let finished = false
     const calls: Array<Promise<unknown>> = []
-    const bodies: Array<string> = []
     const server = createMCPServer({
       name: 'tasks',
       version: '1.0.0',
@@ -300,59 +271,110 @@ describe('createMCPServer', () => {
       ],
     })
 
-    await withClient(
-      server,
-      {
-        era: '2026',
-        onResponse(text) {
-          bodies.push(text)
-        },
-      },
-      async (client) => {
-        try {
-          await client.callTool({ name: 'slow', arguments: {} })
-        } catch {
-          // Spec 2026 returns resultType "task". The client may reject that
-          // result. The HTTP body is the handle.
-        }
-      },
-    )
+    await withClient(server, { era: '2025' }, async (client) => {
+      expect(client.getServerCapabilities()?.tasks).toEqual({
+        requests: { tools: { call: {} } },
+      })
+      const listed = await client.listTools()
+      expect(listed.tools[0]?.execution).toEqual({ taskSupport: 'required' })
 
-    expect(finished).toBe(false)
-    const result = taskResultFrom(bodies)
-    expect(result).toMatchObject({
-      resultType: 'task',
-      status: 'working',
-      ttlMs: null,
+      // Spec 2025-11-25 CreateTaskResult: the task rides under `task`.
+      const created = await taskCall(client, 'slow')
+      expect(finished).toBe(false)
+      expect(created.task).toMatchObject({ status: 'working', ttl: null })
+      const taskId = created.task.taskId
+      expect(taskId.length).toBeGreaterThan(0)
+      expect(await taskStore.get(taskId)).toEqual({
+        taskId,
+        status: 'working',
+        ttl: null,
+        createdAt: expect.any(String),
+        lastUpdatedAt: expect.any(String),
+      })
+
+      const inflight = calls[0]
+      if (inflight === undefined) {
+        throw new Error('waitUntil did not receive a promise')
+      }
+      gate.resolve({ text: 'done' })
+      await inflight
+      expect(finished).toBe(true)
+
+      expect(await taskGet(client, taskId)).toMatchObject({
+        taskId,
+        status: 'completed',
+        ttl: null,
+      })
+      expect(await taskResultOf(client, taskId)).toEqual({
+        content: [{ type: 'text', text: '{"text":"done"}' }],
+        structuredContent: { text: 'done' },
+      })
     })
-    if (!isRecord(result) || typeof result.taskId !== 'string') {
-      throw new Error('The task handle has no task id')
-    }
-    const taskId = result.taskId
-    expect(taskId.length).toBeGreaterThan(0)
-    expect(await taskStore.get(taskId)).toEqual({
-      taskId,
-      status: 'working',
-      createdAt: expect.any(String),
-      lastUpdatedAt: expect.any(String),
-      ttlMs: null,
+  })
+
+  it('runs a task tool inline for a spec 2026 request', async () => {
+    // Spec 2026-07-28 has no tasks. The call waits for the tool output.
+    const taskStore = inMemoryTaskStore()
+    const server = createMCPServer({
+      name: 'tasks',
+      version: '1.0.0',
+      taskStore,
+      tools: [
+        toolDefinition({
+          name: 'slow',
+          description: 'Slow work',
+          execution: 'task',
+        }).server(async () => 'done'),
+      ],
     })
 
-    const inflight = calls[0]
-    if (inflight === undefined) {
-      throw new Error('waitUntil did not receive a promise')
-    }
-    gate.resolve({ text: 'done' })
-    await inflight
+    await withClient(server, { era: '2026' }, async (client) => {
+      const listed = await client.listTools()
+      expect(listed.tools[0]?.execution).toBeUndefined()
+      const called = await client.callTool({ name: 'slow', arguments: {} })
+      expect(called.content).toEqual([{ type: 'text', text: 'done' }])
+    })
+  })
 
-    expect(finished).toBe(true)
-    expect(await taskStore.get(taskId)).toEqual({
-      taskId,
-      status: 'completed',
-      createdAt: expect.any(String),
-      lastUpdatedAt: expect.any(String),
-      ttlMs: null,
-      result: { text: 'done' },
+  it('ends the call when the user cancels a spec 2026 input request', async () => {
+    const server = createMCPServer({
+      name: 'weather',
+      version: '1.0.0',
+      tools: [
+        toolDefinition({
+          name: 'ask',
+          description: 'Ask for a city',
+          inputSchema: z.object({}),
+        }).server<MCPToolContext>(async (_args, ctx) => {
+          const city = await ctx.context.requestInput({
+            message: 'Which city?',
+          })
+          return `Forecast for ${String(city)}`
+        }),
+      ],
+    })
+
+    await withClient(server, { era: '2026' }, async (client) => {
+      await expect(
+        callMcpTool(client, 'ask', {}, false),
+      ).rejects.toBeInstanceOf(MCPInputRequiredError)
+
+      // A cancel must not ask again. The tool ends with a tool error.
+      const cancelled = await callMcpTool(client, 'ask', {}, false, undefined, {
+        status: 'cancelled',
+      })
+      expect(cancelled.isError).toBe(true)
+      expect(JSON.stringify(cancelled.content)).toContain(
+        'The user did not accept the input request.',
+      )
+
+      const answered = await callMcpTool(client, 'ask', {}, false, undefined, {
+        status: 'resolved',
+        payload: { value: 'Paris' },
+      })
+      expect(answered.content).toEqual([
+        { type: 'text', text: 'Forecast for Paris' },
+      ])
     })
   })
 
@@ -411,12 +433,9 @@ describe('createMCPServer', () => {
         toolDefinition({
           name: 'draft',
           description: 'Draft a summary',
-        }).server(async (_args, ctx) => {
-          if (ctx === undefined || !hasSample(ctx)) {
-            throw new Error('The tool context has no sample function.')
-          }
-          return ctx.sample(summaryRequest)
-        }),
+        }).server<MCPToolContext>(async (_args, ctx) =>
+          ctx.context.sample(summaryRequest),
+        ),
       ],
     })
 
@@ -525,13 +544,11 @@ describe('createMCPServer', () => {
   })
 
   it('shows a task only to the subject that started it', async () => {
-    const taskStore = inMemoryTaskStore()
-    const bodies: Array<string> = []
     const server = createMCPServer({
       name: 'tasks',
       version: '1.0.0',
       auth: subjectAuth,
-      taskStore,
+      taskStore: inMemoryTaskStore(),
       tools: [
         toolDefinition({
           name: 'slow',
@@ -541,47 +558,38 @@ describe('createMCPServer', () => {
       ],
     })
 
+    let taskId = ''
     await withClient(
       server,
-      {
-        era: '2026',
-        authToken: 'alice',
-        onResponse(text) {
-          bodies.push(text)
-        },
-      },
+      { era: '2025', authToken: 'alice' },
       async (client) => {
-        await client
-          .callTool({ name: 'slow', arguments: {} })
-          .catch(() => undefined)
+        const created = await taskCall(client, 'slow')
+        taskId = created.task.taskId
+        await vi.waitFor(async () => {
+          expect((await taskGet(client, taskId)).status).toBe('completed')
+        })
+        expect((await taskResultOf(client, taskId)).content).toEqual([
+          { type: 'text', text: 'done' },
+        ])
       },
     )
-    const handle = taskResultFrom(bodies)
-    if (!isRecord(handle) || typeof handle.taskId !== 'string') {
-      throw new Error('The task handle has no task id')
-    }
 
-    const own = rpcResult(
-      await (await server.fetch(modernTaskGet('alice', handle.taskId))).text(),
+    await withClient(
+      server,
+      { era: '2025', authToken: 'bob' },
+      async (client) => {
+        await expect(taskGet(client, taskId)).rejects.toThrow('Task not found')
+      },
     )
-    expect(own).toMatchObject({
-      status: 'completed',
-      result: { content: [{ type: 'text', text: 'done' }] },
-    })
-    const other = await (
-      await server.fetch(modernTaskGet('bob', handle.taskId))
-    ).json()
-    expect(other).toMatchObject({ error: { message: 'Task not found' } })
   })
 
   it('gives a task tool its own context, not the finished request', async () => {
-    const taskStore = inMemoryTaskStore()
     const seen: Array<{ aborted: boolean; message: string }> = []
     const calls: Array<Promise<unknown>> = []
     const server = createMCPServer({
       name: 'tasks',
       version: '1.0.0',
-      taskStore,
+      taskStore: inMemoryTaskStore(),
       waitUntil(promise) {
         calls.push(promise)
       },
@@ -590,18 +598,11 @@ describe('createMCPServer', () => {
           name: 'ask',
           description: 'Asks in a task',
           execution: 'task',
-        }).server(async (_args, ctx) => {
+        }).server<MCPToolContext>(async (_args, ctx) => {
           await new Promise((resolve) => setTimeout(resolve, 5))
-          const aborted = ctx?.abortSignal?.aborted ?? true
+          const aborted = ctx.abortSignal?.aborted ?? true
           try {
-            if (ctx === undefined || !('requestInput' in ctx)) {
-              throw new Error('no requestInput')
-            }
-            const requestInput = ctx.requestInput
-            if (typeof requestInput !== 'function') {
-              throw new Error('no requestInput')
-            }
-            await requestInput({ message: 'City?' })
+            await ctx.context.requestInput({ message: 'City?' })
           } catch (error) {
             seen.push({
               aborted,
@@ -613,10 +614,8 @@ describe('createMCPServer', () => {
       ],
     })
 
-    await withClient(server, { era: '2026' }, async (client) => {
-      await client
-        .callTool({ name: 'ask', arguments: {} })
-        .catch(() => undefined)
+    await withClient(server, { era: '2025' }, async (client) => {
+      await taskCall(client, 'ask')
     })
     await Promise.all(calls)
 
@@ -624,7 +623,7 @@ describe('createMCPServer', () => {
       {
         aborted: false,
         message:
-          'ctx.requestInput is not supported in an execution: "task" tool.',
+          'ctx.context.requestInput is not supported in an execution: "task" tool.',
       },
     ])
   })

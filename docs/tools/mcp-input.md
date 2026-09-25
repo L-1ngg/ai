@@ -183,7 +183,7 @@ The answer depends on `kind`.
 
 - `form`: send an object that matches `request.requestedSchema`. A server from `createMCPServer` asks for `{ value: string }`. The MCP client sends the object as the accepted content.
 - `sampling`: send the model reply as a string. You can also send a full MCP `CreateMessageResult`.
-- `cancel()`: for a form, the server gets `{ action: 'cancel' }`. For a sampling request, the tool call ends with an error.
+- `cancel()`: for a form, the server gets `{ action: 'cancel' }`. A `createMCPServer` tool then ends with a tool error. For a sampling request, the tool call ends with an error.
 
 To decline a form, send the full MCP answer: `{ action: 'decline' }`.
 
@@ -207,11 +207,11 @@ Outside `chat()`, the client throws `MCPInputRequiredError`. The name `ask` is t
 
 1. Call `tools()` on the MCP client.
 2. Call `execute` on the tool.
-3. Read `kind` and `request` on the error.
+3. Check the error with `isMCPInputRequiredError`, then read `kind` and `request`.
 4. Close the client after the call.
 
 ```ts
-import { createMCPClient } from '@tanstack/ai-mcp'
+import { createMCPClient, isMCPInputRequiredError } from '@tanstack/ai-mcp'
 
 export async function callAsk() {
   const mcp = await createMCPClient({
@@ -227,24 +227,10 @@ export async function callAsk() {
     if (!ask?.execute) return
     await ask.execute({})
   } catch (error) {
-    if (!isMcpInputRequired(error)) throw error
+    if (!isMCPInputRequiredError(error)) throw error
     console.log(error.kind, error.request)
   } finally {
     await mcp.close()
   }
-}
-
-function isMcpInputRequired(value: unknown): value is {
-  name: 'MCPInputRequiredError'
-  kind: 'form' | 'sampling'
-  request: unknown
-} {
-  if (typeof value !== 'object' || value === null) return false
-  if (!('name' in value) || value.name !== 'MCPInputRequiredError') {
-    return false
-  }
-  if (!('kind' in value)) return false
-  if (value.kind !== 'form' && value.kind !== 'sampling') return false
-  return 'request' in value
 }
 ```

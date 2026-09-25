@@ -7,7 +7,7 @@ export type ToolInputRequest = {
 }
 
 /**
- * The prompt for `ctx.sample`.
+ * The prompt for `ctx.context.sample`.
  * `messages` is the list the model reads.
  * Each item has `role` and `content`.
  */
@@ -22,12 +22,16 @@ type WaitForInput<TAnswer> = (request: ToolInputRequest) => Promise<TAnswer>
 
 type SampleModel<TSample> = (request: SampleRequest) => Promise<TSample>
 
+/** The error a tool gets when the user declines or cancels an input request. */
+export const inputDeclinedMessage = 'The user did not accept the input request.'
+
 /**
  * Callbacks for one tool call.
  *
  * Era `2025` needs `waitForInput` and `clientSample`.
  * Era `2026` uses `sample` for the model result.
  * On a protocol 2026 retry, `inputAnswer` is the answer.
+ * `inputDeclined` is true when the user declined or cancelled the request.
  */
 export type ServerToolContextOptions<TAnswer, TSample> =
   | {
@@ -39,17 +43,17 @@ export type ServerToolContextOptions<TAnswer, TSample> =
   | {
       era: '2026'
       inputAnswer?: TAnswer
+      inputDeclined?: boolean
       sample?: SampleModel<TSample>
-      clientSample?: SampleModel<TSample>
     }
 
 /**
  * The tool stopped because it needs user input.
  *
  * `resultType` is `input_required`.
- * `request` is the object passed to `ctx.requestInput`.
+ * `request` is the object passed to `ctx.context.requestInput`.
  * Catch this error, then run the tool again with `inputAnswer`.
- * `ctx.requestInput` then returns that answer.
+ * `ctx.context.requestInput` then returns that answer.
  *
  * @param request - The input request from the tool
  *
@@ -75,6 +79,26 @@ export class ToolInputRequiredError extends Error {
 }
 
 /**
+ * The runtime context that `createMCPServer` gives a tool on `ctx.context`.
+ *
+ * Pass it as the context type of `.server()`, so `ctx.context.requestInput`
+ * and `ctx.context.sample` type-check.
+ *
+ * @example
+ * ```ts
+ * const askCity = toolDefinition({
+ *   name: 'ask_city',
+ *   description: 'Ask which city to use',
+ *   inputSchema: z.object({}),
+ * }).server<MCPToolContext>(async (_args, ctx) => {
+ *   const city = await ctx.context.requestInput({ message: 'Which city?' })
+ *   return { city }
+ * })
+ * ```
+ */
+export type MCPToolContext = ReturnType<typeof createServerToolContext>
+
+/**
  * Builds the context for one tool call.
  *
  * On era `2025`, `requestInput` waits on `waitForInput`.
@@ -83,6 +107,7 @@ export class ToolInputRequiredError extends Error {
  * {@link ToolInputRequiredError}.
  * If you pass `inputAnswer`, the tool runs again.
  * Then `requestInput` returns that answer.
+ * If you pass `inputDeclined`, `requestInput` throws an Error instead.
  * Code before `requestInput` runs on both calls.
  *
  * On era `2025`, `sample` calls `clientSample`.
@@ -113,12 +138,17 @@ export function createServerToolContext<TAnswer = unknown, TSample = unknown>(
      * If `inputAnswer` is absent on era `2026`, this throws
      * {@link ToolInputRequiredError}.
      * If `inputAnswer` is present, this returns that answer.
+     * If the user declined or cancelled, this throws an Error.
      *
      * @param request - The question for the user
      */
     async requestInput(request: ToolInputRequest) {
       if (options.era === '2025') {
         return options.waitForInput(request)
+      }
+
+      if (options.inputDeclined === true) {
+        throw new Error(inputDeclinedMessage)
       }
 
       // No answer yet: this call ends as input required.
@@ -146,7 +176,7 @@ export function createServerToolContext<TAnswer = unknown, TSample = unknown>(
 
       if (options.sample === undefined) {
         throw new Error(
-          'ctx.sample needs the sample adapter on protocol 2026. ' +
+          'ctx.context.sample needs the sample adapter on protocol 2026. ' +
             'Pass sample to createServerToolContext.',
         )
       }

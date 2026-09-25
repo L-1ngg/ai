@@ -1,7 +1,7 @@
 import { parseWithStandardSchema } from '@tanstack/ai'
 import type { InferToolInput, InferToolOutput } from '@tanstack/ai'
 import { createServerToolContext } from './server/context'
-import { optionsOfServer } from './server/create-server'
+import { optionsOfServer } from './server/registry'
 import type { MCPServer } from './server/create-server'
 
 type Named = { name: string }
@@ -94,7 +94,7 @@ export type DescriptorFromServer<TServer extends MCPServer> = {
 // The same context shape that a spec 2026 call on the server gets.
 function directToolContext(server: object, signal: AbortSignal | undefined) {
   return {
-    ...createServerToolContext({
+    context: createServerToolContext({
       era: '2026',
       sample: optionsOfServer(server)?.sample,
     }),
@@ -128,8 +128,9 @@ type ListedPrompt = {
  * The tool names, resource URIs, and prompt arguments stay typed.
  * This client does not open a network connection.
  * `callTool` checks `args` with the tool input schema, like the HTTP server.
- * The tool gets the spec 2026 context: `ctx.requestInput` throws
- * `ToolInputRequiredError`, and `ctx.sample` uses the server `sample` option.
+ * The tool gets the spec 2026 context: `ctx.context.requestInput` throws
+ * `ToolInputRequiredError`, and `ctx.context.sample` uses the server
+ * `sample` option.
  *
  * @param server - The server object to call
  *

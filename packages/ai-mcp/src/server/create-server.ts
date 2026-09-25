@@ -2,7 +2,6 @@ import { convertSchemaToJsonSchema } from '@tanstack/ai'
 import type { AnyServerTool, SchemaInput } from '@tanstack/ai'
 import {
   McpServer,
-  PROTOCOL_VERSION_META_KEY,
   ProtocolError,
   ProtocolErrorCode,
   ResourceTemplate,
@@ -11,6 +10,7 @@ import {
   createMcpHandler,
   fromJsonSchema,
   inputRequired,
+  inputResponse,
   isLegacyRequest,
 } from '@modelcontextprotocol/server'
 import type {
@@ -20,13 +20,17 @@ import type {
 } from '@modelcontextprotocol/server'
 import type { ResourceServerAuth } from './auth'
 import { authenticate } from './auth'
-import { ToolInputRequiredError, createServerToolContext } from './context'
+import {
+  ToolInputRequiredError,
+  createServerToolContext,
+  inputDeclinedMessage,
+} from './context'
 import type { SampleRequest, ToolInputRequest } from './context'
+import { rememberServerOptions } from './registry'
 import { getTask, startTask, toCallToolResult } from './tasks'
 import { inMemoryTaskStore } from './stores'
 import type { TaskStore } from './stores'
 
-const spec2026 = '2026-07-28'
 // ponytail: idle sessions close only when a later request runs the sweep.
 // A server that gets no traffic keeps them until the next request.
 const sessionIdleMs = 30 * 60 * 1000
@@ -77,7 +81,7 @@ type McpPrompt = {
   render: BivariantCallback<unknown, unknown>
 }
 
-type MCPServerOptions = {
+export type MCPServerOptions = {
   name: string
   version: string
   tools?: ReadonlyArray<AnyServerTool>
@@ -118,14 +122,6 @@ type LegacySession = {
 
 type LegacySessions = Map<string, LegacySession>
 
-// Keeps the options of each server for `directMCPClient`.
-const serverOptionsByServer = new WeakMap<object, MCPServerOptions>()
-
-/** Internal. Returns the options that `server` was created with. */
-export function optionsOfServer(server: object) {
-  return serverOptionsByServer.get(server)
-}
-
 /**
  * Builds an MCP HTTP server.
  *
@@ -137,7 +133,7 @@ export function optionsOfServer(server: object) {
  * `options.auth` checks the bearer token. A missing token gets a 401 response.
  * When auth names a subject, spec 2025 sessions and tasks belong to it.
  * Spec 2025 sessions live in this process. They close after 30 idle minutes.
- * `options.sample` is the model adapter for `ctx.sample` on spec 2026.
+ * `options.sample` is the model adapter for `ctx.context.sample` on spec 2026.
  * `options.waitUntil` receives the task promise so a worker can stay alive.
  *
  * The result has `fetch(request)`, `tools`, `resources`, and `prompts`.
@@ -148,11 +144,13 @@ export function optionsOfServer(server: object) {
  * It does not serve `/.well-known/oauth-protected-resource`.
  * Mount `protectedResourceMetadata` on that path in the app.
  *
- * A tool with `execution: 'task'` returns a task handle before the work ends.
- * On spec 2026, `ctx.sample` calls `options.sample` and does not ask the client.
- * On spec 2025, `ctx.sample` asks the MCP client.
- * On spec 2026, `ctx.requestInput` stops the call until the client sends the answer.
- * On spec 2025, `ctx.requestInput` waits on the open session.
+ * On spec 2025, a tool with `execution: 'task'` returns a task handle before
+ * the work ends. Spec 2026-07-28 has no tasks, so that tool runs inline there.
+ * A tool reads its hooks on `ctx.context`. Type it with `MCPToolContext`.
+ * On spec 2026, `ctx.context.sample` calls `options.sample` and does not ask the client.
+ * On spec 2025, `ctx.context.sample` asks the MCP client.
+ * On spec 2026, `ctx.context.requestInput` stops the call until the client sends the answer.
+ * On spec 2025, `ctx.context.requestInput` waits on the open session.
  *
  * @param options - Server name, version, tools, and the optional stores
  *
@@ -230,9 +228,6 @@ export function createMCPServer<
         owner = result.subject
       }
 
-      const taskResponse = await modernTaskGet(request, taskStore, owner)
-      if (taskResponse !== undefined) return taskResponse
-
       const legacy = await isLegacyRequest(request)
       if (legacy) {
         return legacyFetch(request, {
@@ -273,7 +268,7 @@ export function createMCPServer<
       )
     },
   }
-  serverOptionsByServer.set(mcpServer, options)
+  rememberServerOptions(mcpServer, options)
   return mcpServer
 }
 
@@ -331,20 +326,12 @@ function buildMcpServer(input: {
   return server
 }
 
+// Tasks exist on spec 2025-11-25 only. Spec 2026-07-28 has no tasks yet.
 function serverOptions(era: ProtocolYear, hasTaskTool: boolean) {
-  if (!hasTaskTool) return undefined
-  if (era === '2025') {
-    return {
-      capabilities: {
-        tasks: { requests: { tools: { call: {} } } },
-      },
-    }
-  }
+  if (!hasTaskTool || era !== '2025') return undefined
   return {
     capabilities: {
-      extensions: {
-        'io.modelcontextprotocol/tasks': {},
-      },
+      tasks: { requests: { tools: { call: {} } } },
     },
   }
 }
@@ -360,12 +347,13 @@ function registerServerTool(
   },
 ) {
   const inputSchema = standardSchema(tool.inputSchema) ?? emptyObjectSchema
+  // A task tool answers with a task handle, not with its output.
+  const asTask = tool.execution === 'task' && input.era === '2025'
   // An output schema can have any root, like z.string(). The SDK wraps it
   // in `{ result }` for a spec 2025 client.
-  const outputSchema =
-    tool.execution === 'task'
-      ? undefined
-      : standardSchema(tool.outputSchema, true)
+  const outputSchema = asTask
+    ? undefined
+    : standardSchema(tool.outputSchema, true)
   const registered = server.registerTool(
     tool.name,
     {
@@ -374,7 +362,7 @@ function registerServerTool(
       outputSchema,
     },
     async (args, sdkCtx) => {
-      if (tool.execution === 'task') {
+      if (asTask) {
         return runTaskTool(tool, args, input)
       }
       const ctx = toolCallContext(input.era, sdkCtx, input.options.sample)
@@ -397,7 +385,7 @@ function registerServerTool(
       }
     },
   )
-  if (input.era === '2025' && tool.execution === 'task') {
+  if (asTask) {
     registered.execution = { taskSupport: 'required' }
   }
 }
@@ -408,7 +396,6 @@ async function runTaskTool(
   input: {
     options: MCPServerOptions
     taskStore: TaskStore
-    era: ProtocolYear
     owner: string | undefined
   },
 ) {
@@ -425,61 +412,36 @@ async function runTaskTool(
   if (polled === null) {
     throw new Error(`Task ${handle.taskId} was not saved.`)
   }
-  return taskCallResult(input.era, polled)
+  // Spec 2025-11-25 `CreateTaskResult` is `{ task }`. The SDK also needs
+  // `content` on a tools/call result, so the handle carries the task id.
+  return {
+    content: [{ type: 'text' as const, text: polled.task.taskId }],
+    task: polled.task,
+  }
 }
 
 // A task keeps running after tools/call answers with the task handle.
 // So it must not use that request: its signal, elicitation, or sampling.
 function taskContext(sample: MCPServerOptions['sample']) {
   return {
-    async requestInput(_request: ToolInputRequest): Promise<never> {
-      throw new Error(
-        'ctx.requestInput is not supported in an execution: "task" tool.',
-      )
-    },
-    async sample(request: SampleRequest) {
-      if (sample === undefined) {
+    context: {
+      async requestInput(_request: ToolInputRequest): Promise<never> {
         throw new Error(
-          'ctx.sample in an execution: "task" tool needs the sample option of createMCPServer.',
+          'ctx.context.requestInput is not supported in an execution: "task" tool.',
         )
-      }
-      return sample(request)
+      },
+      async sample(request: SampleRequest) {
+        if (sample === undefined) {
+          throw new Error(
+            'ctx.context.sample in an execution: "task" tool needs the sample option of createMCPServer.',
+          )
+        }
+        return sample(request)
+      },
     },
     // ponytail: nothing aborts this signal until tasks/cancel is implemented.
     abortSignal: new AbortController().signal,
     emitCustomEvent() {},
-  }
-}
-
-function taskCallResult(
-  era: ProtocolYear,
-  polled: NonNullable<Awaited<ReturnType<typeof getTask>>>,
-) {
-  const taskId = polled.record.taskId
-  const content = [{ type: 'text' as const, text: taskId }]
-  if (era === '2026') {
-    // tools/call still requires content. resultType "task" is the create handle.
-    const handle = {
-      resultType: 'task' as const,
-      taskId: polled.spec2026.taskId,
-      status: polled.spec2026.status,
-      createdAt: polled.spec2026.createdAt,
-      lastUpdatedAt: polled.spec2026.lastUpdatedAt,
-      ttlMs: polled.spec2026.ttlMs,
-      content,
-    }
-    return handle
-  }
-  // The 2025 tools/call schema keeps structuredContent.
-  return {
-    content,
-    structuredContent: {
-      taskId: polled.spec2025.taskId,
-      status: polled.spec2025.status,
-      ttl: polled.spec2025.ttl,
-      createdAt: polled.spec2025.createdAt,
-      lastUpdatedAt: polled.spec2025.lastUpdatedAt,
-    },
   }
 }
 
@@ -511,10 +473,11 @@ function toolCallContext(
       : createServerToolContext({
           era: '2026',
           inputAnswer: inputAnswer(sdkCtx),
+          inputDeclined: inputDeclined(sdkCtx),
           sample,
         })
   return {
-    ...hooks,
+    context: hooks,
     abortSignal: sdkCtx.mcpReq.signal,
     emitCustomEvent() {},
   }
@@ -527,6 +490,13 @@ function inputAnswer(sdkCtx: ServerContext) {
   return content
 }
 
+// A decline or a cancel must end the call. Without this check the tool
+// asks again, and the client shows the same question again.
+function inputDeclined(sdkCtx: ServerContext) {
+  const view = inputResponse(sdkCtx.mcpReq.inputResponses, inputKey)
+  return view.kind === 'elicit' && view.action !== 'accept'
+}
+
 async function waitForInput(sdkCtx: ServerContext, request: ToolInputRequest) {
   const result = await sdkCtx.mcpReq.elicitInput({
     message: request.message,
@@ -535,7 +505,7 @@ async function waitForInput(sdkCtx: ServerContext, request: ToolInputRequest) {
   })
   const declined = result.action !== 'accept' || result.content === undefined
   if (declined) {
-    throw new Error('The user did not accept the input request.')
+    throw new Error(inputDeclinedMessage)
   }
   const content = result.content
   if (content !== undefined && typeof content.value === 'string') {
@@ -670,7 +640,7 @@ function registerLegacyTaskMethods(
           'Task not found',
         )
       }
-      return polled.spec2025
+      return polled.task
     },
   )
   server.server.setRequestHandler(
@@ -797,64 +767,6 @@ function sessionNotFound() {
       error: { code: -32001, message: 'Session not found' },
     },
     { status: 404 },
-  )
-}
-
-async function modernTaskGet(
-  request: Request,
-  store: TaskStore,
-  owner: string | undefined,
-) {
-  if (request.method !== 'POST') return undefined
-  let body: unknown
-  try {
-    body = await request.clone().json()
-  } catch {
-    return undefined
-  }
-  if (!isRecord(body) || body.method !== 'tasks/get') return undefined
-  if (!isModernEnvelope(body.params)) return undefined
-  const taskId =
-    isRecord(body.params) && typeof body.params.taskId === 'string'
-      ? body.params.taskId
-      : undefined
-  const id = rpcId(body.id)
-  if (taskId === undefined || taskId.length === 0) {
-    return jsonRpcError(id, ProtocolErrorCode.InvalidParams, 'Invalid params')
-  }
-  const polled = await getTask(taskId, store, owner)
-  if (polled === null) {
-    return jsonRpcError(id, ProtocolErrorCode.InvalidParams, 'Task not found')
-  }
-  return jsonRpcResult(id, polled.spec2026)
-}
-
-function isModernEnvelope(params: unknown) {
-  if (!isRecord(params) || !isRecord(params._meta)) return false
-  const version = params._meta[PROTOCOL_VERSION_META_KEY]
-  return typeof version === 'string' && version >= spec2026
-}
-
-function rpcId(value: unknown) {
-  if (typeof value === 'string' || typeof value === 'number') return value
-  return null
-}
-
-function jsonRpcResult(id: string | number | null, result: unknown) {
-  return Response.json(
-    { jsonrpc: '2.0', id, result },
-    { status: 200, headers: { 'mcp-protocol-version': spec2026 } },
-  )
-}
-
-function jsonRpcError(
-  id: string | number | null,
-  code: number,
-  message: string,
-) {
-  return Response.json(
-    { jsonrpc: '2.0', id, error: { code, message } },
-    { status: 200, headers: { 'mcp-protocol-version': spec2026 } },
   )
 }
 

@@ -10,7 +10,6 @@ import {
   inputRequired,
   Server,
 } from '@modelcontextprotocol/server'
-import { z } from 'zod'
 import { MCPInputRequiredError } from '../src/input-required'
 import {
   callMcpTool,
@@ -225,59 +224,6 @@ describe('callMcpTool', () => {
         { toolCallId: 't', emitCustomEvent: () => {} },
       )
       expect(result).toBe('Research complete: tide')
-    } finally {
-      await client.close()
-      await server.close()
-    }
-  })
-
-  it('returns the tool result from tasks/get when a spec 2026 task ends', async () => {
-    const clock = taskClock()
-    let polls = 0
-    const server = new Server(
-      { name: 'job', version: '1.0.0' },
-      {
-        capabilities: {
-          tools: {},
-          tasks: { requests: { tools: { call: {} } } },
-        },
-      },
-    )
-    server.setRequestHandler('tools/call', () => ({
-      content: [],
-      resultType: 'task',
-      taskId: 'job-1',
-      status: 'working',
-      ttlMs: null,
-      pollIntervalMs: 1,
-      ...clock,
-    }))
-    server.setRequestHandler(
-      'tasks/get',
-      { params: z.looseObject({ taskId: z.string() }) },
-      () => {
-        polls += 1
-        return {
-          resultType: 'complete',
-          taskId: 'job-1',
-          status: 'completed',
-          ttlMs: null,
-          pollIntervalMs: 1,
-          ...clock,
-          result: { content: [{ type: 'text', text: 'from task' }] },
-        }
-      },
-    )
-    const [clientTransport, serverTransport] =
-      InMemoryTransport.createLinkedPair()
-    await server.connect(serverTransport)
-    const client = await connectClient(clientTransport)
-    try {
-      const result = await callMcpTool(client, 'job', {}, true)
-      expect(polls).toBeGreaterThan(0)
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'from task' }],
-      })
     } finally {
       await client.close()
       await server.close()

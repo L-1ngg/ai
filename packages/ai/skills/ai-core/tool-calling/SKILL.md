@@ -784,7 +784,7 @@ const server = createMCPServer({
 serveMCPStdio(server)
 ```
 
-The `@tanstack/ai-mcp` skill shows `ctx.requestInput` and `ctx.sample`.
+The `@tanstack/ai-mcp` skill shows `ctx.context.requestInput` and `ctx.context.sample`.
 
 ### Read an MCP input interrupt
 

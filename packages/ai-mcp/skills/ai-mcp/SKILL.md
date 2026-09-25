@@ -126,35 +126,30 @@ serveMCPStdio(server)
 You can also pass `resources` and `prompts`.
 Build them with `resourceDefinition` and `promptDefinition` from `@tanstack/ai-mcp/server`.
 
-On spec 2026, `ctx.requestInput` returns `input_required`.
+A tool reads its hooks on `ctx.context`.
+Give `.server()` the type `MCPToolContext` from `@tanstack/ai-mcp/server`.
+Then `ctx.context.requestInput` and `ctx.context.sample` type-check.
+On spec 2026, `ctx.context.requestInput` throws, and the handler returns `input_required`.
 The client runs the tool again with the answer.
 Code before `requestInput` runs on each call, so it can run more than once.
 Put work that must run once after `requestInput` returns.
-In an `execution: 'task'` tool, `ctx.requestInput` throws an error.
+If the user declines or cancels, `requestInput` throws an Error, and the call ends with a tool error.
+In an `execution: 'task'` tool, `ctx.context.requestInput` throws an error.
 On spec 2025, `requestInput` waits on the open session.
 The same tool call then continues.
-The tool context type does not list `requestInput`.
-Narrow the context.
-Then call `requestInput`.
 
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
 import { createMCPServer } from '@tanstack/ai-mcp/server'
+import type { MCPToolContext } from '@tanstack/ai-mcp/server'
 import { z } from 'zod'
 
 const askCity = toolDefinition({
   name: 'ask_city',
   description: 'Ask which city to use',
   inputSchema: z.object({}),
-}).server(async (_args, ctx) => {
-  if (ctx === undefined || !('requestInput' in ctx)) {
-    throw new Error('This tool runs only on the MCP server.')
-  }
-  const requestInput = ctx.requestInput
-  if (typeof requestInput !== 'function') {
-    throw new Error('This tool runs only on the MCP server.')
-  }
-  const city = await requestInput({ message: 'Which city?' })
+}).server<MCPToolContext>(async (_args, ctx) => {
+  const city = await ctx.context.requestInput({ message: 'Which city?' })
   return { city }
 })
 
@@ -171,9 +166,11 @@ export function handleMcp(request: Request) {
 
 Mount `handleMcp` on GET, POST, and DELETE.
 
-If a tool calls `ctx.sample` on spec 2026, pass `sample` to `createMCPServer`.
-On spec 2026, `ctx.sample` calls the `sample` function.
-On spec 2025, `ctx.sample` asks the MCP client.
+If a tool calls `ctx.context.sample` on spec 2026, pass `sample` to `createMCPServer`.
+On spec 2026, `ctx.context.sample` calls the `sample` function.
+On spec 2025, `ctx.context.sample` asks the MCP client.
+A tool with `execution: 'task'` returns a spec 2025 task handle.
+Spec 2026 has no tasks, so that tool runs inline there.
 
 ### Call a `createMCPServer` server with its types
 

@@ -67,8 +67,8 @@ Your tool function returns the final value. When the tool function ends, the sto
 
 The task keeps running after the call returns the task handle. So the task does not use the request that started it.
 
-- `ctx.requestInput` throws an error. Ask for input in a tool without `execution: 'task'`.
-- `ctx.sample` calls the `sample` option of `createMCPServer`. If you do not pass `sample`, `ctx.sample` throws an error.
+- `ctx.context.requestInput` throws an error. Ask for input in a tool without `execution: 'task'`.
+- `ctx.context.sample` calls the `sample` option of `createMCPServer`. If you do not pass `sample`, `ctx.context.sample` throws an error.
 - `ctx.abortSignal` does not abort when the call request ends.
 
 ## Keep the Worker alive
@@ -94,38 +94,44 @@ If more than one instance can receive `tasks/get`, pass a `taskStore` that those
 - `set`: save one task.
 - `delete`: remove one task.
 
+## Spec 2025 and spec 2026
+
+Tasks are part of spec `2025-11-25`. Spec `2026-07-28` has no tasks yet.
+
+| Spec | What the call returns |
+| --- | --- |
+| `2025-11-25` | A task handle. The host polls `tasks/get`, then reads `tasks/result`. |
+| `2026-07-28` | The tool result. The tool runs inline, and the call waits for it. |
+
+On spec 2025, the server sets `execution.taskSupport` to `required`, and advertises the `tasks` capability for `tools/call`.
+
 ## Read the result
 
-The call response returns a task id with status `working`. This status means that the tool function is still at work.
+On spec 2025, the call response is the `CreateTaskResult` from the spec. The `task` field is a `Task` with status `working`. This status means that the tool function is still at work.
 
 ```json
 {
-  "resultType": "task",
-  "taskId": "task-id",
-  "status": "working",
-  "createdAt": "2026-09-22T12:00:00.000Z",
-  "lastUpdatedAt": "2026-09-22T12:00:00.000Z",
-  "ttlMs": null,
-  "content": [{ "type": "text", "text": "task-id" }]
+  "content": [{ "type": "text", "text": "task-id" }],
+  "task": {
+    "taskId": "task-id",
+    "status": "working",
+    "ttl": null,
+    "createdAt": "2026-09-22T12:00:00.000Z",
+    "lastUpdatedAt": "2026-09-22T12:00:00.000Z"
+  }
 }
 ```
 
-| Spec | Host action |
-| --- | --- |
-| `2026-07-28` | When `status` is `completed`, `tasks/get` includes `result` |
-| `2025-11-25` | `tasks/get` returns the status. Then `tasks/result` returns the tool result. |
-
-On spec 2026, the call sets `resultType` to `task`. `tasks/get` sets `resultType` to `complete`. That `result` wraps the value from the tool function as `content`. When the value is an object, `result` also has `structuredContent`.
-
-On spec 2025, `structuredContent` includes these fields:
+`tasks/get` returns the same `Task` fields:
 
 - `taskId`: the id from the call.
 - `status`: `working`, `completed`, or `failed`.
 - `ttl`: `null`.
 - `createdAt`: the time of the first `set`.
 - `lastUpdatedAt`: the time of the last `set`.
+- `statusMessage`: the error text, when the status is `failed`.
 
-On spec 2025, the server sets `execution.taskSupport` to `required`. `tasks/result` wraps the value as `content`. When the value is an object, `tasks/result` also returns `structuredContent`. If the status is not `completed`, `tasks/result` returns the error `Task result is not ready`.
+`tasks/result` wraps the value as `content`. When the value is an object, `tasks/result` also returns `structuredContent`. If the status is not `completed`, `tasks/result` returns the error `Task result is not ready`.
 
 A task uses one status:
 
@@ -133,7 +139,7 @@ A task uses one status:
 - `completed`: the store holds the tool result.
 - `failed`: the tool function threw an error.
 
-If the tool function throws, the task keeps the text from that error. If that error has no text, the task keeps `The tool failed.` On spec 2026, this text is `error.message`. On spec 2026, `error.code` is `-32603`. On spec 2025, `tasks/get` puts this text in `statusMessage`.
+If the tool function throws, the task keeps the text from that error in `statusMessage`. If that error has no text, the task keeps `The tool failed.`
 
 An unknown task id on `tasks/get` returns the error `Task not found`. When `auth` names a subject, a task belongs to the subject that started it. Another subject also gets `Task not found`. [MCP Server Auth](./server-auth) shows how to set the subject.
 

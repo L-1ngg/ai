@@ -27,6 +27,10 @@ export {
   MCPTaskRequiredToolError,
   MCPToolNotFoundError,
 } from './errors'
+export {
+  MCPInputRequiredError,
+  isMCPInputRequiredError,
+} from './input-required'
 // Converters added in Phase 4:
 export { mcpResourceToContentPart } from './resources'
 export { mcpPromptToMessages } from './prompts'

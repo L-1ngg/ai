@@ -7,7 +7,8 @@ import { z } from 'zod'
  *
  * - The tokens `alice` and `bob` are valid. Each token is its own subject.
  * - `forecast` has a string output schema.
- * - `build_report` runs as a task. The client polls `tasks/get` for it.
+ * - `build_report` has `execution: 'task'`. A spec 2025 client polls
+ *   `tasks/get` for it. Spec 2026 has no tasks, so it runs inline there.
  */
 const forecast = toolDefinition({
   name: 'forecast',

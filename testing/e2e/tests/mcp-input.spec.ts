@@ -4,7 +4,7 @@ import { test, expect } from './fixtures'
  * An MCP tool that asks for input pauses chat(), and the answer resumes it.
  *
  *   - `api.mcp-input-server` is a spec 2026 server from `createMCPServer`.
- *     Its `ask_city` tool calls `ctx.requestInput`.
+ *     Its `ask_city` tool calls `ctx.context.requestInput`.
  *   - `api.mcp-input-test` runs chat() with that tool. aimock makes the model
  *     call `ask_city`, then answer after the tool result.
  *

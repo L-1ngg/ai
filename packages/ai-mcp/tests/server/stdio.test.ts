@@ -5,6 +5,7 @@ import { toolDefinition } from '@tanstack/ai'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createMCPServer } from '../../src/server/create-server'
+import type { MCPToolContext } from '../../src/server/context'
 import { serveMCPStdio } from '../../src/server/stdio'
 
 const childEnv = 'TANSTACK_AI_MCP_STDIO_CHILD'
@@ -32,6 +33,8 @@ if (process.env[childEnv] === '1') {
   startInputServer()
 } else if (process.env[childEnv] === 'flaky-stream') {
   startFlakyStreamServer()
+} else if (process.env[childEnv] === 'auth') {
+  startAuthServer()
 } else {
   describe('serveMCPStdio', () => {
     it('lists and calls the tool for a spec 2025 stdio client', async () => {
@@ -56,7 +59,24 @@ if (process.env[childEnv] === '1') {
       expect(result.content).toEqual([{ type: 'text', text: 'hi' }])
       expect(result.stderr).toContain('stream open 2')
     }, 60000)
+
+    it('answers with a JSON-RPC error when the server returns an empty 401', async () => {
+      // A pinned 2026 client reports any discover failure as a version
+      // mismatch. The legacy handshake shows the error text as is.
+      await expect(echoOverStdio('2025', 'auth')).rejects.toThrow(/HTTP 401/)
+    }, 60000)
   })
+}
+
+// Every request gets an empty 401. The host must still get an answer.
+function startAuthServer() {
+  const server = createMCPServer({
+    name: 'weather',
+    version: '1.0.0',
+    tools: [echoTool()],
+    auth: { verifyToken: async () => false },
+  })
+  serveMCPStdio(server)
 }
 
 // The first GET stream throws. The next message must open a new one.
@@ -83,17 +103,8 @@ function askTool() {
     name: 'ask',
     description: 'Ask for a city',
     inputSchema: z.object({}),
-  }).server(async (_args, ctx) => {
-    const hooks = ctx as
-      | {
-          requestInput?: (request: { message: string }) => Promise<unknown>
-        }
-      | undefined
-    const requestInput = hooks?.requestInput
-    if (typeof requestInput !== 'function') {
-      throw new Error('requestInput is missing')
-    }
-    const answer = await requestInput({ message: 'Which city?' })
+  }).server<MCPToolContext>(async (_args, ctx) => {
+    const answer = await ctx.context.requestInput({ message: 'Which city?' })
     return typeof answer === 'string' ? answer : 'missing'
   })
 }
@@ -122,7 +133,7 @@ function clientFor(era: '2025' | '2026') {
 
 async function echoOverStdio(
   era: '2025' | '2026',
-  mode: '1' | 'flaky-stream' = '1',
+  mode: '1' | 'flaky-stream' | 'auth' = '1',
 ) {
   const testFile = fileURLToPath(import.meta.url)
   const packageRoot = fileURLToPath(new URL('../..', import.meta.url))
