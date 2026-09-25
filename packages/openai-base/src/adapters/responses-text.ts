@@ -1882,7 +1882,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
-      // EOF without response.completed does not confirm a successful run.
+      // The stream ended without a terminal event (e.g. a truncated
+      // connection). Completion was never confirmed, so this is not a
+      // successful stop (#1447). The partial text was already emitted.
       if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
         yield* closeReasoning()
         if (hasEmittedTextMessageStart) {
@@ -1893,15 +1895,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             timestamp: Date.now(),
           }
         }
-        const message = 'Responses API stream ended without response.completed'
+        const message = 'Response stream ended before response.completed'
         yield {
           type: EventType.RUN_ERROR,
-          runId: aguiState.runId,
           model: model || options.model,
           timestamp: Date.now(),
           message,
-          code: 'incomplete_stream',
-          error: { message, code: 'incomplete_stream' },
+          code: 'incomplete-stream',
+          error: { message, code: 'incomplete-stream' },
         }
       }
     } catch (error: unknown) {
