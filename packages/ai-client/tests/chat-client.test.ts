@@ -500,10 +500,7 @@ describe('ChatClient', () => {
                   prompt === 'A' ? 'stale A' : 'fresh B',
                   prompt === 'A' ? 'msg-a' : 'msg-b',
                 ).map((chunk) => {
-                  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-                    const { runId: _runId, ...withoutRunId } = chunk
-                    return withoutRunId as StreamChunk
-                  }
+                  if (chunk.type === 'TEXT_MESSAGE_CONTENT') return chunk
                   if (chunk.type === 'RUN_FINISHED') {
                     return {
                       ...chunk,
@@ -596,7 +593,6 @@ describe('ChatClient', () => {
                   messageId: 'stale-message',
                   timestamp: Date.now(),
                   delta: 'stale content',
-                  content: 'stale content',
                 } as StreamChunk
                 staleChunksAttempted.resolve()
                 yield {
@@ -732,7 +728,6 @@ describe('ChatClient', () => {
                   messageId,
                   timestamp: Date.now(),
                   delta: prompt === 'A' ? 'stale content' : 'fresh content',
-                  content: prompt === 'A' ? 'stale content' : 'fresh content',
                 } as StreamChunk,
                 {
                   type: EventType.RUN_FINISHED,
@@ -864,12 +859,7 @@ describe('ChatClient', () => {
                       'fresh server-only response',
                       'fresh-msg',
                     ).map((chunk) => {
-                      if (
-                        chunk.type === 'TEXT_MESSAGE_START' ||
-                        chunk.type === 'TEXT_MESSAGE_CONTENT' ||
-                        chunk.type === 'TEXT_MESSAGE_END' ||
-                        chunk.type === 'RUN_FINISHED'
-                      ) {
+                      if (chunk.type === 'RUN_FINISHED') {
                         const { runId: _runId, ...withoutRunId } = chunk
                         return withoutRunId as StreamChunk
                       }
@@ -1104,10 +1094,7 @@ describe('ChatClient', () => {
                   prompt === 'A' ? 'stale A' : 'fresh B',
                   messageId,
                 ).map((chunk) => {
-                  if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-                    const { runId: _runId, ...withoutRunId } = chunk
-                    return withoutRunId as StreamChunk
-                  }
+                  if (chunk.type === 'TEXT_MESSAGE_CONTENT') return chunk
                   if (chunk.type === 'RUN_FINISHED') {
                     return {
                       ...chunk,
@@ -1200,7 +1187,6 @@ describe('ChatClient', () => {
           yield {
             type: 'TEXT_MESSAGE_CONTENT',
             messageId: 'assistant-a',
-            model: 'test',
             timestamp: Date.now(),
             delta: '',
             content: '',
@@ -1212,14 +1198,12 @@ describe('ChatClient', () => {
             toolCallName: 'staleTool',
             toolName: 'staleTool',
             parentMessageId: 'assistant-a',
-            model: 'test',
             timestamp: Date.now(),
             index: 0,
           } as StreamChunk
           yield {
             type: 'TOOL_CALL_ARGS',
             toolCallId: 'stale-tool',
-            model: 'test',
             timestamp: Date.now(),
             delta: '{"stale":true}',
           } as StreamChunk
@@ -1273,7 +1257,6 @@ describe('ChatClient', () => {
             messageId: 'stale-runless-message',
             timestamp: Date.now(),
             delta: 'stale text',
-            content: 'stale text',
           } as StreamChunk
           yield {
             type: 'TOOL_CALL_START',
@@ -1281,14 +1264,12 @@ describe('ChatClient', () => {
             toolCallName: 'staleTool',
             toolName: 'staleTool',
             parentMessageId: 'stale-runless-message',
-            model: 'test',
             timestamp: Date.now(),
             index: 0,
           } as StreamChunk
           yield {
             type: 'TOOL_CALL_ARGS',
             toolCallId: 'stale-child-tool',
-            model: 'test',
             timestamp: Date.now(),
             delta: '{"stale":true}',
           } as StreamChunk
@@ -1337,14 +1318,12 @@ describe('ChatClient', () => {
             toolCallId: 'stale-parentless-tool',
             toolCallName: 'staleTool',
             toolName: 'staleTool',
-            model: 'test',
             timestamp: Date.now(),
             index: 0,
           } as StreamChunk
           yield {
             type: 'TOOL_CALL_ARGS',
             toolCallId: 'stale-parentless-tool',
-            model: 'test',
             timestamp: Date.now(),
             delta: '{"stale":true}',
           } as StreamChunk
@@ -1546,7 +1525,6 @@ describe('ChatClient', () => {
               messageId: 'public-message',
               timestamp: Date.now(),
               delta: 'Hello',
-              content: 'Hello',
             } as StreamChunk
           },
         },
@@ -1680,10 +1658,8 @@ describe('ChatClient', () => {
         {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
-          model: 'test',
           timestamp: Date.now(),
           delta: 'H',
-          content: 'H',
         },
       ])
       const client = new ChatClient({ connection: adapter })
@@ -1740,10 +1716,8 @@ describe('ChatClient', () => {
         {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-1',
-          model: 'test',
           timestamp: Date.now(),
           delta: 'H',
-          content: 'H',
         },
       ])
       const client = new ChatClient({ connection: adapter })
@@ -1777,16 +1751,13 @@ describe('ChatClient', () => {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
             threadId: 'thread-1',
-            model: 'test',
             timestamp: Date.now(),
           },
           {
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
-            model: 'test',
             timestamp: Date.now(),
             delta: 'Hi',
-            content: 'Hi',
           },
           {
             type: EventType.RUN_FINISHED,
@@ -1818,7 +1789,6 @@ describe('ChatClient', () => {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
             threadId: 'thread-1',
-            model: 'test',
             timestamp: Date.now(),
           },
           {
@@ -1851,16 +1821,13 @@ describe('ChatClient', () => {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
             threadId: 'thread-1',
-            model: 'test',
             timestamp: Date.now(),
           },
           {
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
-            model: 'test',
             timestamp: Date.now(),
             delta: 'Hi',
-            content: 'Hi',
           },
           {
             type: EventType.RUN_FINISHED,
@@ -1894,7 +1861,6 @@ describe('ChatClient', () => {
                   type: EventType.RUN_STARTED as const,
                   runId: 'run-1',
                   threadId: 'thread-1',
-                  model: 'test',
                   timestamp: Date.now(),
                 }
               }
@@ -1938,7 +1904,6 @@ describe('ChatClient', () => {
                   type: EventType.RUN_STARTED as const,
                   runId: 'run-1',
                   threadId: 'thread-1',
-                  model: 'test',
                   timestamp: Date.now(),
                 }
               }
@@ -1977,23 +1942,19 @@ describe('ChatClient', () => {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
             threadId: 'thread-1',
-            model: 'test',
             timestamp: Date.now(),
           },
           {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
             threadId: 'thread-1',
-            model: 'test',
             timestamp: Date.now(),
           },
           {
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
-            model: 'test',
             timestamp: Date.now(),
             delta: 'Hi',
-            content: 'Hi',
           },
           {
             type: EventType.RUN_FINISHED,
@@ -2032,16 +1993,13 @@ describe('ChatClient', () => {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
             threadId: 'thread-1',
-            model: 'test',
             timestamp: Date.now(),
           },
           {
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
-            model: 'test',
             timestamp: Date.now(),
             delta: 'A',
-            content: 'A',
           },
           {
             type: EventType.RUN_FINISHED,
@@ -2098,14 +2056,12 @@ describe('ChatClient', () => {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
             threadId: 'thread-1',
-            model: 'test',
             timestamp: Date.now(),
           },
           {
             type: EventType.RUN_STARTED,
             runId: 'run-2',
             threadId: 'thread-1',
-            model: 'test',
             timestamp: Date.now(),
           },
         )
@@ -2197,14 +2153,12 @@ describe('ChatClient', () => {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
             threadId: 'thread-1',
-            model: 'test',
             timestamp: Date.now(),
           },
           {
             type: EventType.RUN_STARTED,
             runId: 'run-2',
             threadId: 'thread-1',
-            model: 'test',
             timestamp: Date.now(),
           },
         )
@@ -2239,7 +2193,6 @@ describe('ChatClient', () => {
                 type: EventType.RUN_STARTED as const,
                 runId: 'run-1',
                 threadId: 'thread-1',
-                model: 'test',
                 timestamp: Date.now(),
               }
               await new Promise((resolve) => setTimeout(resolve, 10))
@@ -3365,10 +3318,8 @@ describe('ChatClient', () => {
           {
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: 'msg-1',
-            model: 'test',
             timestamp: Date.now(),
             delta: 'H',
-            content: 'H',
           },
         ],
         chunkDelay: 50,
@@ -4348,20 +4299,17 @@ describe('ChatClient', () => {
           type: EventType.RUN_STARTED,
           runId: 'run-a',
           threadId: 'thread-1',
-          model: 'test',
           timestamp: Date.now(),
         },
         {
           type: EventType.TEXT_MESSAGE_START,
           messageId: 'msg-a',
           role: 'assistant',
-          model: 'test',
           timestamp: Date.now(),
         },
         {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-a',
-          model: 'test',
           timestamp: Date.now(),
           delta: 'Story: ',
         },
@@ -4378,20 +4326,17 @@ describe('ChatClient', () => {
           type: EventType.RUN_STARTED,
           runId: 'run-b',
           threadId: 'thread-1',
-          model: 'test',
           timestamp: Date.now(),
         },
         {
           type: EventType.TEXT_MESSAGE_START,
           messageId: 'msg-b',
           role: 'assistant',
-          model: 'test',
           timestamp: Date.now(),
         },
         {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-b',
-          model: 'test',
           timestamp: Date.now(),
           delta: 'Hi!',
         },
@@ -4419,7 +4364,6 @@ describe('ChatClient', () => {
       push({
         type: EventType.TEXT_MESSAGE_CONTENT,
         messageId: 'msg-a',
-        model: 'test',
         timestamp: Date.now(),
         delta: 'once upon a time',
       })
@@ -4492,13 +4436,11 @@ describe('ChatClient', () => {
           type: EventType.RUN_STARTED,
           runId: 'run-1',
           threadId: 'thread-1',
-          model: 'test',
           timestamp: Date.now(),
         },
         {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'asst-1',
-          model: 'test',
           timestamp: Date.now(),
           delta: 'time...',
         },

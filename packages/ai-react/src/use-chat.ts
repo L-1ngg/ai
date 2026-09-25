@@ -41,9 +41,11 @@ export function useChat<
   const TInterrupts extends ReadonlyArray<
     InterruptDefinition<any, any, any, any>
   > = readonly [],
+  const TSubagents extends ReadonlyArray<{ name: string }> | undefined =
+    undefined,
 >(
-  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
-): UseChatReturn<TTools, TSchema, TInterrupts> {
+  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>,
+): UseChatReturn<TTools, TSchema, TInterrupts, TSubagents> {
   // The hook's identity is its `threadId`. Reload with the same `threadId`
   // restores the same conversation. `hookId` is only a React recreation key
   // when no `threadId` is given. It is never sent on the wire.
@@ -65,7 +67,9 @@ export function useChat<
 
   // Track current options in a ref to avoid recreating client when options change
   const optionsRef =
-    useRef<UseChatOptions<TTools, TSchema, TContext, TInterrupts>>(options)
+    useRef<UseChatOptions<TTools, TSchema, TContext, TInterrupts, TSubagents>>(
+      options,
+    )
   optionsRef.current = options
 
   // Create ChatClient once per clientId. User callbacks read latest options.
@@ -158,16 +162,24 @@ export function useChat<
         devtoolsBridgeFactory: createChatDevtoolsBridge,
         ...transport,
         initialMessages: messagesToUse,
-        ...(typeof initialOptions.threadId === 'string' && persistence
+        ...(typeof initialOptions.threadId === 'string' && persistence === true
           ? {
-              persistence,
+              persistence: true,
               threadId: initialOptions.threadId,
-            }
-          : {
-              ...(initialOptions.threadId !== undefined && {
-                threadId: initialOptions.threadId,
+              ...(initialOptions.history !== undefined && {
+                history: initialOptions.history,
               }),
-            }),
+            }
+          : typeof initialOptions.threadId === 'string' && persistence
+            ? {
+                persistence,
+                threadId: initialOptions.threadId,
+              }
+            : {
+                ...(initialOptions.threadId !== undefined && {
+                  threadId: initialOptions.threadId,
+                }),
+              }),
         ...(initialOptions.body !== undefined && { body: initialOptions.body }),
         ...(initialOptions.forwardedProps !== undefined && {
           forwardedProps: initialOptions.forwardedProps,
@@ -408,6 +420,10 @@ export function useChat<
     await client.reload()
   }, [client])
 
+  const loadOlderMessages = useCallback(async () => {
+    await client.loadOlderMessages()
+  }, [client])
+
   const stop = useCallback(() => {
     client.stop()
   }, [client])
@@ -526,17 +542,22 @@ export function useChat<
     return activeStructuredPart.data as Final
   }, [activeStructuredPart])
 
+  const subagents = useMemo(() => client.getSubagents(), [renderedMessages])
+
   // The runtime shape unconditionally exposes partial/final; the public
   // return type hides them when no outputSchema was supplied. TS can't
   // structurally narrow across that conditional, so the `as` is the seam.
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- hook return shape diverges from generic UseChatReturn<TTools, TSchema> due to conditional type on TSchema; TS can't structurally narrow
   return {
     messages: renderedMessages,
+    subagents,
     sendMessage,
     append,
     reload,
     stop,
     isLoading: snapshot.isLoading,
+    hasOlderMessages: snapshot.hasOlderMessages,
+    loadOlderMessages,
     error: snapshot.error,
     status: snapshot.status,
     isSubscribed: snapshot.isSubscribed,
@@ -560,5 +581,5 @@ export function useChat<
     resumeInterrupts,
     partial,
     final,
-  } as unknown as UseChatReturn<TTools, TSchema, TInterrupts>
+  } as unknown as UseChatReturn<TTools, TSchema, TInterrupts, TSubagents>
 }

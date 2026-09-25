@@ -1,4 +1,5 @@
 import { ByokBlockedError, ByokMissingError } from '@tanstack/ai/byok'
+import { byokFallbackProviderId } from './byok/client'
 import {
   prepareResolvedByokHeaders,
   resolveByokProviderId,
@@ -298,6 +299,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
         const provider = resolveByokProviderId(
           this.byokProvider,
           this.body.provider,
+          byokFallbackProviderId(this.byok),
         )
         headers = await prepareResolvedByokHeaders(this.byok, provider)
         if (!this.ownsRun(abortController)) return

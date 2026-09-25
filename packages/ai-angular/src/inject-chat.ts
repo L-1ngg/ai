@@ -69,6 +69,7 @@ export function injectChat<
     options.initialMessages || [],
   )
   const isLoading = signal(false)
+  const hasOlderMessages = signal(false)
   const error = signal<Error | undefined>(undefined)
   const status = signal<ChatClientState>('ready')
   const isSubscribed = signal(false)
@@ -94,6 +95,8 @@ export function injectChat<
     options.context !== undefined ? toReactive(options.context) : undefined
   const liveSource =
     options.live !== undefined ? toReactive(options.live) : undefined
+  const toolsSource =
+    options.tools !== undefined ? toReactive(options.tools) : undefined
 
   const transport = options.connection
     ? { connection: options.connection }
@@ -105,14 +108,24 @@ export function injectChat<
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(typeof options.threadId === 'string' && options.persistence
+    ...(typeof options.threadId === 'string' && options.persistence === true
       ? {
-          persistence: options.persistence,
+          persistence: true,
           threadId: options.threadId,
+          ...(options.history !== undefined && {
+            history: options.history,
+          }),
         }
-      : {
-          ...(options.threadId !== undefined && { threadId: options.threadId }),
-        }),
+      : typeof options.threadId === 'string' && options.persistence
+        ? {
+            persistence: options.persistence,
+            threadId: options.threadId,
+          }
+        : {
+            ...(options.threadId !== undefined && {
+              threadId: options.threadId,
+            }),
+          }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
@@ -136,7 +149,7 @@ export function injectChat<
     onInterruptStateChange: (nextInterruptState, context) => {
       options.onInterruptStateChange?.(nextInterruptState, context)
     },
-    tools: options.tools,
+    tools: toolsSource?.(),
     ...(options.interrupts !== undefined && {
       interrupts: options.interrupts,
     }),
@@ -152,6 +165,7 @@ export function injectChat<
     const next = client.getSnapshot()
     messages.set(next.messages as Array<UIMessage<TTools>>)
     isLoading.set(next.isLoading)
+    hasOlderMessages.set(next.hasOlderMessages)
     error.set(next.error)
     status.set(next.status)
     isSubscribed.set(next.isSubscribed)
@@ -189,6 +203,11 @@ export function injectChat<
       },
       { injector },
     )
+  }
+
+  // Sync reactive tools to the client.
+  if (toolsSource) {
+    effect(() => client.updateOptions({ tools: toolsSource() }), { injector })
   }
 
   // Subscribe / unsubscribe based on reactive `live`.
@@ -276,6 +295,9 @@ export function injectChat<
   const reload = async () => {
     await client.reload()
   }
+  const loadOlderMessages = async () => {
+    await client.loadOlderMessages()
+  }
   const stop = () => client.stop()
   const clear = () => client.clear()
   const setMessages = (m: Array<UIMessage<TTools>>) =>
@@ -329,6 +351,8 @@ export function injectChat<
     reload,
     stop,
     isLoading: isLoading.asReadonly(),
+    hasOlderMessages: hasOlderMessages.asReadonly(),
+    loadOlderMessages,
     error: error.asReadonly(),
     status: status.asReadonly(),
     isSubscribed: isSubscribed.asReadonly(),

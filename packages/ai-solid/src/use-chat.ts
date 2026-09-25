@@ -5,6 +5,7 @@ import {
   createUniqueId,
   onCleanup,
   onMount,
+  untrack,
 } from 'solid-js'
 
 import { ChatClient } from '@tanstack/ai-client'
@@ -65,6 +66,7 @@ export function useChat<
     options.initialMessages || [],
   )
   const [isLoading, setIsLoading] = createSignal(false)
+  const [hasOlderMessages, setHasOlderMessages] = createSignal(false)
   const [error, setError] = createSignal<Error | undefined>(undefined)
   const [status, setStatus] = createSignal<ChatClientState>('ready')
   const [isSubscribed, setIsSubscribed] = createSignal(false)
@@ -103,22 +105,30 @@ export function useChat<
     const transport = options.connection
       ? { connection: options.connection }
       : { fetcher: options.fetcher }
-    return new ChatClient<TTools, TContext, TInterrupts>({
+    const instance = new ChatClient<TTools, TContext, TInterrupts>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       ...(options.initialMessages !== undefined && {
         initialMessages: options.initialMessages,
       }),
-      ...(typeof options.threadId === 'string' && options.persistence
+      ...(typeof options.threadId === 'string' && options.persistence === true
         ? {
-            persistence: options.persistence,
+            persistence: true,
             threadId: options.threadId,
-          }
-        : {
-            ...(options.threadId !== undefined && {
-              threadId: options.threadId,
+            ...(options.history !== undefined && {
+              history: options.history,
             }),
-          }),
+          }
+        : typeof options.threadId === 'string' && options.persistence
+          ? {
+              persistence: options.persistence,
+              threadId: options.threadId,
+            }
+          : {
+              ...(options.threadId !== undefined && {
+                threadId: options.threadId,
+              }),
+            }),
       ...(options.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: options.initialResumeSnapshot,
       }),
@@ -145,7 +155,9 @@ export function useChat<
       onError: (err) => {
         options.onError?.(err)
       },
-      tools: options.tools,
+      // Untracked: a tools change must not rebuild the client. The effect
+      // below syncs it instead.
+      tools: untrack(() => options.tools),
       ...(options.interrupts !== undefined && {
         interrupts: options.interrupts,
       }),
@@ -161,12 +173,14 @@ export function useChat<
     })
     // Only recreate when clientId changes
     // Connection and other options are captured at creation time
+    return instance
   }, [clientId])
 
   const applySnapshot = (target: ChatClient<TTools, TContext, TInterrupts>) => {
     const next = target.getSnapshot()
     setMessages(next.messages as Array<UIMessage<TTools>>)
     setIsLoading(next.isLoading)
+    setHasOlderMessages(next.hasOlderMessages)
     setError(next.error)
     setStatus(next.status)
     setIsSubscribed(next.isSubscribed)
@@ -198,6 +212,13 @@ export function useChat<
       context: options.context,
       ...(options.queue !== undefined && { queue: options.queue }),
     })
+  })
+
+  // Sync tools, so a getter such as `get tools() { return pageTools() }`
+  // updates the client.
+  createEffect(() => {
+    const tools = options.tools
+    if (tools !== undefined) client().updateOptions({ tools })
   })
 
   // Apply initial live mode immediately on hook creation.
@@ -259,6 +280,10 @@ export function useChat<
 
   const reload = async () => {
     await client().reload()
+  }
+
+  const loadOlderMessages = async () => {
+    await client().loadOlderMessages()
   }
 
   const stop = () => {
@@ -380,6 +405,8 @@ export function useChat<
     reload,
     stop,
     isLoading,
+    hasOlderMessages,
+    loadOlderMessages,
     error,
     status,
     isSubscribed,

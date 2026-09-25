@@ -97,16 +97,25 @@ export function useChat<
       initialMessages: messagesToUse,
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
       ...(typeof initialOptions.threadId === 'string' &&
-      initialOptions.persistence
+      initialOptions.persistence === true
         ? {
-            persistence: initialOptions.persistence,
+            persistence: true,
             threadId: initialOptions.threadId,
-          }
-        : {
-            ...(initialOptions.threadId !== undefined && {
-              threadId: initialOptions.threadId,
+            ...(initialOptions.history !== undefined && {
+              history: initialOptions.history,
             }),
-          }),
+          }
+        : typeof initialOptions.threadId === 'string' &&
+            initialOptions.persistence
+          ? {
+              persistence: initialOptions.persistence,
+              threadId: initialOptions.threadId,
+            }
+          : {
+              ...(initialOptions.threadId !== undefined && {
+                threadId: initialOptions.threadId,
+              }),
+            }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
@@ -222,6 +231,12 @@ export function useChat<
   ])
 
   useEffect(() => {
+    if (options.tools !== undefined) {
+      client.updateOptions({ tools: options.tools })
+    }
+  }, [client, options.tools])
+
+  useEffect(() => {
     if (options.live) {
       client.subscribe()
     } else {
@@ -319,6 +334,10 @@ export function useChat<
     await client.reload()
   }, [client])
 
+  const loadOlderMessages = useCallback(async () => {
+    await client.loadOlderMessages()
+  }, [client])
+
   const stop = useCallback(() => {
     client.stop()
   }, [client])
@@ -401,6 +420,8 @@ export function useChat<
     reload,
     stop,
     isLoading: snapshot.isLoading,
+    hasOlderMessages: snapshot.hasOlderMessages,
+    loadOlderMessages,
     error: snapshot.error,
     status: snapshot.status,
     isSubscribed: snapshot.isSubscribed,

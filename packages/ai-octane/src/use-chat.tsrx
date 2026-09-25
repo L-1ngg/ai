@@ -95,16 +95,25 @@ export function useChat<
       ...transport,
       initialMessages: messagesToUse,
       ...(typeof initialOptions.threadId === 'string' &&
-      initialOptions.persistence
+      initialOptions.persistence === true
         ? {
-            persistence: initialOptions.persistence,
+            persistence: true,
             threadId: initialOptions.threadId,
-          }
-        : {
-            ...(initialOptions.threadId !== undefined && {
-              threadId: initialOptions.threadId,
+            ...(initialOptions.history !== undefined && {
+              history: initialOptions.history,
             }),
-          }),
+          }
+        : typeof initialOptions.threadId === 'string' &&
+            initialOptions.persistence
+          ? {
+              persistence: initialOptions.persistence,
+              threadId: initialOptions.threadId,
+            }
+          : {
+              ...(initialOptions.threadId !== undefined && {
+                threadId: initialOptions.threadId,
+              }),
+            }),
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
@@ -183,6 +192,9 @@ export function useChat<
     firstPaint.messages as Array<UIMessage<TTools>>,
   )
   const [isLoading, setIsLoading] = useState(firstPaint.isLoading)
+  const [hasOlderMessages, setHasOlderMessages] = useState(
+    firstPaint.hasOlderMessages,
+  )
   const [error, setError] = useState(firstPaint.error)
   const [status, setStatus] = useState(firstPaint.status)
   const [isSubscribed, setIsSubscribed] = useState(firstPaint.isSubscribed)
@@ -223,6 +235,7 @@ export function useChat<
       const next = client.getSnapshot()
       setMessages(next.messages as Array<UIMessage<TTools>>)
       setIsLoading(next.isLoading)
+      setHasOlderMessages(next.hasOlderMessages)
       setError(next.error)
       setStatus(next.status)
       setIsSubscribed(next.isSubscribed)
@@ -343,6 +356,10 @@ export function useChat<
 
   const reload = useCallback(async () => {
     await client.reload()
+  }, [client])
+
+  const loadOlderMessages = useCallback(async () => {
+    await client.loadOlderMessages()
   }, [client])
 
   const stop = useCallback(() => {
@@ -474,6 +491,8 @@ export function useChat<
     reload,
     stop,
     isLoading,
+    hasOlderMessages,
+    loadOlderMessages,
     error,
     status,
     isSubscribed,

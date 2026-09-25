@@ -6,6 +6,7 @@ import {
   onScopeDispose,
   readonly,
   shallowRef,
+  toValue,
   watch,
 } from 'vue'
 import type {
@@ -58,6 +59,7 @@ export function useChat<
     options.initialMessages || [],
   )
   const isLoading = shallowRef(false)
+  const hasOlderMessages = shallowRef(false)
   const error = shallowRef<Error | undefined>(undefined)
   const status = shallowRef<ChatClientState>('ready')
   const isSubscribed = shallowRef(false)
@@ -106,14 +108,24 @@ export function useChat<
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(typeof options.threadId === 'string' && options.persistence
+    ...(typeof options.threadId === 'string' && options.persistence === true
       ? {
-          persistence: options.persistence,
+          persistence: true,
           threadId: options.threadId,
+          ...(options.history !== undefined && {
+            history: options.history,
+          }),
         }
-      : {
-          ...(options.threadId !== undefined && { threadId: options.threadId }),
-        }),
+      : typeof options.threadId === 'string' && options.persistence
+        ? {
+            persistence: options.persistence,
+            threadId: options.threadId,
+          }
+        : {
+            ...(options.threadId !== undefined && {
+              threadId: options.threadId,
+            }),
+          }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
@@ -140,7 +152,7 @@ export function useChat<
     onError: (err) => {
       options.onError?.(err)
     },
-    tools: options.tools,
+    tools: toValue(options.tools),
     ...(options.interrupts !== undefined && {
       interrupts: options.interrupts,
     }),
@@ -159,6 +171,7 @@ export function useChat<
     const next = client.getSnapshot()
     messages.value = next.messages as Array<UIMessage<TTools>>
     isLoading.value = next.isLoading
+    hasOlderMessages.value = next.hasOlderMessages
     error.value = next.error
     status.value = next.status
     isSubscribed.value = next.isSubscribed
@@ -194,6 +207,13 @@ export function useChat<
         context: newContext,
         ...(newQueue !== undefined && { queue: newQueue }),
       })
+    },
+  )
+
+  watch(
+    () => toValue(options.tools),
+    (tools) => {
+      if (tools !== undefined) client.updateOptions({ tools })
     },
   )
 
@@ -250,6 +270,10 @@ export function useChat<
 
   const reload = async () => {
     await client.reload()
+  }
+
+  const loadOlderMessages = async () => {
+    await client.loadOlderMessages()
   }
 
   const stop = () => {
@@ -374,6 +398,8 @@ export function useChat<
     reload,
     stop,
     isLoading: readonly(isLoading),
+    hasOlderMessages: readonly(hasOlderMessages),
+    loadOlderMessages,
     error: readonly(error),
     status: readonly(status),
     isSubscribed: readonly(isSubscribed),

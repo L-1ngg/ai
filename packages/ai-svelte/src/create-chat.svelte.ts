@@ -75,6 +75,7 @@ export function createChat<
   // Create reactive state using Svelte 5 runes
   let messages = $state<Array<UIMessage<TTools>>>(options.initialMessages || [])
   let isLoading = $state(false)
+  let hasOlderMessages = $state(false)
   let error = $state<Error | undefined>(undefined)
   let status = $state<ChatClientState>('ready')
   let isSubscribed = $state(false)
@@ -119,14 +120,24 @@ export function createChat<
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(typeof options.threadId === 'string' && options.persistence
+    ...(typeof options.threadId === 'string' && options.persistence === true
       ? {
-          persistence: options.persistence,
+          persistence: true,
           threadId: options.threadId,
+          ...(options.history !== undefined && {
+            history: options.history,
+          }),
         }
-      : {
-          ...(options.threadId !== undefined && { threadId: options.threadId }),
-        }),
+      : typeof options.threadId === 'string' && options.persistence
+        ? {
+            persistence: options.persistence,
+            threadId: options.threadId,
+          }
+        : {
+            ...(options.threadId !== undefined && {
+              threadId: options.threadId,
+            }),
+          }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
@@ -173,6 +184,7 @@ export function createChat<
     const next = client.getSnapshot()
     messages = next.messages as Array<UIMessage<TTools>>
     isLoading = next.isLoading
+    hasOlderMessages = next.hasOlderMessages
     error = next.error
     status = next.status
     isSubscribed = next.isSubscribed
@@ -193,6 +205,16 @@ export function createChat<
   client.mountDevtools()
 
   if (typeof window !== 'undefined') {
+    try {
+      // Sync tools, so a getter such as `get tools() { return page.tools }`
+      // updates the client.
+      $effect.pre(() => {
+        const tools = options.tools
+        if (tools !== undefined) client.updateOptions({ tools })
+      })
+    } catch {
+      // Effects are only valid during component initialization.
+    }
     try {
       onMount(() => {
         // Delivery-durability resume is transparent: the resumable SSE
@@ -238,6 +260,10 @@ export function createChat<
 
   const reload = async () => {
     await client.reload()
+  }
+
+  const loadOlderMessages = async () => {
+    await client.loadOlderMessages()
   }
 
   const stop = () => {
@@ -372,6 +398,9 @@ export function createChat<
     get isLoading() {
       return isLoading
     },
+    get hasOlderMessages() {
+      return hasOlderMessages
+    },
     get error() {
       return error
     },
@@ -415,6 +444,7 @@ export function createChat<
     cancelQueued,
     append,
     reload,
+    loadOlderMessages,
     stop,
     dispose,
     setMessages,
