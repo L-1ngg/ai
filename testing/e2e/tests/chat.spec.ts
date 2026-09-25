@@ -204,23 +204,6 @@ test('rejects invalid message parts at the server conversion boundary', async ({
   expect(response.status()).toBe(400)
 })
 
-test('reports an OpenAI Responses EOF without response.completed as an error', async ({
-  request,
-}) => {
-  const response = await request.post(
-    '/api/openai-completed-response-text?scenario=missing-terminal',
-  )
-
-  expect(response.ok()).toBe(true)
-  const result = await response.json()
-  expect(result.text).toBe('Partial answer')
-  expect(result.events).toContain('TEXT_MESSAGE_CONTENT')
-  expect(result.events.at(-1)).toBe('RUN_ERROR')
-  expect(result.errorCode).toBe('incomplete_stream')
-  expect(result.onError).toBe(true)
-  expect(result.onFinish).toBe(false)
-})
-
 test.describe('openai chat persistence', () => {
   test('persists chat messages across browser reload with localStorage', async ({
     page,

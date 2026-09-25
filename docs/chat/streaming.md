@@ -133,7 +133,7 @@ export async function POST(request: Request) {
 
 A dropped connection mid-line throws `StreamTruncatedError`. The client then moves to `error`. See [Connection Adapters](./connection-adapters).
 
-For OpenAI Responses, an upstream stream that ends without `response.completed` emits `RUN_ERROR` with code `incomplete_stream`. Text received before the error remains available. The run does not call `onFinish`.
+For OpenAI Responses structured output, a stream that ends without `response.completed` emits `RUN_ERROR` with code `incomplete-stream`. Text received before the error remains available. The run does not call `onFinish`.
 
 ## Later
 

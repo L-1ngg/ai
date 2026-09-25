@@ -645,15 +645,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
 
       if (!responseCompleted) {
-        const message = 'Responses API stream ended without response.completed'
+        const message = 'Response stream ended before response.completed'
         yield {
           type: EventType.RUN_ERROR,
           runId: aguiState.runId,
           model,
           timestamp: Date.now(),
           message,
-          code: 'incomplete_stream',
-          error: { message, code: 'incomplete_stream' },
+          code: 'incomplete-stream',
+          error: { message, code: 'incomplete-stream' },
         }
         return
       }
@@ -926,7 +926,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     let reasoningEncryptedContent: string | undefined
     let closedReasoningStepId: string | undefined
     let hasClosedReasoning = false
-    // Terminal provider errors return before the EOF check below.
+    // Track whether we've emitted a terminal RUN_FINISHED so the
+    // end-of-stream fallback below knows to synthesise one when the upstream
+    // cuts off without a response.completed event.
     let runFinishedEmitted = false
 
     const adapterName = this.name

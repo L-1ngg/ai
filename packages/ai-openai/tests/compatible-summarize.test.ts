@@ -14,11 +14,7 @@ function setup(api: 'chat-completions' | 'responses', name?: string) {
     maxRetries: 0,
     fetch: async (_input, init) => {
       requests.push(JSON.parse(String(init?.body)))
-      const body =
-        api === 'responses'
-          ? 'data: {"type":"response.completed","response":{"model":"test-model","output":[]}}\n\ndata: [DONE]\n\n'
-          : 'data: [DONE]\n\n'
-      return new Response(body, {
+      return new Response('data: [DONE]\n\n', {
         headers: { 'content-type': 'text/event-stream' },
       })
     },
