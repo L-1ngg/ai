@@ -49,6 +49,13 @@ class SSEAdapter extends OpenAIBaseChatCompletionsTextAdapter<string> {
   }
 }
 
+/**
+ * Runs SSE chunks through the real OpenAI SDK and chat() to observe completion.
+ * `done` appends the protocol's [DONE] marker. `cancel` aborts after the first
+ * text delta so tests can distinguish caller cancellation from incomplete EOF.
+ *
+ * @returns Emitted events and spies for terminal hooks and server tool execution.
+ */
 async function observe(
   chunks: Array<Record<string, unknown>>,
   { done = false, cancel = false } = {},
