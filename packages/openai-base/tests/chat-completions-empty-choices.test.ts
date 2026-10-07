@@ -72,9 +72,13 @@ const weatherTool: Tool = {
 }
 
 /**
- * Preserve trailing usage and the historical no-finish_reason compatibility
- * case added in PR #676 after issue #371. These mocked chunks describe the
- * adapter's supported behavior, not current provider protocol guarantees.
+ * Regression guard for issue #371 (OpenRouter) and the broader class of
+ * OpenAI-compatible providers (DeepSeek, Together, Fireworks) that deliver the
+ * terminal token-usage payload on a separate chunk whose `choices` array is
+ * empty (`choices: []`). A naive `const choice = chunk.choices[0]; if (!choice)
+ * continue` skips that chunk entirely, which — depending on where the provider
+ * placed `finish_reason` — can strand an in-progress tool call so it never
+ * emits TOOL_CALL_END and the tool never executes.
  */
 describe('OpenAIBaseChatCompletionsTextAdapter — usage-only terminal chunk', () => {
   beforeEach(() => {
@@ -104,7 +108,8 @@ describe('OpenAIBaseChatCompletionsTextAdapter — usage-only terminal chunk', (
           },
         ],
       },
-      // Final chunk: empty choices, usage only.
+      // Final chunk: empty choices, usage only (DeepSeek / Together / Fireworks
+      // / OpenRouter terminal shape).
       {
         id: 'chatcmpl-empty-1',
         model: 'test-model',
@@ -145,7 +150,11 @@ describe('OpenAIBaseChatCompletionsTextAdapter — usage-only terminal chunk', (
     }
   })
 
-  it('preserves the historical no-finish_reason fallback when the final chunk contains only usage', async () => {
+  it('finalizes a tool call when NO finish_reason ever arrives on a choice and the stream ends with a usage-only empty-choices chunk (issue #371)', async () => {
+    // The strict #371 repro: the tool call is opened, but the provider never
+    // delivers `finish_reason` on a populated choice — the only terminal signal
+    // is a `choices: []` usage chunk. The post-loop drain must still close the
+    // started tool call so downstream tool execution is triggered.
     const streamChunks = [
       {
         id: 'chatcmpl-empty-2',
